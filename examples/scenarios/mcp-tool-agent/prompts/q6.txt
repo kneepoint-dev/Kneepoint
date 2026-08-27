@@ -1,0 +1,1 @@
+Use the search tool to find the three most recent incidents tagged "checkout", then tell me which services they touched.

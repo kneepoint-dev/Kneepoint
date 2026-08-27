@@ -1,0 +1,62 @@
+[project]
+name = "kneepoint"
+version = "0.2.0"
+description = "Find where your AI agent breaks: load, cost, and chaos testing for AI agents."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+authors = [{ name = "The Kneepoint Authors" }]
+keywords = ["ai-agents", "load-testing", "chaos-engineering", "llm", "performance-testing"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Testing :: Traffic Generation",
+]
+dependencies = [
+  "httpx>=0.27",
+  "typer>=0.12",
+  "pydantic>=2",
+  "pyyaml",
+  "jinja2",
+  "plotly",
+  "kneed",
+  "uvicorn",
+]
+
+[project.urls]
+Homepage = "https://kneepoint.dev"
+Repository = "https://github.com/kneepoint-dev/kneepoint"
+
+[project.optional-dependencies]
+docs = ["mkdocs-material"]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "ruff",
+  "build",
+  "twine",
+]
+
+[project.scripts]
+kneepoint = "kneepoint.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kneepoint"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]  # this package's suite only; other apps in the repo bring their own

@@ -1,0 +1,30 @@
+name: Bug report
+description: Something broke that wasn't supposed to (we only break agents on purpose).
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes: {label: kneepoint version, placeholder: "0.2.0 (kneepoint --version)"}
+    validations: {required: true}
+  - type: input
+    id: python
+    attributes: {label: Python version + OS, placeholder: "3.12 on Ubuntu 24.04"}
+    validations: {required: true}
+  - type: textarea
+    id: command
+    attributes: {label: Exact command or scenario YAML, render: shell}
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes: {label: What you expected}
+    validations: {required: true}
+  - type: textarea
+    id: actual
+    attributes: {label: What happened (output, traceback)}
+    validations: {required: true}
+  - type: textarea
+    id: records
+    attributes:
+      label: Run records (optional)
+      description: A few lines from the run's `run-*.jsonl` / `run-*-sessions.jsonl` help enormously.
+      render: json

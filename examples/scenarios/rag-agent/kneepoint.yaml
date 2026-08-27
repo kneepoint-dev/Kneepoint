@@ -1,0 +1,37 @@
+# RAG agent under load: retrieval-grounded questions with bigger inputs.
+# Watch the quality curve, not just latency - RAG agents often keep answering
+# fast while retrieval degrades and answers detach from the corpus.
+# Run: kneepoint run --scenario examples/scenarios/rag-agent/kneepoint.yaml
+
+target:
+  type: openai-compatible
+  url: http://127.0.0.1:8000/v1
+  model: mock
+
+workload:
+  ramp: {from: 1, to: 40, step: 5, hold_seconds: 20}
+  conversation:
+    turns: {min: 1, max: 2}
+    corpus: ./prompts/*.txt
+    think_time_ms: {min_ms: 500, max_ms: 2000}
+
+resolution:
+  # The bundled mock emits [RESOLVED ...]. For a real RAG agent, check for a
+  # citation instead, e.g. {kind: regex, value: '\[(source|doc|\d+)\]'}
+  check: {kind: contains, value: "[RESOLVED"}
+
+cost:
+  input_per_mtok: 3.00              # RAG cost lives in the INPUT tokens
+  output_per_mtok: 15.00
+  max_spend: 5.00
+
+chaos:
+  profile: custom                   # retrieval is a tool: hit it hardest
+  faults:
+    - {type: tool_timeout, probability: 0.08}
+    - {type: tool_malformed_json, probability: 0.04}
+    - {type: llm_rate_limit, probability: 0.02}
+
+slo:
+  min_resolution_rate: 0.85
+  max_cost_per_resolved: 0.05

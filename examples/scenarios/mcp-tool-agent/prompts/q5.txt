@@ -1,0 +1,1 @@
+Query the billing system for all invoices over $500 in the last quarter and list them.

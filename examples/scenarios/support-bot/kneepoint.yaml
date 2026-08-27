@@ -1,0 +1,30 @@
+# Support bot under load: the classic. Multi-turn customers, growing context,
+# standard chaos, a hard resolution marker.
+# Run: kneepoint run --scenario examples/scenarios/support-bot/kneepoint.yaml
+
+target:
+  type: openai-compatible
+  url: http://127.0.0.1:8000/v1     # your support agent's endpoint
+  model: mock
+
+workload:
+  ramp: {from: 1, to: 50, step: 5, hold_seconds: 20}
+  conversation:
+    turns: {min: 1, max: 3}
+    corpus: ./prompts/*.txt          # resolved relative to this file
+    think_time_ms: {min_ms: 200, max_ms: 1500}
+
+resolution:
+  check: {kind: contains, value: "[RESOLVED"}   # swap for your agent's own done-marker
+
+cost:
+  input_per_mtok: 3.00
+  output_per_mtok: 15.00
+  max_spend: 5.00
+
+chaos:
+  profile: standard
+
+slo:
+  min_resolution_rate: 0.90
+  p95_total_ms: 12000

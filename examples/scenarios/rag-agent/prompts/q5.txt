@@ -1,0 +1,1 @@
+Which plan tiers include SSO according to the pricing docs, and is there an extra per-seat charge on the Team tier?

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/kneepoint-dev/kneepoint/discussions
+    about: Usage questions and ideas that aren't yet concrete issues.

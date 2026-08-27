@@ -1,0 +1,1 @@
+Find the section of the API docs that covers rate limits and tell me the exact requests-per-minute ceiling for the free tier, with the header names used to signal it.

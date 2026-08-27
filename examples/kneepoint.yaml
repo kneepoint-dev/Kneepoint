@@ -1,0 +1,31 @@
+# kneepoint scenario - see https://kneepoint.dev
+# Run with: kneepoint run --scenario examples/kneepoint.yaml
+
+target:
+  type: openai-compatible
+  url: http://127.0.0.1:8000/v1   # the bundled mock agent (uvicorn examples.mock_agent.app:app)
+  model: mock
+  # auth_env: AGENT_API_KEY       # env var holding a bearer token, if your agent needs one
+
+workload:
+  ramp: {from: 1, to: 50, step: 5, hold_seconds: 20}
+  conversation:
+    turns: {min: 1, max: 3}
+    corpus: ./prompts/support/*.txt   # resolved relative to this file
+
+resolution:
+  check: {kind: contains, value: "[RESOLVED"}   # deterministic; use judge if no marker
+  # judge: {base_url: https://api.groq.com/openai/v1, model: llama-3.1-8b-instant, sample_rate: 0.2}
+
+cost:
+  input_per_mtok: 3.00
+  output_per_mtok: 15.00
+  max_spend: 5.00                 # hard cap: the run stops if real spend crosses this
+                                  # (the full 1..50 demo ramp estimates ~$2-3 of mock-token play money;
+                                  #  the estimate carries a deliberate 1.5x safety margin)
+
+chaos:
+  profile: standard               # "off" | standard | custom
+
+slo:                              # non-zero exit code when breached -> CI gate
+  min_resolution_rate: 0.90

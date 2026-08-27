@@ -1,0 +1,1 @@
+Summarize my open support tickets, tell me which one is oldest, and explain what the next step is for each of them so I can decide whether to escalate anything to a human.

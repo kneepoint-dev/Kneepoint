@@ -1,0 +1,50 @@
+site_name: Kneepoint
+site_description: Find where your AI agent breaks.
+site_url: https://docs.kneepoint.dev
+repo_url: https://github.com/kneepoint-dev/kneepoint
+repo_name: kneepoint-dev/kneepoint
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      toggle: {icon: material/brightness-7, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle: {icon: material/brightness-4, name: Light mode}
+  features:
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Scenario reference: scenarios.md
+  - The three metrics: metrics.md
+  - Measurement integrity: measurement-integrity.md
+  - Output format: output-format.md
+  - Chaos testing: chaos.md
+  - CI gate: ci.md
+  - Example scenarios: examples.md
+  - Local models: local-models.md
+  - The Kneepoint Book:
+      - Start here: book/index.md
+      - Foundations: book/foundations.md
+      - Latency metrics: book/latency.md
+      - Throughput & capacity: book/throughput.md
+      - Quality under load: book/quality.md
+      - Stability & resilience: book/stability.md
+      - Cost & tokens: book/cost.md
+      - Reading charts: book/reading-charts.md
+      - Diagnostic recipes: book/recipes.md
+      - Glossary: book/glossary.md
+  - Roadmap: roadmap.md
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true

@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kneepoint report — {{ meta.target }}</title>
+<style>
+  :root { --ink:#111; --muted:#667; --ok:#0a7d33; --warn:#b26b00; --bad:#b3261e; }
+  body { font-family: ui-sans-serif, system-ui; color: var(--ink); max-width: 960px;
+         margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: .2rem; } .muted { color: var(--muted); font-size: .9rem; }
+  .verdict { font-size: 1.25rem; margin: 1rem 0; padding: .8rem 1rem;
+             background: #f4f6f8; border-left: 4px solid var(--ink); border-radius: 4px; }
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
+  .card { flex: 1 1 200px; border: 1px solid #dde; border-radius: 8px; padding: 1rem; }
+  .card .big { font-size: 2rem; font-weight: 700; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #dde; }
+  .pass { color: var(--ok); font-weight: 600; } .degraded { color: var(--warn); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .placeholder { color: var(--muted); font-style: italic; padding: 1rem;
+                 border: 1px dashed #ccd; border-radius: 8px; }
+  .contaminated { margin: 1rem 0; padding: .8rem 1rem; background: #fff5e6;
+                  border-left: 4px solid var(--warn); border-radius: 4px; }
+  .howto { color: var(--muted); font-size: .9rem; margin: .6rem 0 1.4rem;
+           padding-left: .75rem; border-left: 3px solid #dde; }
+  .howto a { color: var(--muted); }
+</style>
+{#- "How to read this" — one line per section, worded from the chapter of the
+    Book that owns the metric and linking to it. The report is a teaching
+    surface for someone who has never used Kneepoint; the Book is the source,
+    so a sentence that is not in the Book does not belong here either. -#}
+{% macro howto(slug, title) -%}
+<p class="howto"><strong>How to read this.</strong> {{ caller() }}
+<a href="https://docs.kneepoint.dev/book/{{ slug }}/">Book: {{ title }} →</a></p>
+{%- endmacro %}
+</head>
+<body>
+<h1>Kneepoint report</h1>
+<p class="muted">{{ meta.target }} · model {{ meta.model }} · {{ meta.started }} ·
+ramp {{ meta.ramp }} · chaos {{ meta.chaos }} ·
+{{ meta.total_sessions }} sessions / {{ meta.total_requests }} requests</p>
+
+<div class="verdict">
+{% if knee_summary %}<strong>{{ knee_summary.headline }}</strong>
+{% elif knee %}Knee point: <strong>{{ knee.concurrency }} concurrent sessions</strong>
+  <span class="muted">({{ knee.method }})</span>
+{% else %}No clear knee found in this ramp.{% endif %}
+</div>
+
+{% if knee_summary %}
+<table>
+  <tr><th>Method</th><th>Knee</th><th>Note</th></tr>
+  {% for verdict in (knee_summary.kneedle, knee_summary.p95_doubling) %}
+  <tr><td><code>{{ verdict.method }}</code></td>
+      <td>{% if verdict.concurrency is not none %}{{ verdict.concurrency }}{% else %}none{% endif %}</td>
+      <td class="muted">{{ verdict.note or "" }}</td></tr>
+  {% endfor %}
+</table>
+{% if knee_summary.ratios %}
+<p class="muted">p95 against the curve floor, which is what the doubling
+heuristic decides on — a value marked * is within 15% of the 2.0 threshold and
+flips between repetitions on run noise alone:<br>
+{% for r in knee_summary.ratios %}c={{ r.concurrency }}
+{{ "%.2f"|format(r.ratio) }}×{% if r.near_threshold %}*{% endif %}{{ ", " if not loop.last }}{% endfor %}
+</p>
+{% endif %}
+{% for note in knee_summary.notes %}
+<p class="muted">{{ note }}.</p>
+{% endfor %}
+{% endif %}
+{% call howto("throughput", "Throughput & capacity") %}The knee is where
+degradation accelerates, not a limit you must never exceed: below it, adding load
+costs a little latency; above it, a lot. When a range is given, <strong>plan for
+the low end</strong> — being under the knee costs some headroom, being over it
+costs everyone's latency at once. The practical operating point is usually a
+level or two below, chosen against your SLO. p95 doubling is the headline and
+can be checked by hand from the JSONL; Kneedle corroborates, and when the two
+disagree the disagreement lowers the confidence rather than replacing the
+answer. A knee is not meaningful without quality — read it next to the
+resolution rate below.{% endcall %}
+
+{% if contaminated %}
+<div class="contaminated">
+<strong>Contaminated levels: {{ contaminated | map(attribute="concurrency") | join(", ") }}.</strong>
+{{ abandoned_total }} request{{ "" if abandoned_total == 1 else "s" }} were abandoned at the
+client wall. Kneepoint closes the connection the moment it gives up, but a server is
+free to finish generating anyway — so these levels may be measuring work left over
+from the level before, and are no longer independent. Treat their latencies, and any
+knee that depends on them, as unpublishable. Every chart below shades the ramp from
+the first contaminated level onward.
+</div>
+{% endif %}
+
+<h2>The knee curve</h2>
+{{ knee_div | safe }}
+{% call howto("foundations", "Foundations") %}Read p50 and p95 together and ask
+where p95 bends. p95 is the signal: the median stays flat long after the system
+starts struggling, and p99 is too noisy at these sample sizes to trend. Before
+you read the shape, read the <code>n</code> under each level — a curve that
+spikes where n=8 is an absence of data, not a spike, and a level below
+{{ min_samples }} requests is marked <em>not plotted</em> rather than drawn from
+thin air. A gap in a line is a suppressed point, not a rendering bug; y starts at
+zero and nothing is smoothed. The dashed line is the low end of the knee range.
+A slowdown can also be the model writing more: check output tokens before
+blaming the server.{% endcall %}
+
+<h2>Quality under load</h2>
+{% if drift_div %}{{ drift_div | safe }}
+<p class="muted">Latency rising is a capacity problem you can solve with more
+machines. Resolution <em>falling</em> is a different problem: the agent is
+answering worse, not just slower, and no amount of hardware fixes a wrong
+answer. Both axes start at a real zero and neither line is smoothed — every
+point is a measured level, and the counts behind it (requests for p95, judged
+sessions for the rate) sit under each level on the axis. A level below
+{{ min_samples }} of either is marked there and left off its trace.</p>
+{% call howto("quality", "Quality under load") %}Everything lost between the
+first level and a higher one is degradation <em>caused by load</em> — timeouts
+landing mid-reasoning, retry storms, tool latency stacking. When resolution
+bends at the same level as latency, or <strong>before</strong> it, this one
+chart is the whole argument for capacity-testing agents. Drift needs
+repetitions too: a single-run drift curve is not evidence, because the same
+configuration can fall steeply in one repetition and stay flat in the next.{% endcall %}
+{% else %}<p class="placeholder">{{ quality_thin_note or quality_note or "Resolution not measured — configure a resolution check." }}</p>{% endif %}
+
+<h2>The quality curve</h2>
+{% if quality_div %}{{ quality_div | safe }}
+{% call howto("quality", "Quality under load") %}Resolution is the share of
+<em>judged</em> sessions in which the agent actually accomplished the task.
+Sessions with no verdict are left out of the denominator, never counted as
+failures, and the judged count sits under each level. Read the lowest level as
+the ceiling — the model's best score with no queueing and no pressure. A
+baseline of 100% falling to 78% under load means the system broke the agent; a
+baseline of 75% falling to 72% means the model never followed the format, and
+the fix is the prompt, not the infrastructure. Resolution says whether the task
+completed; it does not score factual accuracy, tone or safety — that is evals,
+a different discipline.{% endcall %}
+{% else %}<p class="placeholder">{{ quality_thin_note or quality_note or "Resolution not measured — configure a resolution check." }}</p>{% endif %}
+
+<h2>Time to first token vs. time per output token</h2>
+{% if ttft_div %}{{ ttft_div | safe }}
+<p class="muted">Two different slow-downs on one chart. <strong>TTFT</strong> rising
+means requests are queueing before the model starts — a capacity problem that
+more replicas fix. <strong>TPOT</strong> rising means generation itself is
+contended once it has started — decode batching or the model's own throughput.
+They are different units on different axes, both from zero; hover for the sample
+count behind each point.</p>
+{% call howto("latency", "Latency metrics") %}This single comparison is the most
+useful diagnostic in the Book. <strong>TTFT rising, TPOT flat</strong>: queueing —
+requests wait to start but generate at full speed once started; the server is at
+its concurrency limit, and more replicas help. <strong>TPOT rising, TTFT
+flat</strong>: decode saturation — memory bandwidth or KV-cache pressure from many
+simultaneous streams; a faster-memory machine helps, more concurrency will not.
+<strong>Both rising</strong>: past the knee, out of headroom everywhere.
+<strong>Neither, yet total latency is up</strong>: not the model — look at tool
+calls and retries. On a reasoning-capable model TTFT includes thinking time, so
+a chart built on it is a chart of reasoning length unless the reasoning knob was
+off; record which.{% endcall %}
+{% else %}<p class="placeholder">No TTFT or TPOT to chart — the target produced no streamed content, or no level reached {{ min_samples }} requests.</p>{% endif %}
+
+<h2>Inter-token latency</h2>
+{% if itl_div %}{{ itl_div | safe }}
+<p class="muted">The gap between streamed chunks: the median, and the worst pause
+a user met at each level (the p99 of every request's own p99). Per chunk, not per
+token — see the note under the breakdown table.</p>
+{% call howto("latency", "Latency metrics") %}TPOT is an average and hides
+stutter: a stream that delivers evenly every 40 ms and one that alternates 5 ms
+and 75 ms have the same TPOT and feel completely different — the p99 is where
+the stutter shows. Read it against TPOT above. Inter-chunk gap <em>flat</em>
+while TPOT climbs is a fixed flush interval hiding a slowing decoder; gaps that
+<em>stretch</em> mean the stream really is stalling. Only when the chunk count
+is about the output token count is this inter-token latency in the strict
+sense.{% endcall %}
+{% else %}<p class="placeholder">No inter-token latency recorded — the target returned each answer in a single chunk, so there was no gap to measure.</p>{% endif %}
+
+<h2>Latency breakdown</h2>
+{% if latency_rows %}
+<table>
+  <tr><th>Concurrency</th><th>n</th><th>TTFT p50</th><th>TTFT p95</th>
+      <th>TPOT p50</th><th>ITL p50</th><th>ITL p99</th></tr>
+  {% for s in latency_rows %}
+  <tr><td>{{ s.concurrency }}</td><td>{{ s.n }}</td>
+      <td>{{ "%.0f ms"|format(s.ttft_p50_ms) }}</td>
+      <td>{{ "%.0f ms"|format(s.ttft_p95_ms) }}</td>
+      <td>{% if s.tpot_p50_ms is not none %}{{ "%.2f ms/tok"|format(s.tpot_p50_ms) }}{% else %}<span class="muted">n/a</span>{% endif %}</td>
+      <td>{% if s.itl_p50_ms is not none %}{{ "%.2f ms"|format(s.itl_p50_ms) }}{% else %}<span class="muted">n/a</span>{% endif %}</td>
+      <td>{% if s.itl_p99_ms is not none %}{{ "%.2f ms"|format(s.itl_p99_ms) }}{% else %}<span class="muted">n/a</span>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted"><strong>ITL is measured per streamed chunk, not per token</strong>
+— a server decides how many tokens go in a chunk, so on some servers this is the
+stream's flush cadence rather than decode speed. TPOT is per reported token.
+<code>n/a</code> means the provider never reported the underlying field; it is
+never a zero. See the
+<a href="https://docs.kneepoint.dev/output-format/">output format reference</a>.</p>
+{% call howto("latency", "Latency metrics") %}Which column answers which
+question: <em>does the UI feel responsive?</em> — TTFT p95, the pause the user
+stares at. <em>Does the text stream smoothly?</em> — ITL p99 for stutter, TPOT
+for decode speed. <em>Is the server queueing or decoding slowly?</em> — TTFT
+against TPOT, the chart above. Total latency is the sum of these parts, and
+they fail for different reasons — telling them apart is most of
+diagnosis.{% endcall %}
+{% else %}<p class="placeholder">No TTFT recorded — the target produced no streamed content.</p>{% endif %}
+
+<h2>Errors</h2>
+{% if error_levels %}
+{% if total_failed == 0 %}
+<p class="muted">No request failed at any level — every one of the
+{{ error_levels | sum(attribute="requests") }} requests returned a successful response.</p>
+{% else %}
+<p class="muted">{{ total_failed }} of {{ error_levels | sum(attribute="requests") }}
+requests failed. Errors first appear at concurrency {{ first_error.concurrency }}{% if first_error.concurrency == error_levels[0].concurrency %}
+— <strong>present from the first level</strong>, which points at configuration
+rather than capacity{% else %} — absent below it, which is a capacity signal{% endif %}.</p>
+<table>
+  <tr><th>Concurrency</th><th>Requests</th><th>Failed</th><th>Error rate</th>
+      <th>Status codes</th><th>Most common errors</th></tr>
+  {% for lv in error_levels %}
+  <tr><td>{{ lv.concurrency }}</td><td>{{ lv.requests }}</td><td>{{ lv.failed }}</td>
+      <td{% if lv.error_rate >= 0.05 %} class="fail"{% elif lv.failed %} class="degraded"{% endif %}>{{ "%.1f"|format(lv.error_rate * 100) }}%</td>
+      <td>{% for sc in lv.status_codes %}<code>{{ sc.status }}</code>&nbsp;×{{ sc.count }}{{ ", " if not loop.last }}{% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td>{% for e in lv.top_errors %}{{ e.error }} <span class="muted">×{{ e.count }}</span>{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">—</span>{% endfor %}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted">A <code>429</code> is the provider throttling you, not struggling;
+a <code>5xx</code> is the server genuinely failing; <code>no code</code> is a
+timeout or a dropped connection — the client gave up before any status arrived.
+These have different fixes, so never read the rate without the mix.
+{% set abandoned_failures = error_levels | sum(attribute="abandoned") %}
+{% if abandoned_failures %}{{ abandoned_failures }} of the failures
+{{ "was" if abandoned_failures == 1 else "were" }} Kneepoint abandoning a request at
+its own wall; see the contamination banner above.{% endif %}</p>
+{% endif %}
+{% call howto("stability", "Stability & resilience") %}What matters is the
+<em>shape</em>, not the number: errors that appear only above a certain
+concurrency are a capacity signal; errors present from the first level are a
+configuration bug. A healthy system under increasing load degrades in a known
+order — the tail stretches, p95 bends, retries appear, errors appear,
+resolution falls. When you see that sequence you are watching normal
+saturation. When the order is different — resolution falling while latency and
+errors stay flat — something more interesting is happening: context truncation,
+quality collapse, or a judge problem.{% endcall %}
+{% else %}<p class="placeholder">No request records to analyse.</p>{% endif %}
+
+<h2>Retry amplification</h2>
+{% if retry_levels %}
+<table>
+  <tr><th>Concurrency</th><th>Sessions</th><th>Turns asked for</th>
+      <th>Requests issued</th><th>Retries</th><th>Amplification</th></tr>
+  {% for lv in retry_levels %}
+  <tr><td>{{ lv.concurrency }}</td><td>{{ lv.sessions }}</td>
+      <td>{{ lv.first_attempts }}</td><td>{{ lv.requests }}</td>
+      <td>{{ lv.retries }}</td>
+      <td{% if lv.amplification >= 1.2 %} class="degraded"{% endif %}>{{ "%.2f"|format(lv.amplification) }}×</td></tr>
+  {% endfor %}
+</table>
+{% if worst_retry %}
+<div class="contaminated">
+<strong>The generator added load exactly where the target was struggling.</strong>
+At concurrency {{ worst_retry.concurrency }} it issued {{ worst_retry.requests }}
+requests for {{ worst_retry.first_attempts }} turns — {{ "%.2f"|format(worst_retry.amplification) }}×.
+Retrying a failed turn is what a real client does, so this is the honest default,
+but it means a ramp can partly manufacture the knee it measures. Disclose it when
+you publish this curve, or lower <code>conversation.retry.max_attempts</code> in
+the scenario and say that instead.
+</div>
+{% else %}
+<p class="muted">No retries fired: every turn succeeded first time, so the
+requests above are exactly the workload the ramp asked for.</p>
+{% endif %}
+{% call howto("stability", "Stability & resilience") %}Retries are how systems
+hide instability from users — and how they burn budget invisibly. A retry costs
+full price in tokens and capacity while producing no additional user value, and
+it adds load to an already-loaded system: the classic feedback loop that turns a
+slowdown into an outage. Amplification rising with concurrency means your users
+may not see errors, but you are paying for them — the bill is the retry-waste
+card under Cost.{% endcall %}
+{% else %}<p class="placeholder">No request records to analyse.</p>{% endif %}
+
+<h2>Cost</h2>
+{% if cost %}
+<div class="cards">
+  <div class="card"><div class="muted">$ / resolved task</div>
+    <div class="big">{% if cost.cost_per_resolved is not none %}${{ "%.4f"|format(cost.cost_per_resolved) }}{% else %}n/a{% endif %}</div>
+    <div class="muted">{{ cost.resolved_sessions }} of {{ cost.judged_sessions }} judged sessions resolved</div></div>
+  <div class="card"><div class="muted">Total spend</div>
+    <div class="big">${{ "%.4f"|format(cost.total_spend) }}</div>
+    <div class="muted">{{ cost.sessions }} sessions</div></div>
+  <div class="card"><div class="muted">Retry waste</div>
+    <div class="big">{{ "%.1f"|format(cost.retry_waste_pct * 100) }}%</div>
+    <div class="muted">${{ "%.4f"|format(cost.waste_spend) }} on failed attempts</div></div>
+</div>
+{% call howto("cost", "Cost & token economics") %}$/resolved task prices the
+outcome, not the activity: cost per request rewards a system that fails cheaply,
+and an agent that burns 3,000 tokens and gives up looks great by it while the
+user got nothing. Expect this figure to rise as load approaches the knee —
+retries multiply spend without producing resolutions and a falling resolution
+rate shrinks the denominator — so there is often a <strong>cost knee that
+arrives before the latency knee</strong>. If the target is a local model, these
+are a projection at the configured rates, not spend; always say so. Before
+trusting any of it: are the rates the ones you are billed at, and were token
+counts reported rather than null? A null count is unknown, never zero.{% endcall %}
+{% else %}<p class="placeholder">{{ cost_note or "Cost not measured (set --price-in / --price-out or a cost block in the scenario)." }}</p>{% endif %}
+
+<h2>Resilience</h2>
+{% if res %}
+<div class="cards">
+  <div class="card"><div class="muted">Resilience score</div>
+    <div class="big">{% if res.score is not none %}{{ "%.0f"|format(res.score) }}{% else %}n/a{% endif %}</div>
+    <div class="muted">{{ res.faulted_sessions }} faulted vs {{ res.clean_sessions }} clean sessions</div></div>
+</div>
+<table>
+  <tr><th>Fault</th><th>Sessions hit</th><th>Resolved</th><th>Verdict</th></tr>
+  {% for row in res.rows %}
+  <tr><td><code>{{ row.fault }}</code></td><td>{{ row.sessions_hit }}</td>
+      <td>{% if row.resolved_rate is not none %}{{ "%.0f"|format(row.resolved_rate * 100) }}%{% else %}too few samples{% endif %}</td>
+      <td class="{{ row.verdict or '' }}">{{ row.verdict or "n/a" }}</td></tr>
+  {% endfor %}
+</table>
+{% call howto("stability", "Stability & resilience") %}The score is the
+resolution rate of sessions that hit a fault as a percentage of the rate for
+sessions that did not. <strong>100 means the faults made no difference</strong>
+— the agent absorbed them; a low score means injected failures translate
+directly into failed user tasks. The grid is where the actionable detail lives:
+an agent can handle rate limits perfectly because its HTTP client retries them,
+and fail completely on malformed tool output because nobody wrote that error
+path. <em>pass</em> is at least 95% of the clean rate, <em>degraded</em> at
+least 70%, <em>fail</em> below that; <em>too few samples</em> is a fault seen by
+fewer sessions than the run's <code>min_group</code> and is not a pass.{% endcall %}
+{% else %}<p class="placeholder">{{ res_note or "Resilience not measured (run with --chaos standard)." }}</p>{% endif %}
+
+<h2>Run metadata</h2>
+{% if metadata_rows %}
+<table>
+  {% for label, value in metadata_rows %}
+  <tr><th style="width: 9rem">{{ label }}</th><td>{{ value }}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted">Read from the run's <code>-meta.json</code> sidecar, which is
+what <code>kneepoint report</code> re-renders from. A figure from this report is
+only comparable to another run's if the ramp, hold, seed and chaos profile here
+match; quote them alongside the knee.</p>
+{% call howto("foundations", "Foundations") %}Two of these rows decide how much
+to trust everything above. <strong>The hold</strong> (in the Ramp row): the
+first seconds of each level are warm-up — cold caches, filling connection pools — and not
+representative; a 5–20 s hold is fine for a smoke test but folds that noise into
+the numbers, so benchmarks use far longer. <strong>Platform</strong>: if the
+load generator and the model share a machine they compete for CPU and memory
+bandwidth, and latency at high concurrency is inflated relative to a remote
+generator — realistic for a laptop, unrealistic for production; state which.
+And one run is an anecdote: publish or decide on three repetitions, reporting
+the median and the spread, never the best.{% endcall %}
+{% else %}<p class="placeholder">{{ meta_note or "Run metadata not recorded — this report was rendered without the run's metadata sidecar, so hold, seed, versions and thresholds are unknown." }}</p>{% endif %}
+
+<p class="muted">Generated by <a href="https://kneepoint.dev">kneepoint</a> — find where your AI agent breaks.</p>
+</body>
+</html>

@@ -1,0 +1,21 @@
+name: New fault type
+description: Propose a chaos injector. The two injection points are described in docs/chaos.md.
+labels: [enhancement, chaos, good first issue]
+body:
+  - type: input
+    id: name
+    attributes: {label: Fault name, placeholder: "tool_stale_data"}
+    validations: {required: true}
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options: ["llm (transport)", "tool (proxy)"]
+    validations: {required: true}
+  - type: textarea
+    id: simulates
+    attributes: {label: "What real-world failure does it simulate?"}
+    validations: {required: true}
+  - type: textarea
+    id: observed
+    attributes: {label: "Have you seen this in production? (war stories welcome)"}
