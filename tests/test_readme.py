@@ -6,7 +6,6 @@ codes must match the CI doc, and every link into this repository must resolve.
 import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 from kneepoint.cli import app
@@ -71,8 +70,31 @@ def test_links_into_the_repo_resolve():
     assert not relative, f"relative links do not render on PyPI: {relative}"
 
 
-@pytest.mark.parametrize("path", ["docs/assets/demo.gif"])
-def test_images_exist(path):
-    imgs = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", README)
-    assert any(i.endswith(path) for i in imgs), f"README no longer embeds {path}"
-    assert (ROOT / path).exists()
+# `docs/assets/demo.gif` was recorded under 0.1.0. It shows `Successfully
+# installed kneepoint-0.1.0` and a `Knee point: ... (kneedle)` headline — the
+# Kneedle-first pick that 0.2.0 exists to correct. PyPI metadata is immutable,
+# so shipping it would put the fixed defect on the page announcing the fix,
+# permanently. It stays in the tree for the re-record, out of the README until
+# then.
+STALE_UNTIL_RERECORDED = "docs/assets/demo.gif"
+
+
+def _embedded_images():
+    return re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", README)
+
+
+def test_readme_does_not_embed_the_stale_demo_gif():
+    embedded = [i for i in _embedded_images() if i.endswith(STALE_UNTIL_RERECORDED)]
+    assert not embedded, (
+        f"README embeds {STALE_UNTIL_RERECORDED}, which pictures the 0.1.0 "
+        "Kneedle-first headline; re-record it against the current CLI first"
+    )
+
+
+def test_every_embedded_local_image_exists():
+    missing = [
+        i
+        for i in _embedded_images()
+        if not re.match(r"^[a-z]+:", i) and not (ROOT / i).exists()
+    ]
+    assert not missing, f"README embeds images that do not exist: {missing}"

@@ -49,8 +49,6 @@ Useful flags: `--hold-seconds 10` (longer holds mean more samples per level
 and smoother curves), `--seed N` (reproducible prompt sampling and chaos),
 `--no-open`, `--out DIR`.
 
-![kneepoint demo](https://raw.githubusercontent.com/kneepoint-dev/kneepoint/main/docs/assets/demo.gif)
-
 ## Against your own agent
 
 ```bash
