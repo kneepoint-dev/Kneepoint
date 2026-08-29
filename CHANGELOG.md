@@ -3,7 +3,7 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
-## [0.2.0] - unreleased
+## [0.2.0] - 2026-08-29
 
 **This is a correctness release.** Three defects in 0.1.0 affected the numbers it printed. If you have a 0.1.0 result you are relying on, re-run it with 0.2.0 rather than re-reading it — the defects are in how the numbers were measured and chosen, not in how they were displayed.
 
