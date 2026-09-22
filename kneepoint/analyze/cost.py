@@ -51,3 +51,17 @@ def summarize_cost(
         cost_per_session=total / len(sessions) if sessions else None,
         cost_per_resolved=total / resolved if resolved else None,
     )
+
+
+def incomplete_cost_note(records: list[RequestRecord], rates: CostRates) -> str | None:
+    """Suppress aggregate cost metrics when completed-attempt usage is incomplete."""
+    incomplete = sum(r.input_tokens is None or r.output_tokens is None for r in records)
+    if not incomplete:
+        return None
+    known = sum(request_cost(r, rates) for r in records)
+    return (
+        f"Total spend unknown: token usage is incomplete for {incomplete}/{len(records)} "
+        f"completed generator attempts. Known subtotal: ${known:.4f} (a lower bound). "
+        "Cost aggregates are suppressed. Scope: completed generator attempts only; "
+        "calibration and judging excluded. No finite billing upper bound is known."
+    )

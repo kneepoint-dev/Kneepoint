@@ -76,7 +76,15 @@ session whose verdict errored stays unjudged rather than counting either way.
 |---|---|---|---|
 | `input_per_mtok` | float | `0.0` | $ per million input tokens |
 | `output_per_mtok` | float | `0.0` | $ per million output tokens |
-| `max_spend` | float | — | hard cap: estimate-abort before the run, graceful stop mid-run (exit code 3) |
+| `max_spend` | float | — | observed spend threshold: stop admission at equality or unknown usage; drain active calls (exit code 3) |
+
+Prices and the cap must be finite and nonnegative. A capped run requires both
+price fields explicitly (or their CLI flags); explicit zero is valid, while an
+omitted field does not declare free usage. Capped runs skip calibration and
+reject `resolution.judge` before load until judge cost is accounted for.
+Deterministic checks remain available. Active attempts can overshoot the cap;
+`--force` does not bypass runtime control. Calibration and judging are outside
+completed generator attempt accounting. See [cost control](book/cost.md).
 
 ## `chaos`
 

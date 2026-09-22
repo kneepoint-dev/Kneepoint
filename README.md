@@ -80,7 +80,7 @@ resolution:
 cost:
   input_per_mtok: 3.00
   output_per_mtok: 15.00
-  max_spend: 0.50                                 # hard cap: the run stops if crossed
+  max_spend: 0.50                                 # observed stop threshold; active calls may overshoot
 
 chaos:
   profile: standard                               # 429s, 503s, tool faults
@@ -89,10 +89,12 @@ slo:
   min_resolution_rate: 0.90                       # breach -> exit code 1
 ```
 
-**Set `cost.max_spend` before pointing at a paid model.** The pre-run
-estimate refuses a run that would blow the cap (`--force` overrides), and the
-live meter stops a run that crosses it mid-ramp — partial results are still
-analysed and reported.
+**Set `cost.max_spend` before pointing at a paid model.** Supply both prices
+explicitly (zero is allowed). The controller stops new work when observed spend
+reaches the threshold or usage is unknown, drains active calls, and reports
+partial results with exit code 3. Active calls may overshoot: this is not a
+billing guarantee. Capped runs skip calibration and reject configured LLM judging;
+`--force` never bypasses runtime control. See [cost control](docs/book/cost.md).
 
 LLM faults need no infrastructure: they are injected inside Kneepoint's own
 HTTP client. Tool faults have to sit between your agent and its tools, so
@@ -186,7 +188,7 @@ Kneepoint is a test: it exits non-zero when your agent regresses.
 
 Exit codes: `0` pass · `1` SLO breach (an SLO that was set but could not be
 measured also breaches — never a silent pass) · `2` usage error · `3` budget
-cap hit. Pin `seed` so a red build reruns the same prompts and chaos.
+control stop (threshold reached or usage unknown). Pin `seed` so a red build reruns the same prompts and chaos.
 [Full CI docs →](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/ci.md)
 
 ## Measurement integrity

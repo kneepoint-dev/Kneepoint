@@ -14,7 +14,7 @@ Files written before the sidecar existed re-render with every unstored field as
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from kneepoint.analyze.cost import CostRates, CostSummary, summarize_cost
+from kneepoint.analyze.cost import CostRates, CostSummary, incomplete_cost_note, summarize_cost
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import KneeReport, aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
@@ -117,9 +117,12 @@ def render_from_files(
         rates = CostRates(
             input_per_mtok=meta.price.input_per_mtok, output_per_mtok=meta.price.output_per_mtok
         )
-    cost = summarize_cost(records, sessions, rates) if rates is not None else None
-    cost_note = None
-    if cost is None:
+    cost_note = incomplete_cost_note(records, rates) if rates is not None else None
+    cost = (
+        summarize_cost(records, sessions, rates)
+        if rates is not None and cost_note is None else None
+    )
+    if cost is None and cost_note is None:
         cost_note = (
             "Cost not measured (the run had no price rates)." if meta is not None else
             "Cost not re-rendered: the metadata sidecar is missing, so the price rates "

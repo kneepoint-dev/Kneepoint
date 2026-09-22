@@ -278,6 +278,8 @@ card under Cost.{% endcall %}
 
 <h2>Cost</h2>
 {% if cost %}
+<p class="muted">Scope: completed generator attempts only; calibration and judging excluded.
+No finite billing upper bound is known.</p>
 <div class="cards">
   <div class="card"><div class="muted">$ / resolved task</div>
     <div class="big">{% if cost.cost_per_resolved is not none %}${{ "%.4f"|format(cost.cost_per_resolved) }}{% else %}n/a{% endif %}</div>

@@ -62,7 +62,9 @@ class ResolutionConfig(_Strict):
 
 class CostConfig(CostRates):
     model_config = ConfigDict(extra="forbid")
-    max_spend: float | None = None
+    input_per_mtok: float = Field(0.0, ge=0, allow_inf_nan=False)
+    output_per_mtok: float = Field(0.0, ge=0, allow_inf_nan=False)
+    max_spend: float | None = Field(None, ge=0, allow_inf_nan=False)
 
 
 class ChaosConfig(_Strict):
@@ -166,7 +168,7 @@ resolution:
 cost:
   input_per_mtok: 3.00
   output_per_mtok: 15.00
-  max_spend: 5.00                 # hard cap: the run stops if real spend crosses this
+  max_spend: 5.00                 # observed stop threshold; active calls may overshoot
                                   # (the full 1..50 mock ramp estimates ~$4 of play money;
                                   #  set a cap you can afford before pointing at a paid model)
 

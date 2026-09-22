@@ -330,15 +330,39 @@ The CLI flushes each completed attempt to the normal request JSONL immediately.
 The new `run-<id>-lifecycle.json` sidecar is written atomically before generation
 and again at generation termination, with schema version 1, run identity,
 `scope: "load_generation"`, execution status, timestamps, completed request and
-session counts, and attempt/session/level statuses. It is a lifecycle checkpoint,
+session counts, and attempt/session/level statuses. It also stores `accounting`
+(the observed-spend controller snapshot), `effective_prices`, `calibration`
+(`not_run` or `outside_generator_accounting`), and `judging`
+(`outside_generator_accounting`). Without declared prices, `accounting` and
+`effective_prices` are `null`; this does not mean free usage.
+
+Accounting covers completed generator attempts and includes `known_spend`,
+nullable `total_spend`, `known_overshoot`, usage `coverage`, `max_spend`, and
+`stop_requested`/`stop_reason`. Missing either usage count makes the total unknown;
+the known subtotal and overshoot are lower bounds. `billing_upper_bound` is always
+unknown. These fields are retained on generator failure too. The CLI flushes each
+request record before accounting for it. The sidecar is a lifecycle checkpoint,
 not a per-event durable journal or proof that judging/report rendering completed.
 On generator failure or cancellation, retained unjudged session summaries are
 written to the normal sessions JSONL before the original exception propagates.
 A process kill may leave the sidecar at `running`; missing sidecars on old runs
 mean lifecycle status is unknown. Existing request/session schemas are unchanged.
 
-A legacy `BudgetExceeded` still returns the ramp's budget flag, but completed
-records and partial sessions from its interrupted level are now retained.
-Budget accounting still runs through the legacy session-completion callback;
-this change does not introduce attempt-level spend enforcement, change pricing
-or thresholds, repair unknown-usage accounting, or guarantee a billing cap.
+The CLI now uses attempt-completion accounting and cooperative stop. A capped run
+stops admission at observed spend greater than or equal to the cap, or on unknown
+usage, drains active requests, and exits with code 3 after reporting partial
+results. `--force` cannot bypass it. Capped runs require both prices explicitly,
+skip calibration, and reject a configured LLM judge before load. See
+[Cost control](book/cost.md#observed-spend-control-in-the-cli) for scope and limits.
+Missing usage suppresses aggregate cost metrics in the original and regenerated
+reports; both show an unknown total and a known subtotal instead.
+
+A zero cap produces empty request/session files and an HTML report without sending
+requests. `kneepoint report` currently rejects empty request files, so that report
+cannot be regenerated through the command.
+
+For legacy Python callers, `CostMeter` and session-completion `on_record` remain
+available. A legacy `BudgetExceeded` still returns the ramp's budget flag, with
+completed records and partial sessions from its interrupted level retained. That
+flag does not describe cooperative controller stops: inspect the accounting
+snapshot's `stop_reason` (`cap_reached` or `unknown_usage`) instead.

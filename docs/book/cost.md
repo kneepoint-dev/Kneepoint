@@ -89,10 +89,38 @@ randomizes prompts won't exercise the cache path production actually sees.
 5. Did retries inflate the numerator?
 
 
+## Observed spend control in the CLI
+
+`kneepoint run` accounts for each completed generator attempt, including retries
+and failures with reported usage. `--max-spend` (or `cost.max_spend`) stops new
+attempts, turns, and sessions when observed spend reaches the threshold, or when
+either token count is missing. Active attempts drain and may overshoot. The CLI
+reports partial results and exits with code 3; `--force` never bypasses this stop.
+This is an observed threshold, not a guaranteed billing cap.
+
+Capped runs require both input and output prices explicitly, through flags or
+the scenario. Explicit zero prices are supported; omitted prices do not declare
+free usage. Prices and the cap must be finite and nonnegative. Capped runs skip
+calibration, and a configured LLM judge is rejected before load because its cost
+is not accounted for. Deterministic checks remain available. Uncapped runs with
+nonzero prices retain calibration, labelled outside generator accounting;
+judging is also outside that scope.
+
+The CLI flushes request evidence before accounting and saves the controller
+snapshot and effective prices in the lifecycle sidecar, including on generator
+failure. Without declared prices, accounting is disabled, not reported as free.
+Missing token usage suppresses aggregate cost metrics in both the CLI and
+regenerated reports: the total is unknown, and the known subtotal is a lower
+bound. No finite billing upper bound can be inferred from completed attempts.
+
+A zero cap sends no request, including calibration, and writes empty records and
+an HTML report. The existing `kneepoint report` command rejects empty request
+files, so that zero-request report cannot currently be regenerated.
+
 ## Observed spend controller (Python component)
 
-`ObservedSpendController` is an opt-in core API; the CLI has not migrated to it.
-Wire it to the attempt completion hook, not the legacy session-level `on_record`:
+Python callers can wire `ObservedSpendController` to the attempt completion hook,
+not the legacy session-level `on_record`:
 
 ```python
 from kneepoint.analyze.budget import ObservedSpendController
@@ -131,3 +159,8 @@ above the cap (or `None` without a cap), a lower bound when usage is missing.
 `unknown_usage`). All totals cover only observed completed attempts; interrupted
 or unobserved upstream work can still incur charges. `billing_upper_bound` is
 therefore always unknown, even when every completed record has full usage.
+
+The legacy `CostMeter` and `on_record` callback remain available to Python callers.
+That callback runs after a session returns, and `CostMeter` raises only when spend
+is greater than its cap. It is not the CLI admission controller. Do not meter the
+same attempt through both callback paths.

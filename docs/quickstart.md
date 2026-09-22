@@ -57,6 +57,8 @@ Lost the HTML, or want it regenerated? `kneepoint report reports/run-<id>.jsonl`
 rebuilds it from the run's stored files (see [Output format](output-format.md#re-rendering-the-report)).
 
 !!! tip "Always set `cost.max_spend`"
-    The pre-run estimate aborts runs that would blow the cap (override with
-    `--force`), and the runtime meter stops a live run that crosses it
-    (exit code 3, partial results still reported).
+    Supply both prices explicitly, including zero for a free token direction.
+    New work stops when observed spend reaches the threshold or usage is unknown
+    (exit code 3, partial results still reported). Active calls drain and may
+    overshoot. Capped runs skip calibration and reject configured LLM judging;
+    `--force` never bypasses the stop. See [cost control](book/cost.md).

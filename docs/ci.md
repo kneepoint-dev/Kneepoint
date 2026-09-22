@@ -10,7 +10,7 @@ into CI like any other check.
 | 0 | run completed, every configured SLO met | — |
 | 1 | **SLO breach** — each breach printed as `SLO breach - <which>: measured X vs limit Y`. An SLO that was configured but couldn't be measured also breaches (never a silent pass). Also: invalid scenario file, or a configured `auth_env` whose variable is empty. | `slo:` block |
 | 2 | usage error (bad flag, malformed `--ramp`, …) | CLI parsing |
-| 3 | **budget rail** — the pre-run estimate exceeded `max_spend` (nothing was spent; `--force` overrides) or the live meter crossed the cap mid-run (partial results still analyzed and reported) | `cost.max_spend` |
+| 3 | **spend control stop** — observed spend reached `max_spend`, or a capped run encountered unknown usage. Active calls drain and can overshoot; partial results are reported. `--force` never bypasses the stop | `cost.max_spend` |
 
 ## GitHub Actions
 

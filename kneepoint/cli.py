@@ -8,8 +8,8 @@ from pathlib import Path
 import httpx
 import typer
 
-from kneepoint.analyze.budget import CostMeter, estimate_run_cost
-from kneepoint.analyze.cost import CostRates, summarize_cost
+from kneepoint.analyze.budget import ObservedSpendController, estimate_run_cost
+from kneepoint.analyze.cost import CostRates, incomplete_cost_note, summarize_cost
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
@@ -294,15 +294,18 @@ def run(
         None, "--chaos", help="Chaos profile: off | standard (llm 429/503 + tool faults)."
     ),
     price_in: float = typer.Option(
-        None, "--price-in", help="Input price, USD per million tokens (0 = no cost tracking)."
+        None, "--price-in", help="Input price, USD per million tokens (explicit 0 = free input)."
     ),
     price_out: float = typer.Option(
         None, "--price-out", help="Output price, USD per million tokens."
     ),
     max_spend: float = typer.Option(
-        None, "--max-spend", help="Hard budget cap in USD; the run stops when crossed."
+        None, "--max-spend",
+        help="Observed generator spend threshold in USD; active attempts may overshoot."
     ),
-    force: bool = typer.Option(False, "--force", help="Run even if the estimate exceeds the cap."),
+    force: bool = typer.Option(
+        False, "--force", help="Compatibility flag; never bypasses runtime spend control."
+    ),
     min_samples: int = typer.Option(
         10, "--min-samples", help="Min requests per level for knee math."
     ),
@@ -335,9 +338,28 @@ def run(
             corpus_path if corpus_path.is_absolute()
             else scenario_path.parent / corpus_path
         )
+    declared = sc.cost.model_fields_set if sc and sc.cost else set()
+    input_declared = price_in is not None or "input_per_mtok" in declared
+    output_declared = price_out is not None or "output_per_mtok" in declared
+    track_cost = input_declared or output_declared
     price_in = _pick(price_in, sc.cost.input_per_mtok if sc and sc.cost else None, 0.0)
     price_out = _pick(price_out, sc.cost.output_per_mtok if sc and sc.cost else None, 0.0)
     max_spend = _pick(max_spend, sc.cost.max_spend if sc and sc.cost else None, None)
+    rates = CostRates(input_per_mtok=price_in, output_per_mtok=price_out)
+    try:
+        controller = ObservedSpendController(rates, max_spend)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if max_spend is not None:
+        if not (input_declared and output_declared):
+            raise typer.BadParameter(
+                "--max-spend requires explicit input and output prices; "
+                "supply --price-in / --price-out or both scenario cost rates (0 is allowed)"
+            )
+        if sc and sc.resolution.judge:
+            raise typer.BadParameter(
+                "capped runs do not support LLM judging until judge spend is accounted for"
+            )
 
     try:
         start, stop = parse_ramp(ramp) if ramp else (
@@ -397,20 +419,16 @@ def run(
     sessions_path = out_dir / f"run-{run_id}-sessions.jsonl"
     meta_path = out_dir / f"run-{run_id}-meta.json"
 
-    on_record = None
-    meter = None
-    if price_in or price_out:
-        rates = CostRates(input_per_mtok=price_in, output_per_mtok=price_out)
+    calibration_scope = "not_run"
+    if max_spend is not None:
+        typer.echo("Calibration skipped for capped run; --force cannot bypass spend control.")
+    elif price_in or price_out:
+        calibration_scope = "outside_generator_accounting"
+        typer.echo("Calibration spend is outside completed generator attempt accounting.")
         calibration = asyncio.run(_calibrate(target_url, model_name, sampler, transport, headers))
         estimate = estimate_run_cost(spec.levels(), spec.hold_seconds, calibration, rates)
         if estimate is not None:
             typer.echo(f"Estimated spend for this run: ~${estimate:.2f}")
-            if max_spend is not None and estimate > max_spend and not force:
-                typer.echo(f"Estimate exceeds --max-spend {max_spend:.2f}; "
-                           "re-run with --force to proceed anyway.")
-                raise typer.Exit(code=3)
-        meter = CostMeter(rates, max_spend)
-        on_record = meter.add
 
     typer.echo(
         f"Ramping {spec.start}..{spec.stop} step {spec.step}, "
@@ -422,7 +440,11 @@ def run(
 
     def save_lifecycle() -> None:
         snapshot = {**evidence.snapshot(), "run_id": run_id, "scope": "load_generation",
-                    "started_at": started_at, "updated_at": time.time()}
+                    "started_at": started_at, "updated_at": time.time(),
+                    "accounting": controller.snapshot() if track_cost else None,
+                    "effective_prices": rates.model_dump() if track_cost else None,
+                    "calibration": calibration_scope,
+                    "judging": "outside_generator_accounting"}
         temporary = lifecycle_path.with_suffix(".tmp")
         temporary.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
         temporary.replace(lifecycle_path)
@@ -430,19 +452,22 @@ def run(
     with JsonlWriter(jsonl_path) as writer:
         save_lifecycle()
 
+        def on_attempt_complete(record: RequestRecord) -> None:
+            writer.write_many([record])  # flush evidence before accounting can request stop
+            controller.on_attempt_complete(record)
+
         def on_level(level: int, sessions: list, records: list) -> None:
             errors = sum(1 for r in records if not r.ok)
             typer.echo(f"  level {level:>3}: {len(sessions)} sessions, "
                        f"{len(records)} requests, {errors} errors")
 
         try:
-            all_sessions, records, budget_exceeded = asyncio.run(
+            all_sessions, records, _ = asyncio.run(
                 run_ramp(
                     target_url, model_name, spec, sampler, session_spec,
                     seed=seed, transport=transport, headers=headers,
-                    on_record=on_record, on_level=on_level,
-                    on_attempt_complete=lambda record: writer.write_many([record]),
-                    evidence=evidence,
+                    on_level=on_level, on_attempt_complete=on_attempt_complete,
+                    stop=controller.stop, evidence=evidence,
                 )
             )
         except BaseException:
@@ -459,9 +484,14 @@ def run(
                            err=True)
             raise
         save_lifecycle()
-    if budget_exceeded:
-        typer.echo(f"Budget cap hit at ${meter.spend:.4f} - run stopped early; "
-                   "results below are partial.")
+    accounting = controller.snapshot()
+    if accounting["stop_requested"]:
+        typer.echo(
+            f"Spend control stopped admission ({accounting['stop_reason']}); "
+            f"known spend ${accounting['known_spend']:.4f}, "
+            f"known overshoot ${accounting['known_overshoot']:.4f}. "
+            "Active attempts drained; results are partial."
+        )
 
     if fault_log is not None:
         _merge_tool_faults(fault_log, all_sessions)
@@ -489,15 +519,20 @@ def run(
         typer.echo(f"Resolution rate: {rate:.1%} ({len(all_sessions)} sessions, {method})")
 
     cost = None
-    if price_in or price_out:
-        rates = CostRates(input_per_mtok=price_in, output_per_mtok=price_out)
-        cost = summarize_cost(records, all_sessions, rates)
-        typer.echo(f"Total spend:     ${cost.total_spend:.4f}")
-        typer.echo(f"Retry waste:     {cost.retry_waste_pct:.1%} (${cost.waste_spend:.4f})")
-        if cost.cost_per_resolved is not None:
-            typer.echo(f"$/resolved task: ${cost.cost_per_resolved:.4f}")
+    cost_note = incomplete_cost_note(records, rates) if track_cost else None
+    if track_cost:
+        typer.echo("Cost scope: completed generator attempts only; calibration and judging "
+                   "excluded. No finite billing upper bound is known.")
+        if cost_note is not None:
+            typer.echo(cost_note)
         else:
-            typer.echo("$/resolved task: n/a (no resolved sessions)")
+            cost = summarize_cost(records, all_sessions, rates)
+            typer.echo(f"Total spend:     ${cost.total_spend:.4f}")
+            typer.echo(f"Retry waste:     {cost.retry_waste_pct:.1%} (${cost.waste_spend:.4f})")
+            if cost.cost_per_resolved is not None:
+                typer.echo(f"$/resolved task: ${cost.cost_per_resolved:.4f}")
+            else:
+                typer.echo("$/resolved task: n/a (no resolved sessions)")
 
     if chaos != "off":
         res = resilience(all_sessions, min_group=RUN_MIN_GROUP)
@@ -525,7 +560,7 @@ def run(
         seed=seed, chaos=ChaosShape(profile=chaos, faults=faults),
         price=(
             PriceRates(input_per_mtok=price_in, output_per_mtok=price_out, max_spend=max_spend)
-            if price_in or price_out else None
+            if track_cost else None
         ),
         min_samples=min_samples, min_group=RUN_MIN_GROUP,
         started_at=started_at, finished_at=time.time(),
@@ -561,7 +596,7 @@ def run(
         ),
         stats=stats, knee=knee, knee_summary=knee_summary,
         quality=resolution_by_level(all_sessions),
-        cost=cost,
+        cost=cost, cost_note=cost_note,
         res=resilience(all_sessions, min_group=RUN_MIN_GROUP) if chaos != "off" else None,
         retry_levels=retry_levels, min_samples=min_samples,
         error_levels=errors_by_level(records), run_meta=run_meta,
@@ -570,7 +605,7 @@ def run(
     typer.echo(f"Sessions:    {sessions_path}")
     typer.echo(f"Metadata:    {meta_path}")
     typer.echo(f"Report:      {report_path}")
-    if budget_exceeded:
+    if accounting["stop_requested"]:
         raise typer.Exit(code=3)
     if sc is not None:
         overall_p95 = max((s.p95_ms for s in stats), default=None)
