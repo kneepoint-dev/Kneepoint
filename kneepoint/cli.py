@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import time
 from importlib.metadata import version as pkg_version
@@ -35,6 +36,7 @@ from kneepoint.collect.writer import (
 )
 from kneepoint.config import STARTER_SCENARIO, ScenarioError, evaluate_slo, load_scenario
 from kneepoint.generator.corpus import DEFAULT_PROMPTS, CorpusSampler
+from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, parse_ramp, run_ramp
 from kneepoint.generator.session import SessionSpec
 from kneepoint.judge.deterministic import CheckConfig, apply_deterministic
@@ -415,21 +417,48 @@ def run(
         f"holding {spec.hold_seconds}s per level"
     )
     started_at = time.time()  # the calibration request above is not part of the run
+    evidence = RunEvidence()
+    lifecycle_path = out_dir / f"run-{run_id}-lifecycle.json"
+
+    def save_lifecycle() -> None:
+        snapshot = {**evidence.snapshot(), "run_id": run_id, "scope": "load_generation",
+                    "started_at": started_at, "updated_at": time.time()}
+        temporary = lifecycle_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(lifecycle_path)
+
     with JsonlWriter(jsonl_path) as writer:
+        save_lifecycle()
 
         def on_level(level: int, sessions: list, records: list) -> None:
-            writer.write_many(records)
             errors = sum(1 for r in records if not r.ok)
             typer.echo(f"  level {level:>3}: {len(sessions)} sessions, "
                        f"{len(records)} requests, {errors} errors")
 
-        all_sessions, records, budget_exceeded = asyncio.run(
-            run_ramp(
-                target_url, model_name, spec, sampler, session_spec,
-                seed=seed, transport=transport, headers=headers,
-                on_record=on_record, on_level=on_level,
+        try:
+            all_sessions, records, budget_exceeded = asyncio.run(
+                run_ramp(
+                    target_url, model_name, spec, sampler, session_spec,
+                    seed=seed, transport=transport, headers=headers,
+                    on_record=on_record, on_level=on_level,
+                    on_attempt_complete=lambda record: writer.write_many([record]),
+                    evidence=evidence,
+                )
             )
-        )
+        except BaseException:
+            # Keep the original failure/cancellation even if a secondary save
+            # fails. A writer error is never converted into successful execution.
+            if evidence.status == "running":
+                evidence.status = "failed"
+            try:
+                with JsonlWriter(sessions_path) as session_writer:
+                    session_writer.write_many(evidence.sessions)
+                save_lifecycle()
+            except Exception as save_error:
+                typer.echo(f"Could not save all partial evidence: {type(save_error).__name__}",
+                           err=True)
+            raise
+        save_lifecycle()
     if budget_exceeded:
         typer.echo(f"Budget cap hit at ${meter.spend:.4f} - run stopped early; "
                    "results below are partial.")
@@ -447,10 +476,12 @@ def run(
         check = sc.resolution.check
     elif sc is None:
         check = CheckConfig(kind="contains", value="[RESOLVED")
+    judgeable = [s for s in all_sessions
+                 if evidence.session_status.get(s.session_id) == "completed"]
     if check is not None:
-        apply_deterministic(all_sessions, check)
+        apply_deterministic(judgeable, check)
     if sc and sc.resolution.judge:
-        asyncio.run(judge_sessions(all_sessions, sc.resolution.judge, seed=seed))
+        asyncio.run(judge_sessions(judgeable, sc.resolution.judge, seed=seed))
         if check is None:
             method = "llm_judge"
     rate = resolution_rate(all_sessions)

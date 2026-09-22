@@ -10,6 +10,7 @@ from pydantic import BaseModel, model_validator
 
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
+from kneepoint.generator.lifecycle import AttemptStart, RunEvidence, wait_or_stop
 from kneepoint.targets.openai_compatible import run_turn
 
 RETRYABLE_STATUS = {429, 500, 502, 503}
@@ -57,6 +58,10 @@ async def run_session(
     *,
     concurrency: int,
     rng: random.Random,
+    on_attempt_start=None,
+    on_attempt_complete=None,
+    stop: asyncio.Event | None = None,
+    evidence: RunEvidence | None = None,
 ) -> tuple[SessionRecord, list[RequestRecord]]:
     """One simulated user: sampled prompts, history grows, failed turns retry."""
     session_id = uuid.uuid4().hex[:12]
@@ -67,35 +72,73 @@ async def run_session(
     records: list[RequestRecord] = []
     faults: list[str] = []
     turns_completed = 0
-    for turn_index in range(n_turns):
-        messages.append({"role": "user", "content": sampler.sample()})
-        accepted_text: str | None = None
-        for attempt in range(1, spec.retry.max_attempts + 1):
-            outcome = await run_turn(
-                client, base_url, model, messages,
-                concurrency=concurrency, session_id=session_id,
-                turn_index=turn_index, attempt=attempt,
-            )
-            records.append(outcome.record)
-            if outcome.record.fault:
-                faults.append(outcome.record.fault)
-            if outcome.record.ok:
-                accepted_text = outcome.text
+    evidence = evidence if evidence is not None else RunEvidence()
+    status = "completed"
+    active: AttemptStart | None = None
+    try:
+        for turn_index in range(n_turns):
+            if stop is not None and stop.is_set():
+                status = "stopped"
                 break
-            if not _retryable(outcome.record) or attempt == spec.retry.max_attempts:
+            messages.append({"role": "user", "content": sampler.sample()})
+            accepted_text: str | None = None
+            for attempt in range(1, spec.retry.max_attempts + 1):
+                if stop is not None and stop.is_set():
+                    status = "stopped"
+                    break
+                active = AttemptStart(session_id, concurrency, turn_index, attempt, time.time())
+                evidence.start(active)
+                if on_attempt_start is not None:
+                    on_attempt_start(active)
+                if stop is not None and stop.is_set():
+                    status = "stopped"
+                    evidence.finish_attempt(active, "stopped")
+                    active = None
+                    break
+                evidence.attempts[active.key]["dispatched"] = True
+                outcome = await run_turn(
+                    client, base_url, model, messages,
+                    concurrency=concurrency, session_id=session_id,
+                    turn_index=turn_index, attempt=attempt,
+                )
+                records.append(outcome.record)
+                evidence.records.append(outcome.record)
+                evidence.finish_attempt(active, "completed")
+                active = None
+                if outcome.record.fault:
+                    faults.append(outcome.record.fault)
+                if outcome.record.ok:
+                    accepted_text = outcome.text
+                    messages.append({"role": "assistant", "content": accepted_text})
+                    turns_completed += 1
+                if on_attempt_complete is not None:
+                    on_attempt_complete(outcome.record)
+                if outcome.record.ok:
+                    break
+                if not _retryable(outcome.record) or attempt == spec.retry.max_attempts:
+                    break
+                await wait_or_stop(outcome.retry_after_s or spec.retry.backoff_s * attempt, stop)
+            if accepted_text is None:
+                messages.pop()
                 break
-            await asyncio.sleep(outcome.retry_after_s or spec.retry.backoff_s * attempt)
-        if accepted_text is None:
-            messages.pop()  # the unanswered user turn is not part of the transcript
-            break
-        messages.append({"role": "assistant", "content": accepted_text})
-        turns_completed += 1
-        if turn_index < n_turns - 1 and spec.think_time.max_ms > 0:
-            await asyncio.sleep(rng.randint(spec.think_time.min_ms, spec.think_time.max_ms) / 1000)
-    session = SessionRecord(
-        session_id=session_id, concurrency=concurrency, started_at=started_at,
-        total_ms=(time.perf_counter() - t0) * 1000,
-        turns_requested=n_turns, turns_completed=turns_completed,
-        ok=turns_completed == n_turns, faults=faults, transcript=messages,
-    )
+            if turn_index < n_turns - 1 and spec.think_time.max_ms > 0:
+                await wait_or_stop(
+                    rng.randint(spec.think_time.min_ms, spec.think_time.max_ms) / 1000, stop)
+    except (Exception, asyncio.CancelledError) as exc:
+        status = "cancelled" if isinstance(exc, asyncio.CancelledError) else "failed"
+        if active is not None:
+            evidence.finish_attempt(active, status)
+        # An unanswered turn is not a completed transcript contribution.
+        if messages and messages[-1]["role"] == "user":
+            messages.pop()
+        raise
+    finally:
+        session = SessionRecord(
+            session_id=session_id, concurrency=concurrency, started_at=started_at,
+            total_ms=(time.perf_counter() - t0) * 1000,
+            turns_requested=n_turns, turns_completed=turns_completed,
+            ok=turns_completed == n_turns, faults=faults, transcript=messages,
+        )
+        evidence.sessions.append(session)
+        evidence.session_status[session_id] = status
     return session, records

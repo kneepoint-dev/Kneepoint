@@ -1,5 +1,6 @@
 """Ramp controller: step concurrency up and hold at each level."""
 
+import asyncio
 import re
 
 import httpx
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from kneepoint.analyze.budget import BudgetExceeded
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
+from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.pool import run_level
 from kneepoint.generator.session import SessionSpec
 
@@ -50,25 +52,44 @@ async def run_ramp(
     headers: dict | None = None,
     on_record=None,
     on_level=None,
+    on_attempt_start=None,
+    on_attempt_complete=None,
+    stop: asyncio.Event | None = None,
+    evidence: RunEvidence | None = None,
 ) -> tuple[list[SessionRecord], list[RequestRecord], bool]:
-    """Run each ramp level in order; fire on_level(level, sessions, records) after each.
+    """Return (sessions, records, budget_exceeded), retaining partial evidence.
 
-    Returns (sessions, records, budget_exceeded). When the budget cap stops the
-    run, records from the aborted level are lost (never returned) — the cap is a
-    protective stop, not an accounting system; the CostMeter already counted them.
+    Legacy on_record still fires only when a session returns. New completion
+    observers see each completed attempt immediately and must not double-meter it.
+    Caller-owned evidence also survives exceptions and external cancellation.
     """
-    all_sessions: list[SessionRecord] = []
-    all_records: list[RequestRecord] = []
-    for level in spec.levels():
-        try:
+    evidence = evidence if evidence is not None else RunEvidence()
+    first_session, first_record = len(evidence.sessions), len(evidence.records)
+    evidence.status = "running"
+    try:
+        for level in spec.levels():
+            if stop is not None and stop.is_set():
+                evidence.status = "stopped"
+                break
             sessions, records = await run_level(
                 base_url, model, level, spec.hold_seconds, sampler, session_spec,
                 seed=seed, transport=transport, headers=headers, on_record=on_record,
+                on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
+                stop=stop, evidence=evidence,
             )
-        except BudgetExceeded:
-            return all_sessions, all_records, True
-        all_sessions.extend(sessions)
-        all_records.extend(records)
-        if on_level is not None:
-            on_level(level, sessions, records)
-    return all_sessions, all_records, False
+            if on_level is not None:
+                on_level(level, sessions, records)
+            if stop is not None and stop.is_set():
+                evidence.status = "stopped"
+                break
+        else:
+            evidence.status = "completed"
+    except BudgetExceeded:
+        evidence.status = "budget_exceeded"
+        if "level" in locals():
+            evidence.level_status[level] = "budget_exceeded"
+        return evidence.sessions[first_session:], evidence.records[first_record:], True
+    except (Exception, asyncio.CancelledError) as exc:
+        evidence.status = "cancelled" if isinstance(exc, asyncio.CancelledError) else "failed"
+        raise
+    return evidence.sessions[first_session:], evidence.records[first_record:], False

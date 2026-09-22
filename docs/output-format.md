@@ -280,3 +280,65 @@ within a version, and every field added since the first release has a default.
 and treat the missing ones as `null`.
 `kneepoint report` reads them too, and renders what they never recorded as
 *unknown* rather than as today's defaults.
+
+
+## Attempt lifecycle and partial evidence
+
+New optional generator arguments `on_attempt_start`, `on_attempt_complete`,
+`stop` and `evidence` expose attempt activity without changing successful return
+shapes. `run_session` still returns `(session, records)` and `run_level` returns
+`(sessions, records)`;
+`run_ramp` still returns `(sessions, records, budget_exceeded)`.
+
+`on_attempt_start` receives an `AttemptStart` containing session identity,
+concurrency, turn index, attempt number and `emitted_at`. It runs immediately
+before dispatching `run_turn`; its timestamp is an observation of admission,
+not proof that network bytes have been sent. A callback can fail or set the
+stop signal before dispatch, so retained attempt evidence also records whether
+dispatch occurred. Actual measured request timing remains in `RequestRecord`.
+
+`on_attempt_complete` receives the completed `RequestRecord` before retry waits
+or later turns. Its synchronous callback runs on the generator event loop and
+must not block. Exceptions from observers or writers propagate. The caller-owned
+`RunEvidence` retains that completed record before invoking the callback, so a
+failed writer does not erase the in-memory measurement; this does not guarantee
+disk durability when writing itself fails.
+
+The legacy `on_record` callback remains a session-completion callback. It is
+called once for each returned session record in that session's attempt order.
+Do not attach a cost meter to both callback paths. Returned request collections
+and CLI JSONL now follow attempt-completion order across concurrent sessions,
+not the previous grouping by session-completion order. Reconstruct per-session
+order using session identity, turn index and attempt number.
+
+A caller retaining `RunEvidence` can recover completed requests and partial
+session summaries after failure or cancellation. It also contains attempt,
+session and level execution statuses. These statuses describe execution, not
+whether a task succeeded: `SessionRecord.ok` retains that separate meaning.
+An active cancelled attempt has identity and terminal status but no fabricated
+`RequestRecord`, latency or token count. Interrupted sessions remain unjudged.
+
+An optional `asyncio.Event` requests cooperative stop. A pre-set signal issues
+no request, overriding the usual minimum of one session per worker. Stop wakes
+retry backoff and think time and prevents new attempts, turns and sessions;
+already-dispatched requests drain normally. Failure or external cancellation
+cancels and joins sibling workers before closing the shared client. Neither
+local cancellation nor a closed connection establishes that a provider stopped
+processing or billing the request.
+
+The CLI flushes each completed attempt to the normal request JSONL immediately.
+The new `run-<id>-lifecycle.json` sidecar is written atomically before generation
+and again at generation termination, with schema version 1, run identity,
+`scope: "load_generation"`, execution status, timestamps, completed request and
+session counts, and attempt/session/level statuses. It is a lifecycle checkpoint,
+not a per-event durable journal or proof that judging/report rendering completed.
+On generator failure or cancellation, retained unjudged session summaries are
+written to the normal sessions JSONL before the original exception propagates.
+A process kill may leave the sidecar at `running`; missing sidecars on old runs
+mean lifecycle status is unknown. Existing request/session schemas are unchanged.
+
+A legacy `BudgetExceeded` still returns the ramp's budget flag, but completed
+records and partial sessions from its interrupted level are now retained.
+Budget accounting still runs through the legacy session-completion callback;
+this change does not introduce attempt-level spend enforcement, change pricing
+or thresholds, repair unknown-usage accounting, or guarantee a billing cap.
