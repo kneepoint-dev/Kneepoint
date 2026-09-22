@@ -87,3 +87,47 @@ randomizes prompts won't exercise the cache path production actually sees.
 3. Is this measured spend or a labelled projection?
 4. Is the denominator *resolved* sessions, or all sessions?
 5. Did retries inflate the numerator?
+
+
+## Observed spend controller (Python component)
+
+`ObservedSpendController` is an opt-in core API; the CLI has not migrated to it.
+Wire it to the attempt completion hook, not the legacy session-level `on_record`:
+
+```python
+from kneepoint.analyze.budget import ObservedSpendController
+from kneepoint.analyze.cost import CostRates
+from kneepoint.generator.ramp import run_ramp
+
+controller = ObservedSpendController(
+    CostRates(input_per_mtok=3.0, output_per_mtok=15.0), max_spend=1.0,
+)
+sessions, records, legacy_exceeded = await run_ramp(
+    base_url, model, ramp_spec, sampler, session_spec,
+    stop=controller.stop, on_attempt_complete=controller.on_attempt_complete,
+)
+accounting = controller.snapshot()
+```
+
+Prices and the optional cap must be finite and nonnegative; zero is valid.
+The controller copies the prices and sets `stop` at **spend >= cap**. A zero
+cap stops before any request. Active calls drain, their records are retained,
+and their costs continue to accumulate, so this is **not a guaranteed billing
+cap**. The return tuple's `legacy_exceeded` flag still describes the legacy
+`BudgetExceeded` exception; inspect `accounting["stop_reason"]` for this controller.
+
+Each completed generator attempt is charged, including retries and failures
+with reported usage. Identity is `(session_id, concurrency, turn_index, attempt)`:
+identical replay is ignored; a conflicting payload raises `ValueError`.
+Create one controller per run and keep its callback synchronous on the generator
+loop. Calibration and judge calls are excluded.
+
+Missing either usage count makes `total_spend` unknown (`None`), including at
+zero prices. `known_spend` retains the known portions; `coverage` counts complete,
+partial, missing, input-known, and output-known usage. A capped run stops on
+unknown usage; an uncapped run continues. `known_overshoot` is the known amount
+above the cap (or `None` without a cap), a lower bound when usage is missing.
+`stop_reason` preserves the first controller reason (`cap_reached` or
+`unknown_usage`). All totals cover only observed completed attempts; interrupted
+or unobserved upstream work can still incur charges. `billing_upper_bound` is
+therefore always unknown, even when every completed record has full usage.
