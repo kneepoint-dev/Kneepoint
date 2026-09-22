@@ -194,7 +194,8 @@ REPORT_PRICE_OUT_OPTION = typer.Option(
     None, "--price-out", help="Override the stored output price, USD per million tokens.",
 )
 REPORT_MIN_SAMPLES_OPTION = typer.Option(
-    None, "--min-samples", help="Override the stored min requests per level for knee math.",
+    None, "--min-samples",
+    help="Override the stored min successful requests per level for knee math.",
 )
 
 
@@ -307,7 +308,7 @@ def run(
         False, "--force", help="Compatibility flag; never bypasses runtime spend control."
     ),
     min_samples: int = typer.Option(
-        10, "--min-samples", help="Min requests per level for knee math."
+        10, "--min-samples", help="Min successful requests per level for knee math."
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
     out_dir: Path = OUT_DIR_OPTION,
@@ -608,7 +609,7 @@ def run(
     if accounting["stop_requested"]:
         raise typer.Exit(code=3)
     if sc is not None:
-        overall_p95 = max((s.p95_ms for s in stats), default=None)
+        overall_p95 = max((s.p95_ms for s in stats if s.p95_ms is not None), default=None)
         breaches = evaluate_slo(
             sc.slo, p95_ms=overall_p95, resolution=rate,
             cost_per_resolved=cost.cost_per_resolved if cost else None,

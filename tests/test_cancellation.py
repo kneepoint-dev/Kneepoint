@@ -259,15 +259,15 @@ def test_contamination_travels_forward_through_the_ramp():
 
 
 def test_a_fully_abandoned_level_still_contaminates_the_next():
-    """The level is dropped for having no latency signal — but its abandoned
+    """The level has no latency signal, but is retained and its abandoned
     work is still running, so the level after it is not independent."""
     stats = aggregate([
         _rec(1, 100.0),
         _rec(2, 900.0, ok=False, abandoned=True),
         _rec(3, 300.0),
     ])
-    assert [s.concurrency for s in stats] == [1, 3]
-    assert [s.contaminated for s in stats] == [False, True]
+    assert [s.concurrency for s in stats] == [1, 2, 3]
+    assert [s.contaminated for s in stats] == [False, True, True]
 
 
 def test_a_clean_run_is_not_flagged():

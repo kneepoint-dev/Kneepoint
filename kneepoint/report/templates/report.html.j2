@@ -96,9 +96,9 @@ the first contaminated level onward.
 {% call howto("foundations", "Foundations") %}Read p50 and p95 together and ask
 where p95 bends. p95 is the signal: the median stays flat long after the system
 starts struggling, and p99 is too noisy at these sample sizes to trend. Before
-you read the shape, read the <code>n</code> under each level — a curve that
-spikes where n=8 is an absence of data, not a spike, and a level below
-{{ min_samples }} requests is marked <em>not plotted</em> rather than drawn from
+you read the shape, read the successful-request count under each level — a curve that
+spikes with 8 successes is an absence of data, not a spike, and a level below
+{{ min_samples }} successful requests is marked <em>not plotted</em> rather than drawn from
 thin air. A gap in a line is a suppressed point, not a rendering bug; y starts at
 zero and nothing is smoothed. The dashed line is the low end of the knee range.
 A slowdown can also be the model writing more: check output tokens before
@@ -110,7 +110,7 @@ blaming the server.{% endcall %}
 machines. Resolution <em>falling</em> is a different problem: the agent is
 answering worse, not just slower, and no amount of hardware fixes a wrong
 answer. Both axes start at a real zero and neither line is smoothed — every
-point is a measured level, and the counts behind it (requests for p95, judged
+point is a measured level, and the counts behind it (successful requests for p95, judged
 sessions for the rate) sit under each level on the axis. A level below
 {{ min_samples }} of either is marked there and left off its trace.</p>
 {% call howto("quality", "Quality under load") %}Everything lost between the
@@ -143,7 +143,7 @@ means requests are queueing before the model starts — a capacity problem that
 more replicas fix. <strong>TPOT</strong> rising means generation itself is
 contended once it has started — decode batching or the model's own throughput.
 They are different units on different axes, both from zero; hover for the sample
-count behind each point.</p>
+successful and total request counts at each level. Field-specific coverage may be lower.</p>
 {% call howto("latency", "Latency metrics") %}This single comparison is the most
 useful diagnostic in the Book. <strong>TTFT rising, TPOT flat</strong>: queueing —
 requests wait to start but generate at full speed once started; the server is at
@@ -155,7 +155,7 @@ simultaneous streams; a faster-memory machine helps, more concurrency will not.
 calls and retries. On a reasoning-capable model TTFT includes thinking time, so
 a chart built on it is a chart of reasoning length unless the reasoning knob was
 off; record which.{% endcall %}
-{% else %}<p class="placeholder">No TTFT or TPOT to chart — the target produced no streamed content, or no level reached {{ min_samples }} requests.</p>{% endif %}
+{% else %}<p class="placeholder">No TTFT or TPOT to chart — the target produced no streamed content, or no level reached {{ min_samples }} successful requests.</p>{% endif %}
 
 <h2>Inter-token latency</h2>
 {% if itl_div %}{{ itl_div | safe }}
@@ -175,10 +175,10 @@ sense.{% endcall %}
 <h2>Latency breakdown</h2>
 {% if latency_rows %}
 <table>
-  <tr><th>Concurrency</th><th>n</th><th>TTFT p50</th><th>TTFT p95</th>
+  <tr><th>Concurrency</th><th>Successful / attempts</th><th>TTFT p50</th><th>TTFT p95</th>
       <th>TPOT p50</th><th>ITL p50</th><th>ITL p99</th></tr>
   {% for s in latency_rows %}
-  <tr><td>{{ s.concurrency }}</td><td>{{ s.n }}</td>
+  <tr><td>{{ s.concurrency }}</td><td>{{ s.successful_n if s.successful_n is not none else "unknown" }} / {{ s.n }}</td>
       <td>{{ "%.0f ms"|format(s.ttft_p50_ms) }}</td>
       <td>{{ "%.0f ms"|format(s.ttft_p95_ms) }}</td>
       <td>{% if s.tpot_p50_ms is not none %}{{ "%.2f ms/tok"|format(s.tpot_p50_ms) }}{% else %}<span class="muted">n/a</span>{% endif %}</td>

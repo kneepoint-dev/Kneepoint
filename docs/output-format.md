@@ -214,7 +214,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `seed` | int | sampling and chaos seed |
 | `chaos` | object | `profile` is the name the run was given (`off`, `standard`, `custom`, `demo`); `faults` is the full list that could fire, each `{type, probability, target}` — `type` is one of `llm_rate_limit`, `llm_server_error`, `tool_timeout`, `tool_malformed_json`; `target` is a tool-name glob, `*` unless a `custom` profile narrowed it, and only meaningful for tool faults. Stored in full so a `custom` profile is reproducible from this file alone, and so a chaos run in which no fault happened to fire is distinguishable from `off` — the request lines cannot tell them apart. `off` always carries an empty list. Tool faults only fire through the proxy |
 | `price` | object \| null | `input_per_mtok`, `output_per_mtok` in USD, `max_spend` (nullable). **`null` means cost tracking was off**, not that the run was free |
-| `min_samples` | int | fewest requests a level needs before its percentiles enter the knee math |
+| `min_samples` | int | fewest successful requests a level needs before its percentiles enter the knee math |
 | `min_group` | int | fewest faulted / clean sessions the resilience grid will score |
 | `started_at` | float | unix epoch seconds, taken **before the first request** of the ramp is sent (the cost calibration request is not part of the run) |
 | `finished_at` | float | unix epoch seconds, taken as this file is written — after the ramp has finished and the sessions have been judged, before the report is rendered |
@@ -258,15 +258,22 @@ So third-party tools get the same numbers kneepoint prints:
   `total_ms`. Kneepoint uses `statistics.quantiles(..., n=100,
   method="inclusive")`, which differs slightly from a naive nearest-rank p95;
   a level with a single successful request reports that request's value. A
-  level with no successful request has no percentiles at all and is left out.
+  level with no successful request is retained with null percentiles.
+  `LevelStats.n` remains total attempts (including failures); `successful_n`
+  is the exact successful-request count. Latency eligibility uses `successful_n`,
+  not `n`. Legacy `LevelStats` constructors without that field infer `n` only
+  when `error_rate == 0`, or zero when `error_rate == 1`; mixed-error summaries
+  retain an unknown count and cannot establish latency eligibility. All-failed
+  levels retain error, abandonment and contamination evidence.
 * **TPOT / ITL** — see the two sections above; `itl_*` is per chunk, `tpot_ms`
   is per reported token, and they only coincide when `chunk_count ≈
   output_tokens`.
-* **the knee** — among levels with at least `min_samples` requests, the first
+* **the knee** — among levels with at least `min_samples` successful requests, the first
   whose p95 reaches 2× the curve's floor (the lowest p95 among those levels).
   See [The three metrics](metrics.md) for the confidence range around that
   threshold, why a crossing at the last level is only a lower bound, and why
-  Kneedle is a cross-check rather than the answer.
+  Kneedle is a cross-check rather than the answer. No knee is claimed across
+  an interior measured level without enough successful latency samples.
 * **resolution rate** — `resolved == true` over `resolved != null`.
 * **retry waste** — spend on lines with `ok == false`, over total spend.
 * **contamination** — if any line has `abandoned == true`, that level and every

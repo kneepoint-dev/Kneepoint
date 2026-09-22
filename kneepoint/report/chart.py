@@ -28,13 +28,13 @@ CONTAMINATION_COLOR = "#b26b00"
 
 
 def _plottable(stats: list[LevelStats], min_samples: int) -> list[LevelStats]:
-    """Levels with enough requests to carry a percentile.
+    """Levels with enough successful requests to carry a percentile.
 
     A p95 over four requests is the fourth-largest of four, and drawing it next
     to a p95 over two hundred invites the reader to compare them. Thin levels are
     left out of the percentile traces and counted in the caption instead.
     """
-    return [s for s in stats if s.n >= min_samples]
+    return [s for s in stats if s.latency_eligible(min_samples)]
 
 
 def _judged(levels: list[LevelResolution], min_samples: int) -> list[LevelResolution]:
@@ -69,20 +69,42 @@ def _sample_ticks(entries: list[tuple[int, str, bool]], fallback: str) -> tuple[
 
 def _count_ticks(stats: list[LevelStats], min_samples: int) -> tuple[dict, str]:
     """The request-count ticks shared by every chart built from `LevelStats`."""
-    plotted = [s.n for s in stats if s.n >= min_samples]
+    plotted = [s.successful_n for s in _plottable(stats, min_samples)]
     fallback = (
-        f"n = {min(plotted)}-{max(plotted)} per plotted level" if plotted
+        f"successful = {min(plotted)}-{max(plotted)} per plotted level" if plotted
         else "no level plotted"
     )
     return _sample_ticks(
-        [(s.concurrency, f"n={s.n}", s.n >= min_samples) for s in stats], fallback
+        [(s.concurrency, _count_label(s), s.latency_eligible(min_samples)) for s in stats],
+        fallback,
     )
 
 
-def _hover_data(stats: list[LevelStats]) -> list[tuple[int, str]]:
-    """Per-point (n, contamination flag) for the hover — the count in words, and
-    the word "contaminated" on the points the shaded band covers."""
-    return [(s.n, " · contaminated" if s.contaminated else "") for s in stats]
+def _count_label(s: LevelStats) -> str:
+    count = "unknown" if s.successful_n is None else str(s.successful_n)
+    return f"successful={count} / attempts={s.n}"
+
+
+def _hover_data(stats: list[LevelStats]) -> list[tuple[str, str]]:
+    """Successful and total counts, plus contamination, behind each point."""
+    return [(_count_label(s), " · contaminated" if s.contaminated else "") for s in stats]
+
+
+def _break_latency_gaps(fig: go.Figure, stats: list[LevelStats]) -> None:
+    """Keep missing measured levels as nulls instead of joining across them."""
+    for trace in fig.data:
+        if trace.name in ("resolved", "resolution rate") or not len(trace.x):
+            continue
+        points = dict(zip(trace.x, zip(trace.y, trace.customdata, strict=True), strict=True))
+        low, high = min(trace.x), max(trace.x)
+        for s in stats:
+            if low < s.concurrency < high:
+                points.setdefault(s.concurrency, (None, ("", "")))
+        xs = sorted(points)
+        trace.x = xs
+        trace.y = [points[x][0] for x in xs]
+        trace.customdata = [points[x][1] for x in xs]
+        trace.connectgaps = False
 
 
 def _mark_contamination(fig: go.Figure, stats: list[LevelStats]) -> None:
@@ -125,23 +147,25 @@ def knee_figure(
         fig.add_trace(go.Scatter(
             x=xs, y=ys, mode="lines+markers", name=f"{name} latency",
             customdata=custom,
-            hovertemplate="c=%{x}<br>%{y:.0f} ms<br>n=%{customdata[0]}%{customdata[1]}"
+            hovertemplate="c=%{x}<br>%{y:.0f} ms<br>%{customdata[0]}%{customdata[1]}"
                           "<extra></extra>",
         ))
     if knee is not None and plotted:
         fig.add_vline(x=knee.concurrency, line_dash="dash", line_color="red")
         fig.add_annotation(
             x=knee.concurrency,
-            y=max(s.p99_ms for s in plotted),
+            y=max((s.p99_ms for s in plotted if s.p99_ms is not None), default=0),
             text=f"knee @ {knee.concurrency}",
             showarrow=False,
             yshift=12,
         )
+    _break_latency_gaps(fig, stats)
     _mark_contamination(fig, stats)
     dropped = len(stats) - len(plotted)
     title = "Latency vs. concurrency — the knee curve"
     if dropped:
-        title += f"   ({dropped} level(s) below {min_samples} requests not plotted)"
+        title += (f"   ({dropped} level(s) without {min_samples} successful requests "
+                  "and latency not plotted)")
     ticks, tick_note = _count_ticks(stats, min_samples)
     fig.update_layout(
         title=title + tick_note,
@@ -163,7 +187,7 @@ def drift_figure(
     The product's argument in one picture: p95 climbing on the left axis while
     the share of tasks the agent actually finished falls on the right. Two axes
     because they are different units — never normalise one onto the other.
-    Both traces are gated by `min_samples` — requests for the percentile,
+    Both traces are gated by `min_samples` — successful requests for the percentile,
     judged sessions for the rate. None when no level has enough judged sessions
     to put a rate on the chart, so the report can say so.
     """
@@ -177,7 +201,7 @@ def drift_figure(
         mode="lines+markers", name="p95 latency", yaxis="y",
         line={"color": "#4666d1"},
         customdata=_hover_data(plotted),
-        hovertemplate="c=%{x}<br>p95 %{y:.0f} ms<br>n=%{customdata[0]}%{customdata[1]}"
+        hovertemplate="c=%{x}<br>p95 %{y:.0f} ms<br>%{customdata[0]}%{customdata[1]}"
                       "<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
@@ -190,12 +214,13 @@ def drift_figure(
     ))
     if knee is not None:
         fig.add_vline(x=knee.concurrency, line_dash="dash", line_color="red")
+    _break_latency_gaps(fig, stats)
     _mark_contamination(fig, stats)
     # one tick per level on either axis, carrying both counts; a level is
     # "plotted" if either trace drew it
     by_level: dict[int, tuple[str, bool]] = {}
     for s in stats:
-        by_level[s.concurrency] = (f"n={s.n}", s.n >= min_samples)
+        by_level[s.concurrency] = (_count_label(s), s.latency_eligible(min_samples))
     for lv in levels:
         n_text, n_ok = by_level.get(lv.concurrency, ("", False))
         text = f"{n_text} · judged {lv.judged}" if n_text else f"judged {lv.judged}"
@@ -286,7 +311,7 @@ def ttft_tpot_figure(stats: list[LevelStats], min_samples: int = 10) -> go.Figur
         fig.add_trace(go.Scatter(
             x=[s.concurrency for s in ttft], y=ys, mode="lines+markers", name=name,
             yaxis="y", customdata=ttft_custom,
-            hovertemplate="c=%{x}<br>" + name + " %{y:.0f} ms<br>n=%{customdata[0]}"
+            hovertemplate="c=%{x}<br>" + name + " %{y:.0f} ms<br>%{customdata[0]}"
                           "%{customdata[1]}<extra></extra>",
         ))
     fig.add_trace(go.Scatter(
@@ -294,14 +319,16 @@ def ttft_tpot_figure(stats: list[LevelStats], min_samples: int = 10) -> go.Figur
         mode="lines+markers", name="TPOT p50", yaxis="y2",
         line={"color": "#b26b00"},
         customdata=_hover_data(tpot),
-        hovertemplate="c=%{x}<br>TPOT p50 %{y:.2f} ms/tok<br>n=%{customdata[0]}"
+        hovertemplate="c=%{x}<br>TPOT p50 %{y:.2f} ms/tok<br>%{customdata[0]}"
                       "%{customdata[1]}<extra></extra>",
     ))
+    _break_latency_gaps(fig, stats)
     _mark_contamination(fig, stats)
     dropped = len(stats) - len(plotted)
     title = "Time to first token vs. time per output token"
     if dropped:
-        title += f"   ({dropped} level(s) below {min_samples} requests not plotted)"
+        title += (f"   ({dropped} level(s) without {min_samples} successful requests "
+                  "and latency not plotted)")
     ticks, tick_note = _count_ticks(stats, min_samples)
     fig.update_layout(
         title=title + tick_note,
@@ -337,14 +364,16 @@ def itl_figure(stats: list[LevelStats], min_samples: int = 10) -> go.Figure | No
     ):
         fig.add_trace(go.Scatter(
             x=xs, y=ys, mode="lines+markers", name=name, customdata=custom,
-            hovertemplate="c=%{x}<br>" + name + " %{y:.2f} ms<br>n=%{customdata[0]}"
+            hovertemplate="c=%{x}<br>" + name + " %{y:.2f} ms<br>%{customdata[0]}"
                           "%{customdata[1]}<extra></extra>",
         ))
+    _break_latency_gaps(fig, stats)
     _mark_contamination(fig, stats)
     dropped = len(stats) - len(_plottable(stats, min_samples))
     title = "Inter-token latency (per streamed chunk)"
     if dropped:
-        title += f"   ({dropped} level(s) below {min_samples} requests not plotted)"
+        title += (f"   ({dropped} level(s) without {min_samples} successful requests "
+                  "and latency not plotted)")
     ticks, tick_note = _count_ticks(stats, min_samples)
     fig.update_layout(
         title=title + tick_note,

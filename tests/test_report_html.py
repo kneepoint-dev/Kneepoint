@@ -132,12 +132,14 @@ def test_thin_levels_are_left_out_of_the_percentile_chart(tmp_path):
     """A p95 over four requests next to a p95 over two hundred invites a
     comparison the data cannot support."""
     stats = _stats()
-    stats[1].n = 4
+    stats[1].n = stats[1].successful_n = 4
     out = write_report(
         tmp_path / "report.html", meta=_meta(), stats=stats, knee=None,
         quality=[], cost=None, res=None, min_samples=10,
     )
-    assert "1 level(s) below 10 requests not plotted" in out.read_text(encoding="utf-8")
+    assert "1 level(s) without 10 successful requests and latency not plotted" in (
+        out.read_text(encoding="utf-8")
+    )
 
 
 def test_the_drift_chart_puts_quality_on_the_latency_axis(tmp_path):
@@ -273,13 +275,13 @@ def test_ttft_tpot_and_itl_say_why_they_are_empty_for_a_non_streaming_target(tmp
 
 def test_thin_levels_are_left_out_of_the_ttft_and_itl_charts_too(tmp_path):
     stats = _streamed_stats()
-    stats[1].n = 4
+    stats[1].n = stats[1].successful_n = 4
     html = write_report(
         tmp_path / "r.html", meta=_meta(), stats=stats, knee=None,
         quality=[], cost=None, res=None, min_samples=10,
     ).read_text(encoding="utf-8")
     # knee curve, TTFT/TPOT and ITL each carry the caption — three, not one
-    assert html.count("1 level(s) below 10 requests not plotted") == 3
+    assert html.count("1 level(s) without 10 successful requests and latency not plotted") == 3
 
 
 def test_metadata_block_renders_every_sidecar_field_and_names_what_is_not_recorded(tmp_path):
@@ -345,7 +347,8 @@ def test_same_inputs_with_metadata_and_errors_still_render_identical_bytes(tmp_p
 def _unescape(html: str) -> str:
     """Plotly JSON-escapes `<`/`>` inside the figure; the tests read tick labels
     as written."""
-    return html.replace("\\u003c", "<").replace("\\u003e", ">").replace("\\u00b7", "·")
+    return (html.replace("\\u003c", "<").replace("\\u003e", ">")
+            .replace("\\u00b7", "·").replace("\\u002f", "/"))
 
 
 def _contaminated_stats():
@@ -366,22 +369,23 @@ def test_every_chart_carries_the_sample_count_on_its_axis_not_only_in_hover(tmp_
         cost=None, res=None, min_samples=10,
     ).read_text(encoding="utf-8"))
     # knee curve, TTFT/TPOT and ITL: one request-count tick per level
-    assert html.count('"1<br>n=50"') == 3 and html.count('"10<br>n=50"') == 3
+    assert html.count('"1<br>successful=50 / attempts=50"') == 3
+    assert html.count('"10<br>successful=50 / attempts=50"') == 3
     # quality curve: judged sessions; quality under load: both counts on one tick
     assert '"10<br>judged=12"' in html
-    assert '"10<br>n=50 · judged 12"' in html
+    assert '"10<br>successful=50 / attempts=50 · judged 12"' in html
 
 
 def test_a_thin_level_keeps_its_tick_and_says_it_was_not_plotted(tmp_path):
     """The Book's Foundations chapter promises a gap *and* a marker — the level stays on the
     axis at its own x, labelled, so a gap is never mistaken for a missing level."""
     stats = _streamed_stats()
-    stats[1].n = 4
+    stats[1].n = stats[1].successful_n = 4
     html = _unescape(write_report(
         tmp_path / "r.html", meta=_meta(), stats=stats, knee=None,
         quality=[], cost=None, res=None, min_samples=10,
     ).read_text(encoding="utf-8"))
-    assert html.count('"5<br>n=4 - not plotted"') == 3   # knee, TTFT/TPOT, ITL
+    assert html.count('"5<br>successful=4 / attempts=4 - not plotted"') == 3
     assert '"5<br>n=5"' not in html
 
 
@@ -397,7 +401,7 @@ def test_resolution_rates_below_min_samples_judged_sessions_are_not_plotted(tmp_
     assert html.count("1 level(s) below 10 judged sessions not plotted") == 2
     # ...keep it on the axis, labelled...
     assert '"5<br>judged=3 - not plotted"' in html
-    assert '"5<br>n=50 · judged 3"' in html    # p95 plotted (n=50), rate not
+    assert '"5<br>successful=50 / attempts=50 · judged 3"' in html    # p95 plotted, rate not
     # ...and do not draw the 33% point
     fig = quality_figure(levels, stats=_stats(), min_samples=10)
     assert list(fig.data[0].y) == [100.0, 80.0]
@@ -443,7 +447,9 @@ def test_contaminated_levels_are_shaded_on_every_chart_not_only_in_the_banner(tm
     assert "shades the ramp from" in html
     # and the hover names it on the contaminated points only
     hover = [tuple(row) for row in knee_figure(stats, None).data[1].customdata]
-    assert hover == [(50, ""), (50, " · contaminated"), (50, " · contaminated")]
+    assert hover == [("successful=50 / attempts=50", ""),
+                     ("successful=50 / attempts=50", " · contaminated"),
+                     ("successful=50 / attempts=50", " · contaminated")]
 
 
 def test_clean_runs_draw_no_contamination_band(tmp_path):
@@ -461,7 +467,7 @@ def test_too_many_levels_fall_back_to_a_stated_n_range_instead_of_colliding_tick
         tmp_path / "r.html", meta=_meta(), stats=stats, knee=None,
         quality=[], cost=None, res=None,
     ).read_text(encoding="utf-8"))
-    assert "n = 31-70 per plotted level; hover for each point" in html
+    assert "successful = 31-70 per plotted level; hover for each point" in html
     assert knee_figure(stats, None).layout.xaxis.ticktext is None
 
 

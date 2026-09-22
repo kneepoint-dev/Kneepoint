@@ -107,3 +107,8 @@ or the score is `n/a` with advice to run longer holds.
 
 Per-fault verdicts: **pass** ≥95% of the clean rate, **degraded** ≥70%,
 **fail** below.
+
+All-failed levels remain in the summary with null latency percentiles. Charts
+show successful and total attempt counts separately and leave gaps at excluded
+measured levels. An interior excluded level prevents a knee claim across that
+gap; excluded leading or trailing levels do not enter the fitted curve.

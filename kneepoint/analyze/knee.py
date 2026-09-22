@@ -21,7 +21,7 @@ import statistics
 import warnings
 
 from kneed import KneeLocator
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from kneepoint.collect.schemas import RequestRecord
 
@@ -37,9 +37,10 @@ class LevelStats(BaseModel):
     concurrency: int
     n: int
     error_rate: float
-    p50_ms: float
-    p95_ms: float
-    p99_ms: float
+    successful_n: int | None = Field(default=None, ge=0)
+    p50_ms: float | None
+    p95_ms: float | None
+    p99_ms: float | None
     abandoned: int = 0
     # True once this level, or any level before it, abandoned a request. Work the
     # client walked away from can keep running on the server, so from that point
@@ -53,6 +54,26 @@ class LevelStats(BaseModel):
     tpot_p50_ms: float | None = None
     itl_p50_ms: float | None = None
     itl_p99_ms: float | None = None
+
+    @model_validator(mode="after")
+    def infer_legacy_successes(self) -> "LevelStats":
+        # Old constructors lack a count. Only the two endpoints are exact;
+        # rounded mixed-error rates cannot recover the underlying sample size.
+        if self.successful_n is None:
+            if self.error_rate == 0:
+                self.successful_n = self.n
+            elif self.error_rate == 1:
+                self.successful_n = 0
+        if self.successful_n is not None and self.successful_n > self.n:
+            raise ValueError("successful_n cannot exceed total attempts n")
+        if self.successful_n == 0:
+            self.p50_ms = self.p95_ms = self.p99_ms = None
+        return self
+
+    def latency_eligible(self, min_samples: int) -> bool:
+        """Enough known successful observations, with a measured p95."""
+        return (self.successful_n is not None and self.successful_n > 0
+                and self.successful_n >= min_samples and self.p95_ms is not None)
 
 
 class KneeResult(BaseModel):
@@ -151,12 +172,12 @@ def _pct(values: list[float], p: int) -> float:
 
 def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
     """Group records by ramp level; percentiles use successful requests only.
-    Levels where every request failed carry no latency signal and are dropped.
+    Levels where every request failed retain their counts and null percentiles.
 
     Contamination travels forward: a level that abandoned a request — and every
     level after it — is flagged, because the abandoned generation can still be
-    holding a slot on the server while the next level is being measured. Dropped
-    levels still contaminate the ones that follow.
+    holding a slot on the server while the next level is being measured. Abandonments at
+    all-failed levels also contaminate the ones that follow.
     """
     by_level: dict[int, list[RequestRecord]] = {}
     for record in records:
@@ -169,8 +190,6 @@ def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
         seen_abandonment = seen_abandonment or abandoned > 0
         ok = [r for r in recs if r.ok]
         ok_latencies = [r.total_ms for r in ok]
-        if not ok_latencies:
-            continue
 
         def pct(values: list[float], p: int) -> float | None:
             """None, not 0, when the field was never reported at this level."""
@@ -184,10 +203,11 @@ def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
             LevelStats(
                 concurrency=level,
                 n=len(recs),
+                successful_n=len(ok),
                 error_rate=1 - len(ok_latencies) / len(recs),
-                p50_ms=_pct(ok_latencies, 50),
-                p95_ms=_pct(ok_latencies, 95),
-                p99_ms=_pct(ok_latencies, 99),
+                p50_ms=pct(ok_latencies, 50),
+                p95_ms=pct(ok_latencies, 95),
+                p99_ms=pct(ok_latencies, 99),
                 abandoned=abandoned,
                 contaminated=seen_abandonment,
                 ttft_p50_ms=pct(ttfts, 50),
@@ -279,19 +299,26 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
     Otherwise it comes back as a range labelled low confidence, which is what
     Run D's 3/2/2 sequence actually was.
     """
-    usable = [s for s in stats if s.n >= min_samples]
-    contaminated = [s.concurrency for s in usable if s.contaminated]
-    if len(usable) < 3:
+    usable = sorted((s for s in stats if s.latency_eligible(min_samples)),
+                    key=lambda s: s.concurrency)
+    contaminated = [s.concurrency for s in stats if s.contaminated]
+    gaps = [s.concurrency for s in stats if not s.latency_eligible(min_samples)
+            and usable and usable[0].concurrency < s.concurrency < usable[-1].concurrency]
+    if len(usable) < 3 or gaps:
+        reason = ("insufficient successful samples at interior levels "
+                  + ", ".join(map(str, sorted(gaps))) + " - no curve is fit across this gap"
+                  if gaps else "not enough levels to fit a curve")
         return KneeReport(
             min_samples=min_samples, usable_levels=len(usable),
             kneedle=MethodVerdict(method="kneedle", concurrency=None,
-                                  note="not enough levels to fit a curve"),
+                                  note=reason),
             p95_doubling=MethodVerdict(method="p95_doubling", concurrency=None,
-                                       note="not enough levels to fit a curve"),
+                                       note=reason),
             agree=None, knee=None, knee_range=None, confidence=None, ratios=[],
             contaminated_levels=contaminated,
-            notes=[f"fewer than 3 levels have at least {min_samples} requests - "
-                   "no knee is claimed"],
+            notes=([reason + "; no knee is claimed"] if gaps else
+                   [f"fewer than 3 levels have at least {min_samples} successful requests "
+                    "with measured p95 - no knee is claimed"]),
         )
 
     ratios = _ratios(usable)

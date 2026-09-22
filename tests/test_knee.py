@@ -36,9 +36,12 @@ def test_aggregate_groups_and_computes_percentiles():
     assert stats[1].error_rate == 0.5
 
 
-def test_aggregate_drops_levels_with_no_successes():
+def test_aggregate_retains_levels_with_no_successes():
     stats = aggregate([_rec(1, 100.0), _rec(2, 400.0, ok=False)])
-    assert [s.concurrency for s in stats] == [1]
+    assert [s.concurrency for s in stats] == [1, 2]
+    failed = stats[1]
+    assert failed.n == 1 and failed.successful_n == 0 and failed.error_rate == 1
+    assert failed.p50_ms is failed.p95_ms is failed.p99_ms is None
 
 
 def test_find_knee_on_hockey_stick():
@@ -273,3 +276,55 @@ def test_find_knee_returns_the_conservative_end_of_the_range():
 
 def test_find_knee_is_none_when_only_kneedle_answered():
     assert find_knee(_stats({1: 100.0, 2: 101.0, 3: 101.0, 4: 128.0, 5: 129.0})) is None
+
+
+def test_errors_do_not_supply_latency_samples():
+    records = [r for c in (1, 2, 3) for r in
+               [_rec(c, c * 100)] * 9 + [_rec(c, 99999, ok=False)] * 91]
+    stats = aggregate(records)
+    assert all(s.n == 100 and s.successful_n == 9 for s in stats)
+    assert all(s.p95_ms == s.concurrency * 100 for s in stats)
+    report = knee_report(stats)
+    assert report.usable_levels == 0 and report.knee is None
+    assert "successful requests" in report.notes[0]
+    # The threshold is inclusive and counts only the successes.
+    assert knee_report(aggregate(records + [_rec(c, c * 100) for c in (1, 2, 3)])
+                       ).usable_levels == 3
+
+
+def test_legacy_counts_are_inferred_only_when_exact():
+    values = dict(concurrency=1, n=100, p50_ms=100, p95_ms=100, p99_ms=100)
+    assert LevelStats(**values, error_rate=0).successful_n == 100
+    failed = LevelStats(**values, error_rate=1)
+    assert failed.successful_n == 0 and failed.p95_ms is None
+    unknown = LevelStats(**values, error_rate=0.1)
+    assert unknown.successful_n is None and not unknown.latency_eligible(1)
+    explicit = LevelStats(**values, error_rate=0.1, successful_n=90)
+    assert explicit.latency_eligible(90)
+    assert LevelStats.model_validate_json(explicit.model_dump_json()) == explicit
+
+
+def test_all_failed_abandonment_remains_visible_and_contaminates_later_levels():
+    abandoned = _rec(2, 300, ok=False).model_copy(update={"abandoned": True})
+    stats = aggregate([_rec(1, 100), abandoned, _rec(3, 400)])
+    assert [s.contaminated for s in stats] == [False, True, True]
+    assert stats[1].abandoned == 1
+    assert knee_report(stats).contaminated_levels == [2, 3]
+
+
+def test_detector_does_not_bridge_an_ineligible_measured_level():
+    stats = _stats({1: 100, 2: 110, 3: 120, 4: 400, 5: 800})
+    stats[2].successful_n = 2
+    report = knee_report(stats)
+    assert report.usable_levels == 4 and report.knee is None
+    assert report.confidence is None and "interior levels 3" in report.notes[0]
+    assert find_knee(stats) is None
+
+
+def test_leading_and_trailing_failed_levels_do_not_prevent_valid_curve():
+    stats = _stats({2: 100, 3: 110, 4: 400, 5: 800})
+    baseline = knee_report(stats)
+    edges = aggregate([_rec(1, 500, ok=False), _rec(6, 500, ok=False)])
+    report = knee_report([edges[0], *stats, edges[1]])
+    assert report.knee == baseline.knee
+    assert report.confidence == baseline.confidence

@@ -54,12 +54,10 @@ def test_the_error_tail_is_folded_into_other_not_dropped():
     assert sum(e.count for e in lv.top_errors) == lv.failed   # the rows still add up
 
 
-def test_an_all_failed_level_appears_here_even_though_aggregate_drops_it():
-    """`aggregate()` has no latency to report for a level where nothing
-    succeeded, so it leaves the level out. The errors table must not — that
-    level is the whole story."""
+def test_an_all_failed_level_appears_in_both_error_and_latency_summaries():
+    """A failed level preserves error evidence even though it has no latency."""
     recs = [_rec(1)] * 5 + [_rec(10, ok=False, error="HTTP 500", status=500)] * 5
-    assert [s.concurrency for s in aggregate(recs)] == [1]
+    assert [s.concurrency for s in aggregate(recs)] == [1, 10]
     assert [lv.concurrency for lv in errors_by_level(recs)] == [1, 10]
 
 

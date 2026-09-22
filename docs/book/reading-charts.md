@@ -12,7 +12,10 @@ Choosing the axis *is* choosing the question.
 **Question:** how does this metric change as load increases?
 
 This is the capacity view and where the knee lives. Each point aggregates all
-requests at that concurrency level.
+requests at that concurrency level. Latency percentiles use successful requests
+only. Their ticks show successful requests and total attempts separately; the
+minimum-sample threshold uses successes. All-failed levels remain visible as
+excluded ticks with no latency point.
 
 Use it for: knee detection, degradation shape, resolution drift, goodput
 collapse — essentially every "how much load can we take" question.

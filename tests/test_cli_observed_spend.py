@@ -207,3 +207,33 @@ def test_record_is_flushed_before_accounting(tmp_path, completions, monkeypatch)
     monkeypatch.setattr(cli.ObservedSpendController, "on_attempt_complete", observe)
     result = invoke(tmp_path, "--price-in", "0", "--price-out", "0", "--max-spend", "1")
     assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_failed_levels_render_and_slo_handles_missing_latency(
+    tmp_path, completions, monkeypatch, mixed,
+):
+    original = session.run_turn
+
+    async def turn(*args, **kwargs):
+        completions[1].update(ok=mixed and kwargs["concurrency"] == 1, status_code=400)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(session, "run_turn", turn)
+    scenario = tmp_path / "scenario.yaml"
+    scenario.write_text("target: {url: 'http://mock.invalid/v1'}\nslo: {p95_total_ms: 10}\n")
+    result = invoke(tmp_path, "--scenario", str(scenario), "--ramp", "1..2", "--turns", "1..1")
+    assert result.exit_code == (0 if mixed else 1), result.output
+    if not mixed:
+        assert "p95_total_ms: SLO set but not measured" in result.output
+    _, path, records = saved(tmp_path)
+    assert records and any(not r["ok"] for r in records)
+    original_report = path.with_name(path.stem + "-report.html").read_bytes()
+    assert b"successful=0 " in original_report
+    rerender = render_from_files(path, out=tmp_path / "again.html")
+    assert rerender.knee_summary.usable_levels == 0
+    # Unpriced rerenders use different cost-placeholder copy; compare the
+    # latency/quality/error portion of the report, which must be reproducible.
+    assert rerender.report_path.read_bytes().split(b"<h2>Cost</h2>")[0] == (
+        original_report.split(b"<h2>Cost</h2>")[0]
+    )

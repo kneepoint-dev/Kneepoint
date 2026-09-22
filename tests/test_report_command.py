@@ -99,7 +99,7 @@ def test_report_without_sidecar_says_unknown_and_why(finished_run, tmp_path):
         # the run's min_samples was 3; without the sidecar the command applies its
         # own default and says so, on the console and in the chart caption
         assert f"this report applies {DEFAULT_MIN_SAMPLES}" in result.output
-        assert f"below {DEFAULT_MIN_SAMPLES} requests" in html
+        assert f"without {DEFAULT_MIN_SAMPLES} successful requests" in html
         assert "metadata sidecar" in result.output and "not found" in result.output
     finally:
         hidden.rename(meta_path)
