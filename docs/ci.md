@@ -7,10 +7,16 @@ into CI like any other check.
 
 | Code | Meaning | Comes from |
 |---|---|---|
-| 0 | run completed, every configured SLO met | — |
-| 1 | **SLO breach** — each breach printed as `SLO breach - <which>: measured X vs limit Y`. An SLO that was configured but couldn't be measured also breaches (never a silent pass). Also: invalid scenario file, or a configured `auth_env` whose variable is empty. | `slo:` block |
+| 0 | run completed, every configured SLO met (or none configured) | — |
+| 1 | **Failed or unknown SLO** — `SLO fail - <metric>` identifies a measured breach; `SLO unknown - <metric>` identifies insufficient evidence. Both fail the CI gate. Every configured check prints its state, threshold, measured value (nullable), and reason. Also: invalid scenario file, or an empty configured `auth_env`. | `slo:` block |
 | 2 | usage error (bad flag, malformed `--ramp`, …) | CLI parsing |
 | 3 | **spend control stop** — observed spend reached `max_spend`, or a capped run encountered unknown usage. Active calls drain and can overshoot; partial results are reported. `--force` never bypasses the stop | `cost.max_spend` |
+
+Budget control stops retain exit **3**, even when some checks fail or are unknown.
+A check can pass on observed records without proving the configured ramp completed.
+No configured SLO is shown as "No SLO configured", never an invented pass.
+`kneepoint report` recomputes these results with any price overrides, but its exit
+code reports rendering success/failure; it does not apply the `run` CI gate.
 
 ## GitHub Actions
 

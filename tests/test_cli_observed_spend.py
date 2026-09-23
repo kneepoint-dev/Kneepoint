@@ -275,9 +275,9 @@ def test_failed_levels_render_and_slo_handles_missing_latency(
     scenario = tmp_path / "scenario.yaml"
     scenario.write_text("target: {url: 'http://mock.invalid/v1'}\nslo: {p95_total_ms: 10}\n")
     result = invoke(tmp_path, "--scenario", str(scenario), "--ramp", "1..2", "--turns", "1..1")
-    assert result.exit_code == (0 if mixed else 1), result.output
+    assert result.exit_code == 1, result.output
     if not mixed:
-        assert "p95_total_ms: SLO set but not measured" in result.output
+        assert "SLO unknown - p95_total_ms: measured unknown" in result.output
     _, path, records = saved(tmp_path)
     assert records and any(not r["ok"] for r in records)
     original_report = path.with_name(path.stem + "-report.html").read_bytes()

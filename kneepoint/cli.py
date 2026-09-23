@@ -15,6 +15,7 @@ from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level, worst_amplification
+from kneepoint.analyze.slo import evaluate_run_slo
 from kneepoint.chaos.faults import STANDARD_PROFILE, TOOL_FAULTS
 from kneepoint.chaos.injector import ChaosInjector
 from kneepoint.chaos.proxy import merge_fault_log, start_proxy
@@ -34,7 +35,7 @@ from kneepoint.collect.writer import (
     read_run_meta,
     write_run_meta,
 )
-from kneepoint.config import STARTER_SCENARIO, ScenarioError, evaluate_slo, load_scenario
+from kneepoint.config import STARTER_SCENARIO, ScenarioError, SloConfig, load_scenario
 from kneepoint.generator.corpus import DEFAULT_PROMPTS, CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, parse_ramp, run_ramp
@@ -222,6 +223,8 @@ def report(
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
     for line in result.knee_summary.lines():
+        typer.echo(line)
+    for line in result.slo.lines():
         typer.echo(line)
     for reason in result.unknown:
         typer.echo(f"Unknown: {reason}")
@@ -561,6 +564,7 @@ def run(
             if track_cost else None
         ),
         min_samples=min_samples, min_group=RUN_MIN_GROUP,
+        slo=sc.slo if sc else SloConfig(),
         started_at=started_at, finished_at=time.time(),
         environment=current_environment(),
     ))
@@ -603,21 +607,12 @@ def run(
     typer.echo(f"Sessions:    {sessions_path}")
     typer.echo(f"Metadata:    {meta_path}")
     typer.echo(f"Report:      {report_path}")
+    slo_evaluation = evaluate_run_slo(
+        run_meta.slo, stats=stats, quality=quality_summary, cost=cost, cost_note=cost_note,
+    )
+    for line in slo_evaluation.lines():
+        typer.echo(line)
     if accounting["stop_requested"]:
         raise typer.Exit(code=3)
-    if sc is not None:
-        overall_p95 = max((s.p95_ms for s in stats if s.p95_ms is not None), default=None)
-        if sc.slo.min_resolution_rate is not None and quality_summary.slo_resolution is None:
-            typer.echo(
-                "Resolution SLO unknown: incomplete verdict coverage "
-                f"({quality_summary.judged}/{quality_summary.total} evaluated); "
-                "the whole-run threshold cannot be verified."
-            )
-        breaches = evaluate_slo(
-            sc.slo, p95_ms=overall_p95, resolution=quality_summary.slo_resolution,
-            cost_per_resolved=cost.cost_per_resolved if cost else None,
-        )
-        for breach in breaches:
-            typer.echo(f"SLO breach - {breach}")
-        if breaches:
-            raise typer.Exit(code=1)
+    if slo_evaluation.nonpassing:
+        raise typer.Exit(code=1)

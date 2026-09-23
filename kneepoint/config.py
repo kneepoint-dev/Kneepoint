@@ -11,6 +11,7 @@ from kneepoint.chaos.faults import STANDARD_PROFILE, FaultSpec
 from kneepoint.generator.session import RetryPolicy, ThinkTime, TurnsSpec
 from kneepoint.judge.deterministic import CheckConfig
 from kneepoint.judge.llm_judge import JudgeConfig
+from kneepoint.slo import SloConfig, evaluate_slo_results
 
 
 class ScenarioError(Exception):
@@ -83,12 +84,6 @@ class ChaosConfig(_Strict):
         return self.faults if self.profile == "custom" else []
 
 
-class SloConfig(_Strict):
-    p95_total_ms: float | None = None
-    min_resolution_rate: float | None = None
-    max_cost_per_resolved: float | None = None
-
-
 class Scenario(_Strict):
     target: TargetConfig
     workload: WorkloadConfig = WorkloadConfig()
@@ -122,22 +117,16 @@ def evaluate_slo(
     resolution: float | None,
     cost_per_resolved: float | None,
 ) -> list[str]:
-    """Human-readable breach list; an SLO that was set but not measured is a breach."""
-    breaches: list[str] = []
-
-    def check(threshold, measured, name, ok) -> None:
-        if threshold is None:
-            return
-        if measured is None:
-            breaches.append(f"{name}: SLO set but not measured in this run")
-        elif not ok(measured, threshold):
-            breaches.append(f"{name}: measured {measured:.4g} vs limit {threshold:.4g}")
-
-    check(slo.p95_total_ms, p95_ms, "p95_total_ms", lambda m, t: m <= t)
-    check(slo.min_resolution_rate, resolution, "min_resolution_rate", lambda m, t: m >= t)
-    check(slo.max_cost_per_resolved, cost_per_resolved, "max_cost_per_resolved",
-          lambda m, t: m <= t)
-    return breaches
+    """Legacy nonpassing messages; unknown remains fail-closed for Python callers."""
+    return [
+        (f"{result.metric}: SLO set but not measured in this run"
+         if result.status == "unknown" else
+         f"{result.metric}: measured {result.measured:.4g} vs limit {result.threshold:.4g}")
+        for result in evaluate_slo_results(
+            slo, p95_ms=p95_ms, resolution=resolution, cost_per_resolved=cost_per_resolved,
+        )
+        if result.status != "pass"
+    ]
 
 
 STARTER_SCENARIO = """\
@@ -175,6 +164,6 @@ cost:
 chaos:
   profile: "off"                  # "off" | standard | custom (bare off is YAML for false)
 
-slo:                              # non-zero exit code when breached -> CI gate
+slo:                              # exit 1 for failed or unknown checks -> CI gate
   min_resolution_rate: 0.90
 """

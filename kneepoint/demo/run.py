@@ -46,6 +46,7 @@ from kneepoint.generator.ramp import RampSpec, run_ramp
 from kneepoint.generator.session import RetryPolicy, SessionSpec, TurnsSpec
 from kneepoint.judge.deterministic import CheckConfig, apply_deterministic
 from kneepoint.report.html import RunMeta, format_started, write_report
+from kneepoint.slo import SloConfig
 
 # Boosted vs. the standard profile: a ~60s demo must produce enough faulted
 # sessions for a visible per-fault grid (DEMO_MIN_GROUP below).
@@ -198,7 +199,7 @@ def run_demo(
             chaos=ChaosShape(profile="demo", faults=DEMO_LLM_FAULTS + DEMO_TOOL_FAULTS),
             price=PriceRates(input_per_mtok=DEMO_PRICES.input_per_mtok,
                              output_per_mtok=DEMO_PRICES.output_per_mtok),
-            min_samples=DEMO_MIN_SAMPLES, min_group=DEMO_MIN_GROUP,
+            min_samples=DEMO_MIN_SAMPLES, min_group=DEMO_MIN_GROUP, slo=SloConfig(),
             started_at=started_at, finished_at=time.time(),
             environment=current_environment(),
         ))

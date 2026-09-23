@@ -101,12 +101,28 @@ See [Chaos testing](chaos.md) for the standard profile's probabilities.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `p95_total_ms` | float | — | max p95 total latency |
+| `p95_total_ms` | float | — | max successful-request p95 across observed levels (not a pooled percentile) |
 | `min_resolution_rate` | float | — | min fraction of sessions resolved; requires full verdict coverage |
 | `max_cost_per_resolved` | float | — | max $/confirmed resolution |
 
-Any breach exits 1 with a printed reason. **An SLO set but not measured is a
-breach** — a gate that silently passes because judging was off isn't a gate.
+Thresholds must be finite: latency and cost are nonnegative; resolution is in
+`[0, 1]`. Equality passes. Each configured check reports **pass**, **fail** (a
+measured breach), or **unknown** (the threshold cannot be verified). Both failed
+and unknown checks cause `run` to exit **1**; budget control stops retain **3**.
+An empty `slo` block produces no checks and no invented pass.
+
+Latency uses the worst observed successful-request per-level p95, without pooling
+or adding a sample-size policy. No p95 is unknown. If some observed levels lack a
+valid p95, a known breach still fails; otherwise the check is unknown. Resolution
+requires verdicts for every recorded session; partial judgment is unknown. Cost
+per confirmed resolution covers completed generator attempts only, excluding
+calibration and judging. Missing prices, incomplete token usage, or no confirmed
+resolutions make that check unknown. Non-finite measurements are unknown.
+
+Checks cover observed records and do not certify that the configured ramp
+completed. Declared thresholds are saved in metadata; HTML re-renders recompute
+checks from stored evidence and any price overrides. `kneepoint report` retains
+rendering-only exit semantics.
 
 ## Top level
 

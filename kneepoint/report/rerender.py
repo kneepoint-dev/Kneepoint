@@ -21,6 +21,7 @@ from kneepoint.analyze.knee import KneeReport, aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level
+from kneepoint.analyze.slo import RunSloEvaluation, evaluate_run_slo
 from kneepoint.collect.schemas import RequestRecord, RunMetadata, SessionRecord
 from kneepoint.collect.writer import read_jsonl, read_run_meta
 from kneepoint.report.html import UNKNOWN, RunMeta, format_started, write_report
@@ -44,6 +45,7 @@ class RerenderResult:
     min_samples: int
     knee_summary: KneeReport
     cost: CostSummary | None
+    slo: RunSloEvaluation
     unknown: list[str] = field(default_factory=list)   # what could not be recovered, and why
 
 
@@ -234,4 +236,9 @@ def render_from_files(
         report_path=report_path, records_path=records_path, sessions_path=sessions_path,
         meta_path=meta_path, meta=meta, min_samples=min_samples,
         knee_summary=knee_summary, cost=cost, unknown=unknown,
+        slo=evaluate_run_slo(
+            meta.slo if meta else None, stats=stats,
+            quality=resolution_summary(sessions) if sessions_path.exists() else None,
+            cost=cost, cost_note=cost_note,
+        ),
     )

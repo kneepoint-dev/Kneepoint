@@ -194,6 +194,7 @@ rates, whether chaos was on when no fault happened to fire).
   "price": {"input_per_mtok": 3.0, "output_per_mtok": 15.0, "max_spend": null},
   "min_samples": 10,
   "min_group": 10,
+  "slo": {"p95_total_ms": null, "min_resolution_rate": 0.9, "max_cost_per_resolved": null},
   "started_at": 1787067705.472,
   "finished_at": 1787067722.828,
   "environment": {"python": "3.14.6", "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O"}
@@ -216,6 +217,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `price` | object \| null | `input_per_mtok`, `output_per_mtok` in USD, `max_spend` (nullable). **`null` means cost tracking was off**, not that the run was free |
 | `min_samples` | int | fewest successful requests a level needs before its percentiles enter the knee math |
 | `min_group` | int | fewest faulted / clean sessions the resilience grid will score |
+| `slo` | object \| null | declared `p95_total_ms`, `min_resolution_rate`, `max_cost_per_resolved` thresholds (each nullable). Absent/null means thresholds unknown, as in older metadata; `{}` or all-null fields means known no SLO configured |
 | `started_at` | float | unix epoch seconds, taken **before the first request** of the ramp is sent (the cost calibration request is not part of the run) |
 | `finished_at` | float | unix epoch seconds, taken as this file is written — after the ramp has finished and the sessions have been judged, before the report is rendered |
 | `environment` | object | `python` version and `platform` string, read from the machine that ran it |
@@ -226,6 +228,20 @@ second, human-formatted copy of them — one representation, nothing to drift.
 Files written before the sidecar existed — everything the 0.1.0 PyPI release
 ever wrote — have none. Anything that reads one must treat *absent* as
 **unknown**: not as `off`, not as zero, not as the defaults.
+
+SLO declarations are an additive schema-version-1 field. Verdicts are derived,
+not stored: the shared evaluator returns one structured result per configured
+check, with `metric`, `threshold`, nullable `measured`, `status` (`pass`, `fail`,
+`unknown`), and `reason`. The CLI and HTML use the same evidence and reasons.
+Old metadata without `slo` shows "SLO unknown: declared thresholds were not
+recorded"; it cannot establish which checks were configured. New runs and demos
+explicitly record an empty declaration when there are no SLOs.
+
+Re-rendering recomputes checks after price overrides, so a changed cost can change
+a result. No verdict is reused from a previous report. `run` exits 1 for failed or
+unknown configured checks (budget stops retain 3); `report` exits according to
+rendering success/failure. Checks cover observed records, not completion of the
+configured ramp. See [SLO semantics](scenarios.md#slo) for metric scopes and gaps.
 
 ## Re-rendering the report
 

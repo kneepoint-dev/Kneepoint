@@ -512,7 +512,8 @@ def test_autoescape_is_on_for_the_report_template():
                                                       retry_levels=[], error_levels=[],
                                                       first_error=None, total_failed=0,
                                                       worst_retry=None, latency_rows=[],
-                                                      metadata_rows=None).count("<h2>") == 12
+                                                      slo={"note": "No SLO configured."},
+                                                      metadata_rows=None).count("<h2>") == 13
 
 
 def test_strings_from_outside_kneepoint_are_escaped_in_the_report(tmp_path):

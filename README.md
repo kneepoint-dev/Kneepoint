@@ -86,7 +86,7 @@ chaos:
   profile: standard                               # 429s, 503s, tool faults
 
 slo:
-  min_resolution_rate: 0.90                       # breach -> exit code 1
+  min_resolution_rate: 0.90                       # fail/unknown -> exit 1
 ```
 
 **Set `cost.max_spend` before pointing at a paid model.** Supply both prices
@@ -186,9 +186,15 @@ Kneepoint is a test: it exits non-zero when your agent regresses.
   with: {name: kneepoint-report, path: reports/}
 ```
 
-Exit codes: `0` pass · `1` SLO breach (an SLO that was set but could not be
-measured also breaches — never a silent pass) · `2` usage error · `3` budget
-control stop (threshold reached or usage unknown). Pin `seed` so a red build reruns the same prompts and chaos.
+Each configured SLO is **pass**, **fail** (a measured SLO breach), or
+**unknown** (insufficient evidence), with its threshold, measurement and reason
+in the CLI and report. No configured SLO means no fabricated pass.
+Exit codes: `0` completed with no failed or unknown configured checks · `1` any
+failed or unknown SLO · `2` usage error · `3` budget control stop (takes precedence
+over SLO results). Checks describe observed records; they do not certify completion
+of the configured ramp. Pin `seed` so a red build reruns the same prompts and chaos.
+`kneepoint report` recomputes checks, including price overrides; its exit code
+reports rendering success, not an SLO gate.
 [Full CI docs →](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/ci.md)
 
 ## Measurement integrity

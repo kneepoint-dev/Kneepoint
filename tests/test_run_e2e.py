@@ -157,7 +157,7 @@ slo:
         app, ["run", "--scenario", str(scenario), "--out", str(tmp_path)]
     )
     assert result.exit_code == 1
-    assert "SLO breach" in result.output
+    assert "SLO fail" in result.output
 
 
 def test_run_command_rejects_bad_ramp():

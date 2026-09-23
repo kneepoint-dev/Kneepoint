@@ -12,6 +12,7 @@ from kneepoint.analyze.knee import KneeReport, KneeResult, LevelStats
 from kneepoint.analyze.resilience import ResilienceSummary
 from kneepoint.analyze.resolution import LevelResolution, ResolutionSummary
 from kneepoint.analyze.retry import RetryLevel, worst_amplification
+from kneepoint.analyze.slo import SLO_SCOPE, evaluate_run_slo
 from kneepoint.collect.schemas import RunMetadata
 from kneepoint.report.chart import (
     drift_figure,
@@ -184,6 +185,11 @@ def write_report(
     retry_levels = retry_levels or []
     error_levels = error_levels or []
     html = _env().get_template("report.html.j2").render(
+        slo=evaluate_run_slo(
+            run_meta.slo if run_meta else None, stats=stats, quality=quality_summary,
+            cost=cost, cost_note=cost_note,
+        ),
+        slo_scope=SLO_SCOPE,
         meta=meta, knee=knee, knee_div=knee_div, quality_div=quality_div,
         drift_div=drift_div, ttft_div=ttft_div, itl_div=itl_div,
         cost=cost, res=res, knee_summary=knee_summary,

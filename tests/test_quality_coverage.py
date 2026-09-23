@@ -181,16 +181,16 @@ slo:
     summary = resolution_summary(saved)
     if case in ("sampled", "outage", "interrupted"):
         assert summary.unjudged > 0
-        assert "Resolution SLO unknown: incomplete verdict coverage" in result.output
+        assert "Incomplete verdict coverage" in result.output
         assert f"({summary.judged}/10 evaluated)" in result.output
-        assert "min_resolution_rate: SLO set but not measured" in result.output
+        assert "SLO unknown - min_resolution_rate: measured unknown" in result.output
     elif case == "failed":
         assert summary.unjudged == 0 and summary.resolved_rate == 0
-        assert "Resolution SLO unknown" not in result.output
+        assert "SLO unknown" not in result.output
         assert "min_resolution_rate: measured 0 vs limit 0.5" in result.output
     else:
         assert summary.slo_resolution == 1
-        assert "SLO breach" not in result.output
+        assert "SLO fail" not in result.output
     if case == "sampled":
         assert "Resolution rate: 100.0% among evaluated sessions (2/2)" in result.output
         assert "confirmed resolved/all: 20.0% (2/10)" in result.output

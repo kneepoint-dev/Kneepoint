@@ -18,6 +18,7 @@
   .quality-scroll { max-width: 100%; overflow-x: auto; }
   #quality-populations { font-size: .85rem; }
   .pass { color: var(--ok); font-weight: 600; } .degraded { color: var(--warn); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
   .fail { color: var(--bad); font-weight: 600; }
   .placeholder { color: var(--muted); font-style: italic; padding: 1rem;
                  border: 1px dashed #ccd; border-radius: 8px; }
@@ -41,6 +42,23 @@
 <p class="muted">{{ meta.target }} · model {{ meta.model }} · {{ meta.started }} ·
 ramp {{ meta.ramp }} · chaos {{ meta.chaos }} ·
 {{ meta.total_sessions }} sessions / {{ meta.total_requests }} requests</p>
+
+<section id="slo-results">
+<h2>SLO checks</h2>
+{% if slo.note %}<p>{{ slo.note }}</p>
+{% else %}
+<p class="muted">{{ slo_scope }}</p>
+<table>
+<tr><th>Metric</th><th>Threshold</th><th>Measured</th><th>Result</th><th>Reason</th></tr>
+{% for result in slo.results %}
+<tr><td><code>{{ result.metric }}</code></td>
+<td>{{ ">=" if result.metric == "min_resolution_rate" else "<=" }} {{ "%.4g"|format(result.threshold) }}</td>
+<td>{{ "%.4g"|format(result.measured) if result.measured is not none else "unknown" }}</td>
+<td class="{{ result.status }}">{{ result.status }}</td><td>{{ result.reason }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+</section>
 
 <div class="verdict">
 {% if knee_summary %}<strong>{{ knee_summary.headline }}</strong>

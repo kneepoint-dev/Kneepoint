@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from kneepoint.chaos.faults import FaultSpec
+from kneepoint.slo import SloConfig
 
 # The JSONL is a public contract other people's tools read (docs/output-format.md).
 # 0 means "written before versioning existed" — every file from before 2026-08-12,
@@ -157,6 +158,7 @@ class RunMetadata(VersionedRecord):
     price: PriceRates | None = None   # None = cost tracking was off
     min_samples: int
     min_group: int
+    slo: SloConfig | None = None  # absent/null = unknown; empty = no SLO configured
     started_at: float         # taken before the first request is sent
     finished_at: float        # taken when this file is written
     environment: Environment

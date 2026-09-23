@@ -49,7 +49,8 @@ def test_every_section_carries_a_how_to_read_line(tmp_path):
     what the figure means and which way to read it."""
     html = _full_report(tmp_path)
     lines = _howto_lines(html)
-    assert len(lines) == html.count("<h2>") + 1 == 13
+    below_verdict = html.split('<div class="verdict">', 1)[1]
+    assert len(lines) == below_verdict.count("<h2>") + 1 == 13
     assert all(line.startswith("How to read this.") for line in lines)
     assert all(line.endswith("→") for line in lines)
     # one distinctive claim per section, in document order
