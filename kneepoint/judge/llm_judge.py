@@ -67,17 +67,27 @@ async def judge_sessions(
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> int:
-    """Judge a seeded sample of sessions in place; return how many got a verdict."""
-    candidates = [s for s in sessions if s.transcript]
+    """Evaluate terminal sessions in place; return local plus external verdicts.
+
+    Callers must omit interrupted/in-progress sessions. A failed execution is
+    explicitly unresolved under this configured policy, even without a transcript;
+    only successful executions enter the seeded external-judge sample.
+    """
+    judged = 0
+    for session in sessions:
+        if not session.ok:
+            session.resolved = False
+            session.resolution_method = "execution_failure"
+            judged += 1
+    candidates = [s for s in sessions if s.ok and s.transcript]
     if not candidates:
-        return 0
+        return judged
     k = min(len(candidates), math.ceil(len(candidates) * cfg.sample_rate))
     picked = random.Random(seed).sample(candidates, k)
     headers = {}
     api_key = os.getenv(cfg.api_key_env)
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    judged = 0
     async with httpx.AsyncClient(
         timeout=cfg.timeout_s, transport=transport, headers=headers
     ) as client:

@@ -89,8 +89,8 @@ class SessionRecord(VersionedRecord):
     ok: bool                  # every turn eventually got a successful attempt
     faults: list[str] = Field(default_factory=list)
     transcript: list[dict] = Field(default_factory=list)  # {"role","content"}
-    resolved: bool | None = None          # None = not judged
-    resolution_method: str | None = None  # "deterministic" | "llm_judge"
+    resolved: bool | None = None          # None = no verdict (not evaluated/unknown)
+    resolution_method: str | None = None  # "deterministic" | "llm_judge" | "execution_failure"
 
 
 class RampShape(BaseModel):

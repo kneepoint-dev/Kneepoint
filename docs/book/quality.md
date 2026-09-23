@@ -9,9 +9,25 @@ agent performance testing from every other kind.
 **Definition:** the share of *judged* sessions where the agent actually
 accomplished the user's task.
 
-Note "judged": sessions with no verdict are excluded from the denominator,
-never silently counted as failures. If 200 sessions ran and only 180 were
-judged, the rate is out of 180 — and the tool tells you 20 were unjudged.
+Here "judged" is the legacy field name for **evaluated sessions with an explicit
+verdict**, from a deterministic check, external LLM judge or local execution-failure
+rule. Sessions with no verdict are excluded from this denominator, never silently
+counted as failures. The report and CLI also show all recorded sessions, completed
+sessions (`SessionRecord.ok`: every turn eventually succeeded, possibly after
+retries), failed/incomplete sessions, and resolved, unresolved and unjudged counts.
+These session completion counts are distinct from request-attempt error rates.
+
+**Verdict coverage** is evaluated/all. **Confirmed resolved/all** is resolved/all.
+For two resolved and eight unjudged sessions, the judged-only rate is 100%, coverage
+is 20%, and confirmed resolved/all is 20%. The remaining eight outcomes are unknown;
+the confirmed share is not an estimate of their outcomes. Empty populations have
+null rates. All-unjudged levels remain visible with null judged-only rates.
+
+A configured whole-run `min_resolution_rate` SLO requires full verdict coverage.
+Partial coverage produces an unknown result and a nonzero exit, even if the
+judged-only rate exceeds the threshold. This is separate from a measured rate
+below the threshold. Full coverage does not certify judge accuracy or provide
+statistically calibrated confidence.
 
 **Why it's the headline quality metric:** HTTP status tells you the plumbing
 worked. Resolution tells you the product worked.
@@ -26,22 +42,24 @@ containing `[RESOLVED]`. The judge is a string check: objective, free,
 instant. Its limit: it proves the agent *claimed* success, not that it
 succeeded.
 
-**LLM-judge.** A separate model reads the task goal plus the full transcript
-and answers one narrow question: *did the agent accomplish this — yes, no, or
-cannot-determine?* It's an exam grader, not a participant.
+**LLM-judge.** A separate model reads a seeded sample of successful session
+transcripts with the configured rubric and returns a boolean `resolved` verdict.
+When this policy is configured, supplied terminal failed sessions are explicitly
+unresolved with method `execution_failure`, even with an empty or success-looking
+transcript. This local rule makes no external judge request and is not subject to
+sampling. Only successful executions with transcripts enter the external sample.
+The CLI omits interrupted sessions from both judging paths, leaving them unjudged.
 
 Why the narrow question matters: language models are far more reliable as
 binary verifiers than as open-ended scorers. "Did this succeed?" is a much
 safer thing to ask than "rate this 1–10".
 
-`cannot-determine` is a first-class answer. Those sessions are counted as
-unjudged rather than forced into a pass or fail.
-
-!!! tip "Judging the judge"
-    When both mechanisms run, their **agreement rate** is itself a metric. If
-    they diverge more at high concurrency, or the unjudged rate climbs with
-    load, your *measurement* is degrading along with your system — which you
-    need to know before you trust the quality curve.
+Omitted samples, judge outages and invalid or non-boolean answers create no new
+verdict; existing deterministic verdicts remain if both mechanisms are configured.
+Valid LLM verdicts replace deterministic verdicts for the selected successful
+sessions. The report's method counts describe the final stored verdicts, not
+external API call counts or agreement between judges. Check coverage and method
+mix at each level before interpreting a change in the quality curve.
 
 ## `format-following baseline` — the ceiling
 

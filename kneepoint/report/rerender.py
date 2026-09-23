@@ -19,7 +19,7 @@ from kneepoint.analyze.cost import CostRates, CostSummary, incomplete_cost_note,
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import KneeReport, aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
-from kneepoint.analyze.resolution import resolution_by_level
+from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level
 from kneepoint.collect.schemas import RequestRecord, RunMetadata, SessionRecord
 from kneepoint.collect.writer import read_jsonl, read_run_meta
@@ -217,7 +217,9 @@ def render_from_files(
     report_path = write_report(
         out if out is not None else default_out,
         meta=header, stats=stats, knee=knee, knee_summary=knee_summary,
-        quality=quality, cost=cost, res=res,
+        quality=quality,
+        quality_summary=resolution_summary(sessions) if sessions_path.exists() else None,
+        cost=cost, res=res,
         retry_levels=retry_by_level(records, sessions), min_samples=min_samples,
         quality_note=quality_note, cost_note=cost_note, res_note=res_note,
         error_levels=errors_by_level(records), run_meta=meta,

@@ -372,8 +372,9 @@ def test_every_chart_carries_the_sample_count_on_its_axis_not_only_in_hover(tmp_
     assert html.count('"1<br>successful=50 / attempts=50"') == 3
     assert html.count('"10<br>successful=50 / attempts=50"') == 3
     # quality curve: judged sessions; quality under load: both counts on one tick
-    assert '"10<br>judged=12"' in html
-    assert '"10<br>successful=50 / attempts=50 · judged 12"' in html
+    assert '"10<br>judged=12 / total=unknown · coverage unknown"' in html
+    assert ('"10<br>successful=50 / attempts=50 · judged=12 / total=unknown '
+            '· coverage unknown"') in html
 
 
 def test_a_thin_level_keeps_its_tick_and_says_it_was_not_plotted(tmp_path):
@@ -400,13 +401,16 @@ def test_resolution_rates_below_min_samples_judged_sessions_are_not_plotted(tmp_
     # both quality charts count the thin level in their title...
     assert html.count("1 level(s) below 10 judged sessions not plotted") == 2
     # ...keep it on the axis, labelled...
-    assert '"5<br>judged=3 - not plotted"' in html
-    assert '"5<br>successful=50 / attempts=50 · judged 3"' in html    # p95 plotted, rate not
+    assert '"5<br>judged=3 / total=unknown · coverage unknown - not plotted"' in html
+    # p95 is plotted; quality is not.
+    assert ('"5<br>successful=50 / attempts=50 · judged=3 / total=unknown '
+            '· coverage unknown"') in html
     # ...and do not draw the 33% point
     fig = quality_figure(levels, stats=_stats(), min_samples=10)
-    assert list(fig.data[0].y) == [100.0, 80.0]
+    assert list(fig.data[0].y) == [100.0, None, 80.0]
     drift = drift_figure(_stats(), levels, min_samples=10)
-    assert list(drift.data[1].x) == [1, 10]
+    assert list(drift.data[1].x) == [1, 5, 10]
+    assert list(drift.data[1].y) == [100.0, None, 80.0]
 
 
 def test_quality_sections_say_why_when_every_judged_level_is_too_thin(tmp_path):
@@ -508,7 +512,7 @@ def test_autoescape_is_on_for_the_report_template():
                                                       retry_levels=[], error_levels=[],
                                                       first_error=None, total_failed=0,
                                                       worst_retry=None, latency_rows=[],
-                                                      metadata_rows=None).count("<h2>") == 11
+                                                      metadata_rows=None).count("<h2>") == 12
 
 
 def test_strings_from_outside_kneepoint_are_escaped_in_the_report(tmp_path):
@@ -518,7 +522,7 @@ def test_strings_from_outside_kneepoint_are_escaped_in_the_report(tmp_path):
     # header (target, model), the Errors table, the metadata Platform row, and
     # the four section placeholders (quality_note feeds both quality sections)
     escaped = "&lt;script&gt;alert(&#39;kneepoint&#39;)&lt;/script&gt;"
-    assert html.count(escaped) == 9, html.count(escaped)
+    assert html.count(escaped) == 10, html.count(escaped)
     # and the Plotly figure is still markup — escaping is not double-applied
     assert '<div id="knee-curve"' in html
     assert "&lt;div" not in html

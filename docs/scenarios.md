@@ -102,8 +102,8 @@ See [Chaos testing](chaos.md) for the standard profile's probabilities.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `p95_total_ms` | float | — | max p95 total latency |
-| `min_resolution_rate` | float | — | min fraction of sessions resolved |
-| `max_cost_per_resolved` | float | — | max $/resolved task |
+| `min_resolution_rate` | float | — | min fraction of sessions resolved; requires full verdict coverage |
+| `max_cost_per_resolved` | float | — | max $/confirmed resolution |
 
 Any breach exits 1 with a printed reason. **An SLO set but not measured is a
 breach** — a gate that silently passes because judging was off isn't a gate.

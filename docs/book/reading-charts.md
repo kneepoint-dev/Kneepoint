@@ -87,7 +87,11 @@ Scatter plots are the most powerful and most dangerous view here.
 - `output_tokens` vs `total_ms` — is latency explained by verbosity? A tight
   diagonal means the model is just writing more; a vertical spread at fixed
   token count means real server variance.
-- `concurrency` vs `resolution_rate` — the drift relationship.
+- `concurrency` vs `resolution_rate` — the drift relationship among evaluated
+  sessions. Read verdict coverage and method counts alongside it: a high rate
+  over a small or changing evaluated subset does not establish whole-run success.
+  Unjudged or under-sampled quality levels remain visible with a gap in the line;
+  the report table also shows confirmed resolved/all.
 - `ttft_ms` vs `tpot_ms` — do queueing and decode degrade together?
 - `input_tokens` vs `ttft_ms` — is prefill cost driving your latency?
 

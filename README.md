@@ -94,7 +94,7 @@ explicitly (zero is allowed). The controller stops new work when observed spend
 reaches the threshold or usage is unknown, drains active calls, and reports
 partial results with exit code 3. Active calls may overshoot: this is not a
 billing guarantee. Capped runs skip calibration and reject configured LLM judging;
-`--force` never bypasses runtime control. See [cost control](docs/book/cost.md).
+`--force` never bypasses runtime control. See [cost control](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/cost.md).
 
 LLM faults need no infrastructure: they are injected inside Kneepoint's own
 HTTP client. Tool faults have to sit between your agent and its tools, so

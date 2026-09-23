@@ -44,7 +44,23 @@ def _judged(levels: list[LevelResolution], min_samples: int) -> list[LevelResolu
     the same weight as a rate over forty invents a cliff. Same threshold as the
     percentiles: a rate is a statistic too.
     """
-    return [lv for lv in levels if lv.judged >= min_samples]
+    return [lv for lv in levels if lv.judged > 0 and lv.judged >= min_samples
+            and lv.resolved_rate is not None]
+
+
+def _quality_label(level: LevelResolution) -> str:
+    coverage = f"{level.coverage:.0%}" if level.coverage is not None else "unknown"
+    total = str(level.total) if level.total is not None else "unknown"
+    return f"judged={level.judged} / total={total} · coverage {coverage}"
+
+
+def _quality_points(
+    levels: list[LevelResolution], min_samples: int,
+) -> list[float | None]:
+    eligible = {lv.concurrency for lv in _judged(levels, min_samples)}
+    return [lv.resolved_rate * 100
+            if lv.concurrency in eligible and lv.resolved_rate is not None else None
+            for lv in levels]
 
 
 def _sample_ticks(entries: list[tuple[int, str, bool]], fallback: str) -> tuple[dict, str]:
@@ -205,12 +221,14 @@ def drift_figure(
                       "<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
-        x=[lv.concurrency for lv in judged],
-        y=[lv.resolved_rate * 100 for lv in judged],
+        x=[lv.concurrency for lv in levels],
+        y=_quality_points(levels, min_samples),
+        connectgaps=False,
         mode="lines+markers", name="resolved", yaxis="y2",
         line={"color": "#b3261e"},
-        customdata=[lv.judged for lv in judged],
-        hovertemplate="c=%{x}<br>%{y:.0f}% resolved<br>%{customdata} judged<extra></extra>",
+        customdata=[_quality_label(lv) for lv in levels],
+        hovertemplate="c=%{x}<br>%{y:.0f}% resolved among evaluated sessions"
+                      "<br>%{customdata}<extra></extra>",
     ))
     if knee is not None:
         fig.add_vline(x=knee.concurrency, line_dash="dash", line_color="red")
@@ -223,12 +241,12 @@ def drift_figure(
         by_level[s.concurrency] = (_count_label(s), s.latency_eligible(min_samples))
     for lv in levels:
         n_text, n_ok = by_level.get(lv.concurrency, ("", False))
-        text = f"{n_text} · judged {lv.judged}" if n_text else f"judged {lv.judged}"
-        by_level[lv.concurrency] = (text, n_ok or lv.judged >= min_samples)
+        text = f"{n_text} · {_quality_label(lv)}" if n_text else _quality_label(lv)
+        by_level[lv.concurrency] = (text, n_ok or lv in judged)
     ticks, tick_note = _sample_ticks(
         [(c, text, ok) for c, (text, ok) in sorted(by_level.items())],
         f"judged {min(lv.judged for lv in judged)}-{max(lv.judged for lv in judged)} "
-        "sessions per plotted level",
+        "sessions per plotted level; verdict coverage in table below",
     )
     thin = len(levels) - len(judged)
     title = "Quality under load — does it get slower, or does it get wrong?"
@@ -238,7 +256,7 @@ def drift_figure(
         title=title + tick_note,
         xaxis={"title": "Concurrent sessions", **ticks},
         yaxis={"title": "p95 latency (ms)", "rangemode": "tozero"},
-        yaxis2={"title": "Resolved (%)", "overlaying": "y", "side": "right",
+        yaxis2={"title": "Resolved / evaluated (%)", "overlaying": "y", "side": "right",
                 "range": [0, 105]},
         legend={"orientation": "h", "y": 1.12},
     )
@@ -258,29 +276,31 @@ def quality_figure(
         return None
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=[lv.concurrency for lv in judged],
-        y=[lv.resolved_rate * 100 for lv in judged],
+        x=[lv.concurrency for lv in levels],
+        y=_quality_points(levels, min_samples),
+        connectgaps=False,
         mode="lines+markers", name="resolution rate",
-        customdata=[lv.judged for lv in judged],
-        hovertemplate="c=%{x}<br>%{y:.0f}% resolved<br>%{customdata} judged<extra></extra>",
+        customdata=[_quality_label(lv) for lv in levels],
+        hovertemplate="c=%{x}<br>%{y:.0f}% resolved among evaluated sessions"
+                      "<br>%{customdata}<extra></extra>",
     ))
     if knee is not None:
         fig.add_vline(x=knee.concurrency, line_dash="dash", line_color="red")
     if stats:
         _mark_contamination(fig, stats)
     thin = len(levels) - len(judged)
-    title = "Resolution rate vs. concurrency — the quality curve"
+    title = "Resolution rate among evaluated sessions vs. concurrency"
     if thin:
         title += f"   ({thin} level(s) below {min_samples} judged sessions not plotted)"
     ticks, tick_note = _sample_ticks(
-        [(lv.concurrency, f"judged={lv.judged}", lv.judged >= min_samples) for lv in levels],
+        [(lv.concurrency, _quality_label(lv), lv in judged) for lv in levels],
         f"judged {min(lv.judged for lv in judged)}-{max(lv.judged for lv in judged)} "
-        "sessions per plotted level",
+        "sessions per plotted level; verdict coverage in table below",
     )
     fig.update_layout(
         title=title + tick_note,
         xaxis={"title": "Concurrent sessions", **ticks},
-        yaxis_title="Resolved (%)",
+        yaxis_title="Resolved / evaluated (%)",
         yaxis_range=[0, 105],
     )
     return fig

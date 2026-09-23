@@ -13,7 +13,7 @@ from kneepoint.analyze.cost import CostRates, incomplete_cost_note, summarize_co
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
-from kneepoint.analyze.resolution import resolution_by_level, resolution_rate
+from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level, worst_amplification
 from kneepoint.chaos.faults import STANDARD_PROFILE, TOOL_FAULTS
 from kneepoint.chaos.injector import ChaosInjector
@@ -498,7 +498,6 @@ def run(
         _merge_tool_faults(fault_log, all_sessions)
 
     check = None
-    method = "deterministic"
     if check_regex:
         check = CheckConfig(kind="regex", value=check_regex)
     elif check_contains is not None:
@@ -513,11 +512,9 @@ def run(
         apply_deterministic(judgeable, check)
     if sc and sc.resolution.judge:
         asyncio.run(judge_sessions(judgeable, sc.resolution.judge, seed=seed))
-        if check is None:
-            method = "llm_judge"
-    rate = resolution_rate(all_sessions)
-    if rate is not None:
-        typer.echo(f"Resolution rate: {rate:.1%} ({len(all_sessions)} sessions, {method})")
+    quality_summary = resolution_summary(all_sessions)
+    for line in quality_summary.lines():
+        typer.echo(line)
 
     cost = None
     cost_note = incomplete_cost_note(records, rates) if track_cost else None
@@ -531,9 +528,9 @@ def run(
             typer.echo(f"Total spend:     ${cost.total_spend:.4f}")
             typer.echo(f"Retry waste:     {cost.retry_waste_pct:.1%} (${cost.waste_spend:.4f})")
             if cost.cost_per_resolved is not None:
-                typer.echo(f"$/resolved task: ${cost.cost_per_resolved:.4f}")
+                typer.echo(f"$/confirmed resolution: ${cost.cost_per_resolved:.4f}")
             else:
-                typer.echo("$/resolved task: n/a (no resolved sessions)")
+                typer.echo("$/confirmed resolution: n/a (no confirmed resolved sessions)")
 
     if chaos != "off":
         res = resilience(all_sessions, min_group=RUN_MIN_GROUP)
@@ -596,7 +593,7 @@ def run(
             total_requests=len(records), total_sessions=len(all_sessions),
         ),
         stats=stats, knee=knee, knee_summary=knee_summary,
-        quality=resolution_by_level(all_sessions),
+        quality=resolution_by_level(all_sessions), quality_summary=quality_summary,
         cost=cost, cost_note=cost_note,
         res=resilience(all_sessions, min_group=RUN_MIN_GROUP) if chaos != "off" else None,
         retry_levels=retry_levels, min_samples=min_samples,
@@ -610,8 +607,14 @@ def run(
         raise typer.Exit(code=3)
     if sc is not None:
         overall_p95 = max((s.p95_ms for s in stats if s.p95_ms is not None), default=None)
+        if sc.slo.min_resolution_rate is not None and quality_summary.slo_resolution is None:
+            typer.echo(
+                "Resolution SLO unknown: incomplete verdict coverage "
+                f"({quality_summary.judged}/{quality_summary.total} evaluated); "
+                "the whole-run threshold cannot be verified."
+            )
         breaches = evaluate_slo(
-            sc.slo, p95_ms=overall_p95, resolution=rate,
+            sc.slo, p95_ms=overall_p95, resolution=quality_summary.slo_resolution,
             cost_per_resolved=cost.cost_per_resolved if cost else None,
         )
         for breach in breaches:

@@ -37,9 +37,18 @@ That is a legitimate and useful question. It stops being legitimate the
 moment the label is dropped. Always present it as a **projection at named
 rates**, never as spend.
 
-## `cost_per_resolved` — $/resolved task
+## `cost_per_resolved` — $/confirmed resolution
 
-**Definition:** total spend ÷ number of *resolved* sessions.
+**Definition:** completed generator-attempt spend ÷ number of sessions with an
+explicit `resolved == true` verdict. The calculation is unchanged; reports label
+it **cost per confirmed resolution**. It is null when no session is confirmed
+resolved. Calibration and judging costs are excluded from this spend scope.
+
+With sampled or missing verdicts, all generator spend is still in the numerator,
+while only confirmed resolutions are in the denominator. This can inflate the
+ratio; it is not an estimate of cost per true resolution across all sessions.
+Read verdict coverage alongside it and do not extrapolate a partially evaluated
+run as though its outcomes were fully known.
 
 This is Kneepoint's second signature metric, and the one that makes the tool
 speak to people who don't read latency charts.

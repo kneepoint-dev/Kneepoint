@@ -155,7 +155,7 @@ as 0 will silently corrupt any average you compute.
 | `faults` | string[] | every fault this session met, one entry per attempt that took one: LLM-path faults from the request lines' `fault`, and tool-path faults after a `--fault-log` merge (`kneepoint demo` merges in-process). Repeats are meaningful: two entries means it was hit twice |
 | `transcript` | object[] | `{"role", "content"}` messages, alternating `user`/`assistant`, for the accepted turns only. A turn that never got a successful attempt is not in here — neither its prompt nor any partial answer |
 | `resolved` | bool \| null | **`null` means not judged**, not "unresolved". Any resolution rate must exclude nulls from the denominator |
-| `resolution_method` | string \| null | `deterministic` or `llm_judge`; `null` when not judged |
+| `resolution_method` | string \| null | `deterministic`, `llm_judge`, or local `execution_failure`; `null` when no method recorded |
 
 Sessions are written once, after judging, so verdicts are in the file. Request
 lines are written per level, as the run proceeds, so the file can be tailed and
@@ -274,7 +274,20 @@ So third-party tools get the same numbers kneepoint prints:
   threshold, why a crossing at the last level is only a lower bound, and why
   Kneedle is a cross-check rather than the answer. No knee is claimed across
   an interior measured level without enough successful latency samples.
-* **resolution rate** — `resolved == true` over `resolved != null`.
+* **resolution rate** — `resolved == true` over `resolved != null` (evaluated only).
+  `resolution_summary` and `resolution_by_level` also expose `total`, `transport_ok`
+  (`SessionRecord.ok == true`, every turn eventually succeeded), `transport_failed`
+  (failed/incomplete sessions), `judged` (evaluated), `resolved`, `unresolved`,
+  `unjudged`, `coverage` (judged/total), `resolved_rate` (resolved/judged), and
+  `confirmed_resolved_share` (resolved/total). Zero denominators give null rates.
+  `methods` counts the final verdict methods; a verdict without a stored method is
+  `unspecified`. Local `execution_failure` verdicts are not external judgments.
+  Every observed concurrency level is retained, including entirely unjudged levels.
+  Legacy three-field `LevelResolution` constructors keep missing population fields
+  unknown; they never infer counts from a rounded rate. A whole-run resolution SLO
+  uses unknown when any recorded session is unjudged, and therefore cannot pass.
+* **cost per confirmed resolution** — generator-attempt spend divided by confirmed
+  resolved sessions; no sampling correction or estimate for unjudged outcomes.
 * **retry waste** — spend on lines with `ok == false`, over total spend.
 * **contamination** — if any line has `abandoned == true`, that level and every
   level after it are not independent measurements. Do not publish them.

@@ -15,6 +15,8 @@
   .card .big { font-size: 2rem; font-weight: 700; }
   table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
   th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #dde; }
+  .quality-scroll { max-width: 100%; overflow-x: auto; }
+  #quality-populations { font-size: .85rem; }
   .pass { color: var(--ok); font-weight: 600; } .degraded { color: var(--warn); font-weight: 600; }
   .fail { color: var(--bad); font-weight: 600; }
   .placeholder { color: var(--muted); font-style: italic; padding: 1rem;
@@ -104,6 +106,43 @@ zero and nothing is smoothed. The dashed line is the low end of the knee range.
 A slowdown can also be the model writing more: check output tokens before
 blaming the server.{% endcall %}
 
+{% macro quality_row(label, q) %}
+<tr><td>{{ label }}</td>
+  <td>{{ q.total if q.total is not none else "unknown" }}</td>
+  <td>{{ q.transport_ok if q.transport_ok is not none else "unknown" }} / {{ q.transport_failed if q.transport_failed is not none else "unknown" }}</td>
+  <td>{{ q.judged }}</td>
+  <td>{{ q.resolved if q.resolved is not none else "unknown" }} / {{ q.unresolved if q.unresolved is not none else "unknown" }} / {{ q.unjudged if q.unjudged is not none else "unknown" }}</td>
+  <td>{% if q.coverage is not none %}{{ "%.1f"|format(q.coverage * 100) }}%{% else %}n/a{% endif %}</td>
+  <td>{% if q.resolved_rate is not none %}{{ "%.1f"|format(q.resolved_rate * 100) }}%{% else %}n/a{% endif %}</td>
+  <td>{% if q.confirmed_resolved_share is not none %}{{ "%.1f"|format(q.confirmed_resolved_share * 100) }}%{% else %}n/a{% endif %}</td>
+  <td>{% for method, count in q.methods|dictsort %}{{ method }}={{ count }}{{ ", " if not loop.last }}{% else %}none recorded{% endfor %}</td></tr>
+{% endmacro %}
+<h2>Session quality populations</h2>
+{% if (quality_summary is defined and quality_summary is not none) or quality %}
+<div class="quality-scroll" role="region" aria-label="Session quality populations" tabindex="0">
+<table id="quality-populations">
+  <tr><th>Concurrency</th><th>Total sessions</th><th>Completed / failed or incomplete</th>
+      <th>Evaluated</th><th>Resolved / unresolved / unjudged</th><th>Verdict coverage</th>
+      <th>Resolved / evaluated</th><th>Confirmed resolved / all</th><th>Verdict methods</th></tr>
+  {% if quality_summary is defined and quality_summary is not none %}{{ quality_row("All", quality_summary) }}{% endif %}
+  {% for lv in quality %}{{ quality_row(lv.concurrency, lv) }}{% endfor %}
+</table>
+</div>
+<p class="muted">Completed means every requested turn eventually succeeded, possibly after retries;
+failed or incomplete is a session count, not a request error rate. Evaluated (the legacy
+<code>judged</code> count) means any explicit verdict: deterministic checks, external
+LLM judgments, or the local <code>execution_failure</code> rule. That rule marks supplied
+terminal failed sessions unresolved when LLM judging is configured; it makes no external call.
+Verdict coverage is evaluated/all. Resolution rate uses only evaluated sessions;
+confirmed resolved/all uses every recorded session. Unjudged sessions remain unknown,
+including omitted samples, unavailable judgments and interrupted sessions.
+A whole-run resolution SLO cannot pass with incomplete verdict coverage.</p>
+{% call howto("quality", "Quality under load") %}Read verdict coverage before the rate.
+Two resolved and eight unjudged sessions mean 100% among evaluated sessions,
+20% verdict coverage and 20% confirmed resolved/all. This does not establish the
+outcomes of the other eight sessions or calibrate the judge's accuracy.{% endcall %}
+{% else %}<p class="placeholder">{{ quality_note or "Session quality populations not recorded." }}</p>{% endif %}
+
 <h2>Quality under load</h2>
 {% if drift_div %}{{ drift_div | safe }}
 <p class="muted">Latency rising is a capacity problem you can solve with more
@@ -111,7 +150,7 @@ machines. Resolution <em>falling</em> is a different problem: the agent is
 answering worse, not just slower, and no amount of hardware fixes a wrong
 answer. Both axes start at a real zero and neither line is smoothed — every
 point is a measured level, and the counts behind it (successful requests for p95, judged
-sessions for the rate) sit under each level on the axis. A level below
+sessions for the rate) and verdict coverage sit under each level on the axis. A level below
 {{ min_samples }} of either is marked there and left off its trace.</p>
 {% call howto("quality", "Quality under load") %}Everything lost between the
 first level and a higher one is degradation <em>caused by load</em> — timeouts
@@ -127,7 +166,7 @@ configuration can fall steeply in one repetition and stay flat in the next.{% en
 {% call howto("quality", "Quality under load") %}Resolution is the share of
 <em>judged</em> sessions in which the agent actually accomplished the task.
 Sessions with no verdict are left out of the denominator, never counted as
-failures, and the judged count sits under each level. Read the lowest level as
+failures, and the evaluated count and coverage sit under each level. Read the lowest level as
 the ceiling — the model's best score with no queueing and no pressure. A
 baseline of 100% falling to 78% under load means the system broke the agent; a
 baseline of 75% falling to 72% means the model never followed the format, and
@@ -281,9 +320,9 @@ card under Cost.{% endcall %}
 <p class="muted">Scope: completed generator attempts only; calibration and judging excluded.
 No finite billing upper bound is known.</p>
 <div class="cards">
-  <div class="card"><div class="muted">$ / resolved task</div>
+  <div class="card"><div class="muted">$ / confirmed resolution</div>
     <div class="big">{% if cost.cost_per_resolved is not none %}${{ "%.4f"|format(cost.cost_per_resolved) }}{% else %}n/a{% endif %}</div>
-    <div class="muted">{{ cost.resolved_sessions }} of {{ cost.judged_sessions }} judged sessions resolved</div></div>
+    <div class="muted">{{ cost.resolved_sessions }} confirmed resolutions; {{ cost.judged_sessions }} evaluated / {{ cost.sessions }} total sessions</div></div>
   <div class="card"><div class="muted">Total spend</div>
     <div class="big">${{ "%.4f"|format(cost.total_spend) }}</div>
     <div class="muted">{{ cost.sessions }} sessions</div></div>
@@ -291,7 +330,7 @@ No finite billing upper bound is known.</p>
     <div class="big">{{ "%.1f"|format(cost.retry_waste_pct * 100) }}%</div>
     <div class="muted">${{ "%.4f"|format(cost.waste_spend) }} on failed attempts</div></div>
 </div>
-{% call howto("cost", "Cost & token economics") %}$/resolved task prices the
+{% call howto("cost", "Cost & token economics") %}$/confirmed resolution prices the
 outcome, not the activity: cost per request rewards a system that fails cheaply,
 and an agent that burns 3,000 tokens and gives up looks great by it while the
 user got nothing. Expect this figure to rise as load approaches the knee —
@@ -300,7 +339,9 @@ rate shrinks the denominator — so there is often a <strong>cost knee that
 arrives before the latency knee</strong>. If the target is a local model, these
 are a projection at the configured rates, not spend; always say so. Before
 trusting any of it: are the rates the ones you are billed at, and were token
-counts reported rather than null? A null count is unknown, never zero.{% endcall %}
+counts reported rather than null? A null count is unknown, never zero.
+The denominator is confirmed resolutions only; sampled or missing verdicts can inflate this
+ratio. It is not an estimate of cost per true resolution across all sessions.{% endcall %}
 {% else %}<p class="placeholder">{{ cost_note or "Cost not measured (set --price-in / --price-out or a cost block in the scenario)." }}</p>{% endif %}
 
 <h2>Resilience</h2>

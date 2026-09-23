@@ -49,13 +49,14 @@ def test_every_section_carries_a_how_to_read_line(tmp_path):
     what the figure means and which way to read it."""
     html = _full_report(tmp_path)
     lines = _howto_lines(html)
-    assert len(lines) == html.count("<h2>") + 1 == 12
+    assert len(lines) == html.count("<h2>") + 1 == 13
     assert all(line.startswith("How to read this.") for line in lines)
     assert all(line.endswith("→") for line in lines)
     # one distinctive claim per section, in document order
     expected = [
         "plan for the low end",                       # verdict
         "where p95 bends",                            # knee curve
+        "Read verdict coverage before the rate",       # quality populations
         "caused by load",                             # quality under load
         "share of judged sessions",                   # quality curve
         "TTFT rising, TPOT flat",                     # TTFT vs TPOT

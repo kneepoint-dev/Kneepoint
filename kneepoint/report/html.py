@@ -10,7 +10,7 @@ from kneepoint.analyze.cost import CostSummary
 from kneepoint.analyze.errors import ErrorLevel, first_error_level
 from kneepoint.analyze.knee import KneeReport, KneeResult, LevelStats
 from kneepoint.analyze.resilience import ResilienceSummary
-from kneepoint.analyze.resolution import LevelResolution
+from kneepoint.analyze.resolution import LevelResolution, ResolutionSummary
 from kneepoint.analyze.retry import RetryLevel, worst_amplification
 from kneepoint.collect.schemas import RunMetadata
 from kneepoint.report.chart import (
@@ -125,6 +125,7 @@ def write_report(
     knee_summary: KneeReport | None = None,
     retry_levels: list[RetryLevel] | None = None,
     min_samples: int = 10,
+    quality_summary: ResolutionSummary | None = None,
     quality_note: str | None = None,
     cost_note: str | None = None,
     res_note: str | None = None,
@@ -170,10 +171,11 @@ def write_report(
     )
     contaminated = [s for s in stats if s.contaminated]
     quality_thin_note = None
-    if quality and drift_fig is None:
+    if any(lv.judged for lv in quality) and drift_fig is None:
         judged = ", ".join(f"c={lv.concurrency} {lv.judged}" for lv in quality)
         quality_thin_note = (
-            f"Resolution was judged at {len(quality)} level(s), but none reached "
+            f"Resolution was judged at {sum(lv.judged > 0 for lv in quality)} level(s), "
+            f"but none reached "
             f"{min_samples} judged sessions, so no rate is plotted — a rate over a "
             f"handful of sessions can only take a handful of values. Judged per level: "
             f"{judged}. Lengthen the hold, or re-render with a lower --min-samples and "
@@ -187,7 +189,7 @@ def write_report(
         cost=cost, res=res, knee_summary=knee_summary,
         contaminated=contaminated,
         abandoned_total=sum(s.abandoned for s in stats),
-        stats=stats, min_samples=min_samples, quality=quality,
+        stats=stats, min_samples=min_samples, quality=quality, quality_summary=quality_summary,
         latency_rows=[s for s in stats if s.ttft_p50_ms is not None],
         retry_levels=retry_levels,
         worst_retry=worst_amplification(retry_levels),

@@ -16,11 +16,11 @@ from pathlib import Path
 import httpx
 import uvicorn
 
-from kneepoint.analyze.cost import CostRates, summarize_cost
+from kneepoint.analyze.cost import CostRates, incomplete_cost_note, summarize_cost
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
-from kneepoint.analyze.resolution import resolution_by_level, resolution_rate
+from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level
 from kneepoint.chaos.faults import FaultSpec
 from kneepoint.chaos.injector import ChaosInjector
@@ -168,8 +168,9 @@ def run_demo(
             echo(f"Note: {merge.unattributed} tool fault(s) had no session header "
                  "and could not be attributed.")
         apply_deterministic(all_sessions, CheckConfig(kind="contains", value="[RESOLVED"))
-        rate = resolution_rate(all_sessions)
-        cost = summarize_cost(records, all_sessions, DEMO_PRICES)
+        quality_summary = resolution_summary(all_sessions)
+        cost_note = incomplete_cost_note(records, DEMO_PRICES)
+        cost = summarize_cost(records, all_sessions, DEMO_PRICES) if cost_note is None else None
         res = resilience(all_sessions, min_group=DEMO_MIN_GROUP)
         stats = aggregate(records)
         knee_summary = knee_report(stats, min_samples=DEMO_MIN_SAMPLES)
@@ -211,8 +212,8 @@ def run_demo(
                 total_requests=len(records), total_sessions=len(all_sessions),
             ),
             stats=stats, knee=knee, knee_summary=knee_summary,
-            quality=resolution_by_level(all_sessions),
-            cost=cost, res=res,
+            quality=resolution_by_level(all_sessions), quality_summary=quality_summary,
+            cost=cost, cost_note=cost_note, res=res,
             retry_levels=retry_by_level(records, all_sessions), min_samples=DEMO_MIN_SAMPLES,
             error_levels=errors_by_level(records), run_meta=run_meta,
         )
@@ -221,12 +222,16 @@ def run_demo(
             echo(line)
         if knee is None:
             echo("  (a longer demo helps - try --hold-seconds 10)")
-        if rate is not None:
-            echo(f"Resolution rate: {rate:.1%} ({len(all_sessions)} sessions)")
-        if cost.cost_per_resolved is not None:
-            echo(f"$/resolved task: ${cost.cost_per_resolved:.4f} (mock tokens, demo prices)")
+        for line in quality_summary.lines():
+            echo(line)
+        if cost is None:
+            echo(cost_note)
+            echo("$/confirmed resolution: n/a (token usage incomplete)")
+        elif cost.cost_per_resolved is not None:
+            echo(f"$/confirmed resolution: ${cost.cost_per_resolved:.4f} "
+                 "(mock tokens, demo prices)")
         else:
-            echo("$/resolved task: n/a (no resolved sessions)")
+            echo("$/confirmed resolution: n/a (no confirmed resolved sessions)")
         if res.score is not None:
             echo(f"Resilience score: {res.score:.0f} "
                  f"({res.faulted_sessions} faulted vs {res.clean_sessions} clean sessions)")

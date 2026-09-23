@@ -1,3 +1,4 @@
+import json
 import platform
 
 from typer.testing import CliRunner
@@ -35,7 +36,7 @@ def test_run_command_end_to_end(mock_agent_url, tmp_path):
     assert all(s.transcript for s in sessions)
     assert "Resolution rate:" in result.output
     assert all(s.resolved is not None for s in sessions)
-    assert "$/resolved task:" in result.output
+    assert "$/confirmed resolution:" in result.output
 
     # the fourth artifact: the metadata sidecar, named from the same run id
     run_id = jsonl_files[0].stem[len("run-"):]
@@ -86,7 +87,7 @@ def test_run_meta_records_the_chaos_profile_and_no_price_when_cost_is_off(
     assert meta.retry.max_attempts == 3
 
 
-def test_run_aborts_when_estimate_exceeds_cap(mock_agent_url, tmp_path):
+def test_run_stops_after_observed_spend_crosses_cap(mock_agent_url, tmp_path):
     result = CliRunner().invoke(
         app,
         [
@@ -97,8 +98,21 @@ def test_run_aborts_when_estimate_exceeds_cap(mock_agent_url, tmp_path):
         ],
     )
     assert result.exit_code == 3
-    assert "Estimated spend" in result.output
-    assert "--force" in result.output
+    assert "Calibration skipped for capped run" in result.output
+    assert "Spend control stopped admission (cap_reached)" in result.output
+    records_path = next(p for p in tmp_path.glob("run-*.jsonl") if "-sessions" not in p.name)
+    records = read_jsonl(records_path)
+    lifecycle = json.loads(next(tmp_path.glob("run-*-lifecycle.json")).read_text())
+    assert lifecycle["calibration"] == "not_run"
+    accounting = lifecycle["accounting"]
+    assert accounting["stop_requested"] is True
+    assert accounting["stop_reason"] == "cap_reached"
+    assert accounting["known_spend"] >= 0.01
+    # The first request at c=1 crosses the cap. Its evidence is retained;
+    # neither another session nor the c=2 level is admitted afterward.
+    assert len(records) == len(lifecycle["attempts"]) == 1
+    assert records[0].concurrency == 1
+    assert lifecycle["sessions"] == 1
 
 
 def test_run_with_scenario_file(mock_agent_url, tmp_path):

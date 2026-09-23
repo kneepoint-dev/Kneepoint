@@ -22,7 +22,7 @@ def test_demo_end_to_end(tmp_path):
     html = reports[0].read_text(encoding="utf-8")
     assert "Resilience" in html and "quality curve" in html
     assert "Resolution rate:" in result.output
-    assert "$/resolved task:" in result.output
+    assert "$/confirmed resolution:" in result.output
     assert "Report:" in result.output
     sessions = read_jsonl(next(tmp_path.glob("demo-*-sessions.jsonl")), SessionRecord)
     assert len(sessions) >= 5
@@ -84,3 +84,33 @@ def test_demo_never_opens_browser_in_tests(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert opened == []
+
+
+def test_demo_missing_usage_suppresses_cost_and_rerenders_identically(tmp_path, monkeypatch):
+    from kneepoint.collect.schemas import RequestRecord
+    from tests.test_deterministic_judge import _session
+
+    async def fake_ramp(*args, **kwargs):
+        session = _session("[RESOLVED]")
+        record = RequestRecord(session_id=session.session_id, concurrency=1,
+                               started_at=0, total_ms=1, ok=True, output_tokens=1)
+        return [session], [record], None
+
+    monkeypatch.setattr("kneepoint.demo.run.run_ramp", fake_ramp)
+    result = CliRunner().invoke(
+        app, ["demo", "--no-open", "--hold-seconds", "0.1", "--out", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Total spend unknown: token usage is incomplete for 1/1" in result.output
+    assert "$/confirmed resolution: n/a (token usage incomplete)" in result.output
+    original = next(tmp_path.glob("demo-*-report.html"))
+    html = original.read_text()
+    assert "Cost aggregates are suppressed" in html
+    cost_section = html.split("<h2>Cost</h2>")[1].split("<h2>")[0]
+    assert 'class="cards"' not in cost_section
+    records_path = next(p for p in tmp_path.glob("demo-*.jsonl") if "-sessions" not in p.name)
+    rerender = CliRunner().invoke(
+        app, ["report", str(records_path), "--out", str(tmp_path / "again.html")],
+    )
+    assert rerender.exit_code == 0, rerender.output
+    assert (tmp_path / "again.html").read_bytes() == original.read_bytes()
