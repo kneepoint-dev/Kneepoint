@@ -11,6 +11,7 @@ Files written before the sidecar existed re-render with every unstored field as
 *unknown*, and the cost and resilience sections say why they are empty.
 """
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -66,6 +67,38 @@ def sibling_paths(records_path: Path) -> tuple[Path, Path, Path]:
     )
 
 
+def _is_saved_zero_cap_run(records_path: Path, meta: RunMetadata | None) -> bool:
+    """Accept empty records only with consistent evidence of no admitted work."""
+    if meta is None or meta.command != "run" or meta.price is None or meta.price.max_spend != 0:
+        return False
+    lifecycle_path = records_path.with_name(f"{records_path.stem}-lifecycle.json")
+    try:
+        lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(lifecycle, dict):
+        return False
+    expected = {
+        "schema_version": 1, "run_id": meta.run_id, "started_at": meta.started_at,
+        "scope": "load_generation", "status": "stopped", "completed_requests": 0,
+        "sessions": 0, "attempts": [], "session_status": {}, "calibration": "not_run",
+        "effective_prices": {"input_per_mtok": meta.price.input_per_mtok,
+                             "output_per_mtok": meta.price.output_per_mtok},
+    }
+    accounting = lifecycle.get("accounting")
+    if not isinstance(accounting, dict):
+        return False
+    expected_accounting = {
+        "scope": "completed_generator_attempts", "max_spend": 0, "known_spend": 0,
+        "total_spend": 0, "known_overshoot": 0, "stop_requested": True,
+        "stop_reason": "cap_reached",
+        "coverage": dict.fromkeys(("completed_attempts", "complete_usage", "partial_usage",
+                                   "missing_usage", "input_known", "output_known"), 0),
+    }
+    return (all(lifecycle.get(key) == value for key, value in expected.items())
+            and all(accounting.get(key) == value for key, value in expected_accounting.items()))
+
+
 def render_from_files(
     records_path: Path,
     *,
@@ -81,8 +114,6 @@ def render_from_files(
     if not records_path.exists():
         raise ReportInputError(f"{records_path} does not exist.")
     records: list[RequestRecord] = read_jsonl(records_path)
-    if not records:
-        raise ReportInputError(f"{records_path} holds no request records.")
 
     unknown: list[str] = []
     sessions: list[SessionRecord] = []
@@ -94,6 +125,13 @@ def render_from_files(
             "per session, cost per resolved task and resilience cannot be recomputed"
         )
     meta = read_run_meta(meta_path) if meta_path.exists() else None
+    if not records and not (
+        sessions_path.exists() and not sessions and _is_saved_zero_cap_run(records_path, meta)
+    ):
+        raise ReportInputError(
+            f"{records_path} holds no request records; regenerating an empty report requires "
+            "matching metadata, an empty sessions file and zero-cap lifecycle evidence."
+        )
     if meta is None:
         unknown.append(
             f"metadata sidecar {meta_path.name} not found (runs made before it existed "

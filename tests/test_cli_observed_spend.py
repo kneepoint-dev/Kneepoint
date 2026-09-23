@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 import kneepoint.cli as cli
 import kneepoint.generator.session as session
 from kneepoint.collect.schemas import RequestRecord
-from kneepoint.report.rerender import render_from_files
+from kneepoint.report.rerender import ReportInputError, render_from_files
 from kneepoint.targets.openai_compatible import TurnOutcome
 
 
@@ -52,7 +52,7 @@ def test_zero_cap_dispatches_nothing_and_writes_empty_report(tmp_path, completio
     result = invoke(tmp_path, "--price-in", "0", "--price-out", "0", "--max-spend", "0",
                     *(["--force"] if force else []))
     assert result.exit_code == 3, result.output
-    lifecycle, _, records = saved(tmp_path)
+    lifecycle, path, records = saved(tmp_path)
     assert not completions[0] and not records
     assert lifecycle["accounting"]["stop_reason"] == "cap_reached"
     assert lifecycle["accounting"]["total_spend"] == 0
@@ -60,6 +60,58 @@ def test_zero_cap_dispatches_nothing_and_writes_empty_report(tmp_path, completio
     assert lifecycle["calibration"] == "not_run"
     assert next(tmp_path.glob("*-report.html")).exists()
     assert "Calibration skipped" in result.output
+    original = path.with_name(path.stem + "-report.html").read_bytes()
+    rerender = CliRunner().invoke(
+        cli.app, ["report", str(path), "--out", str(tmp_path / "again.html")]
+    )
+    assert rerender.exit_code == 0, rerender.output
+    assert (tmp_path / "again.html").read_bytes() == original
+    assert json.loads(next(tmp_path.glob("*-lifecycle.json")).read_text()) == lifecycle
+
+
+@pytest.mark.parametrize("damage", [
+    "missing_meta", "missing_sessions", "missing_lifecycle", "malformed_lifecycle",
+    "invalid_json", "missing_accounting", "metadata_cap", "wrong_run", "running", "attempt",
+    "completed_request", "accounted_attempt", "nonzero_cap",
+])
+def test_empty_report_requires_consistent_zero_cap_evidence(tmp_path, completions, damage):
+    result = invoke(tmp_path, "--price-in", "0", "--price-out", "0", "--max-spend", "0")
+    assert result.exit_code == 3, result.output
+    lifecycle, path, _ = saved(tmp_path)
+    lifecycle_path = next(tmp_path.glob("*-lifecycle.json"))
+    if damage in ("missing_meta", "missing_sessions", "missing_lifecycle"):
+        suffix = {"missing_meta": "-meta.json", "missing_sessions": "-sessions.jsonl",
+                  "missing_lifecycle": "-lifecycle.json"}[damage]
+        path.with_name(path.stem + suffix).unlink()
+    elif damage == "malformed_lifecycle":
+        lifecycle_path.write_text("[]")
+    elif damage == "invalid_json":
+        lifecycle_path.write_text("{")
+    elif damage == "metadata_cap":
+        meta_path = path.with_name(path.stem + "-meta.json")
+        meta = json.loads(meta_path.read_text())
+        meta["price"]["max_spend"] = 1
+        meta_path.write_text(json.dumps(meta))
+    else:
+        if damage == "missing_accounting":
+            lifecycle["accounting"] = None
+        elif damage == "wrong_run":
+            lifecycle["run_id"] = "other-run"
+        elif damage == "running":
+            lifecycle["status"] = "running"
+        elif damage == "attempt":
+            lifecycle["attempts"] = [{"status": "starting", "dispatched": False}]
+        elif damage == "completed_request":
+            lifecycle["completed_requests"] = 1
+        elif damage == "accounted_attempt":
+            lifecycle["accounting"]["coverage"]["completed_attempts"] = 1
+        elif damage == "nonzero_cap":
+            lifecycle["accounting"]["max_spend"] = 1
+        lifecycle_path.write_text(json.dumps(lifecycle))
+    out = tmp_path / "again.html"
+    with pytest.raises(ReportInputError, match="zero-cap lifecycle evidence"):
+        render_from_files(path, out=out)
+    assert not out.exists()
 
 
 @pytest.mark.parametrize("force", [False, True])
