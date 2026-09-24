@@ -394,8 +394,9 @@ Missing usage suppresses aggregate cost metrics in the original and regenerated
 reports; both show an unknown total and a known subtotal instead.
 
 A zero cap produces empty request/session files and an HTML report without sending
-requests. `kneepoint report` currently rejects empty request files, so that report
-cannot be regenerated through the command.
+requests. `kneepoint report` can regenerate that report when matching metadata and
+lifecycle evidence verify the zero-request run. Arbitrary empty request files
+without that evidence remain invalid.
 
 For legacy Python callers, `CostMeter` and session-completion `on_record` remain
 available. A legacy `BudgetExceeded` still returns the ramp's budget flag, with

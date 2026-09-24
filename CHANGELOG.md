@@ -3,6 +3,81 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [0.3.0rc1] - UNRELEASED
+
+**Local release candidate for review; not a published release.** This proposed
+minor release adds lifecycle and SLO APIs and changes how incomplete measurement
+evidence is represented. Existing request and session file schemas remain readable.
+
+### Added
+- Optional generator callbacks `on_attempt_start` and `on_attempt_complete`, a
+  cooperative `stop` event, and caller-owned `RunEvidence` retain completed
+  attempts and partial session evidence through failure or cancellation. Observer
+  callbacks are synchronous and must not block; exceptions propagate after
+  completed evidence is retained. Active calls drain on cooperative stop.
+- An atomic `run-<id>-lifecycle.json` checkpoint records load-generation status,
+  attempt/session/level evidence, effective prices, and observed-spend accounting.
+  It does not certify that judging or report rendering completed.
+- `ObservedSpendController` accounts for completed generator attempts and exposes
+  known spend, nullable total spend, usage coverage, and known overshoot.
+- Explicit `SloConfig`, `SloResult`, and `evaluate_slo_results` APIs in
+  `kneepoint.slo` distinguish `pass`, `fail`, and `unknown`. CLI and HTML reports
+  use the same run evaluation; declared thresholds persist in metadata for report
+  regeneration. Existing imports of `SloConfig` and `evaluate_slo` from
+  `kneepoint.config` remain available.
+
+### Changed
+- Request collections and CLI request JSONL follow attempt-completion order across
+  concurrent sessions. Consumers needing per-session order must use session ID,
+  turn index, and attempt number. Legacy `on_record` remains a session-completion
+  callback; attach accounting to only one callback path.
+- Capped CLI runs require both prices explicitly, skip calibration, and reject
+  configured LLM judging before load. Admission stops at observed spend equal to
+  or above the cap, or when usage becomes unknown; active calls drain and the CLI
+  exits with code 3. `--force` cannot bypass the stop. This is an observed-spend
+  threshold, not a billing ceiling: active calls can overshoot, and calibration,
+  judging, and provider-side work after disconnect are outside its accounting.
+- `LevelStats.n` remains total attempts; `successful_n` supplies the successful
+  sample count used for latency eligibility. All-failed levels remain visible
+  with null percentiles. Legacy constructors infer successful counts only for
+  entirely successful or entirely failed levels; mixed-error counts remain
+  unknown. Knee detection refuses to bridge an ineligible interior level.
+- Resolution summaries expose transport outcomes separately from task verdicts,
+  with evaluated/unjudged counts, coverage, verdict methods, and confirmed
+  resolved share. Local `execution_failure` verdicts are distinct from external
+  judgments. Sampled judging remains partial coverage; a whole-run resolution SLO
+  is unknown unless every recorded session has a verdict.
+- SLO thresholds must be finite and within their valid ranges. Equality passes;
+  missing or invalid evidence is unknown and cannot pass a configured CLI gate.
+  Latency checks use the worst successful-request per-level p95, and a missing
+  level prevents a pass unless another observed level already proves a breach.
+  Checks describe observed records, not proof the configured ramp completed.
+  Old metadata without thresholds reports them as unknown; an explicit empty
+  threshold object means no SLO was configured.
+
+### Fixed
+- Missing usage no longer produces a falsely complete cost total: original and
+  regenerated reports show unknown total spend and the known subtotal instead.
+- Verified zero-cap runs write empty request/session files without sending
+  requests and can regenerate their reports when matching metadata and lifecycle
+  evidence establish the zero-request run. Arbitrary empty request files remain
+  invalid.
+
+### Migration notes
+- Handle nullable latency percentiles and unknown successful sample counts;
+  do not interpret missing evidence as zero or derive counts from rounded rates.
+- `resolution_by_level` now retains entirely unjudged levels with null
+  `resolved_rate`; consumers must handle these entries without inventing a rate.
+- `judge_sessions` applies local `execution_failure` verdicts to terminal failed
+  sessions. Python callers must omit interrupted or in-progress sessions from
+  judging so incomplete execution remains unjudged.
+- Inspect cooperative controller `stop_reason` (`cap_reached` or `unknown_usage`)
+  rather than the legacy ramp `budget_exceeded` flag. Legacy `CostMeter` and
+  `BudgetExceeded` remain available to Python callers.
+- Use tri-state SLO results when distinguishing unmet thresholds from insufficient
+  evidence. Cost per confirmed resolution covers completed generator attempts and
+  confirmed outcomes only, without extrapolating sampled verdicts.
+
 ## [0.2.0] - 2026-08-29
 
 **This is a correctness release.** Three defects in 0.1.0 affected the numbers it printed. If you have a 0.1.0 result you are relying on, re-run it with 0.2.0 rather than re-reading it — the defects are in how the numbers were measured and chosen, not in how they were displayed.

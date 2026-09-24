@@ -23,8 +23,9 @@ def _pyproject_version() -> str:
         return tomllib.load(fh)["project"]["version"]
 
 
-def test_version_is_semver():
-    assert re.fullmatch(r"\d+\.\d+\.\d+", _pyproject_version())
+def test_version_is_stable_or_release_candidate():
+    # PEP 440 spells release candidates as X.Y.ZrcN (without a SemVer hyphen).
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:rc[1-9]\d*)?", _pyproject_version())
 
 
 def test_changelog_has_an_entry_for_this_version():

@@ -1,6 +1,6 @@
 [project]
 name = "kneepoint"
-version = "0.2.0"
+version = "0.3.0rc1"
 description = "Find where your AI agent breaks: load, cost, and chaos testing for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
