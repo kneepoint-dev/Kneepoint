@@ -1,0 +1,2102 @@
+{
+  "q001-1": {
+    "question": "How do I restore the LanternDesk mod001 status panel?",
+    "article_ids": [
+      "kb-1"
+    ],
+    "key_fact": "set recovery code LD-001 to enabled"
+  },
+  "q001-2": {
+    "question": "The status panel for LanternDesk mod001 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-1"
+    ],
+    "key_fact": "set recovery code LD-001 to enabled"
+  },
+  "q002-1": {
+    "question": "How do I restore the LanternDesk mod002 status panel?",
+    "article_ids": [
+      "kb-2"
+    ],
+    "key_fact": "set recovery code LD-002 to enabled"
+  },
+  "q002-2": {
+    "question": "The status panel for LanternDesk mod002 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-2"
+    ],
+    "key_fact": "set recovery code LD-002 to enabled"
+  },
+  "q003-1": {
+    "question": "How do I restore the LanternDesk mod003 status panel?",
+    "article_ids": [
+      "kb-3"
+    ],
+    "key_fact": "set recovery code LD-003 to enabled"
+  },
+  "q003-2": {
+    "question": "The status panel for LanternDesk mod003 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-3"
+    ],
+    "key_fact": "set recovery code LD-003 to enabled"
+  },
+  "q004-1": {
+    "question": "How do I restore the LanternDesk mod004 status panel?",
+    "article_ids": [
+      "kb-4"
+    ],
+    "key_fact": "set recovery code LD-004 to enabled"
+  },
+  "q004-2": {
+    "question": "The status panel for LanternDesk mod004 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-4"
+    ],
+    "key_fact": "set recovery code LD-004 to enabled"
+  },
+  "q005-1": {
+    "question": "How do I restore the LanternDesk mod005 status panel?",
+    "article_ids": [
+      "kb-5"
+    ],
+    "key_fact": "set recovery code LD-005 to enabled"
+  },
+  "q005-2": {
+    "question": "The status panel for LanternDesk mod005 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-5"
+    ],
+    "key_fact": "set recovery code LD-005 to enabled"
+  },
+  "q006-1": {
+    "question": "How do I restore the LanternDesk mod006 status panel?",
+    "article_ids": [
+      "kb-6"
+    ],
+    "key_fact": "set recovery code LD-006 to enabled"
+  },
+  "q006-2": {
+    "question": "The status panel for LanternDesk mod006 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-6"
+    ],
+    "key_fact": "set recovery code LD-006 to enabled"
+  },
+  "q007-1": {
+    "question": "How do I restore the LanternDesk mod007 status panel?",
+    "article_ids": [
+      "kb-7"
+    ],
+    "key_fact": "set recovery code LD-007 to enabled"
+  },
+  "q007-2": {
+    "question": "The status panel for LanternDesk mod007 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-7"
+    ],
+    "key_fact": "set recovery code LD-007 to enabled"
+  },
+  "q008-1": {
+    "question": "How do I restore the LanternDesk mod008 status panel?",
+    "article_ids": [
+      "kb-8"
+    ],
+    "key_fact": "set recovery code LD-008 to enabled"
+  },
+  "q008-2": {
+    "question": "The status panel for LanternDesk mod008 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-8"
+    ],
+    "key_fact": "set recovery code LD-008 to enabled"
+  },
+  "q009-1": {
+    "question": "How do I restore the LanternDesk mod009 status panel?",
+    "article_ids": [
+      "kb-9"
+    ],
+    "key_fact": "set recovery code LD-009 to enabled"
+  },
+  "q009-2": {
+    "question": "The status panel for LanternDesk mod009 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-9"
+    ],
+    "key_fact": "set recovery code LD-009 to enabled"
+  },
+  "q010-1": {
+    "question": "How do I restore the LanternDesk mod010 status panel?",
+    "article_ids": [
+      "kb-10"
+    ],
+    "key_fact": "set recovery code LD-010 to enabled"
+  },
+  "q010-2": {
+    "question": "The status panel for LanternDesk mod010 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-10"
+    ],
+    "key_fact": "set recovery code LD-010 to enabled"
+  },
+  "q011-1": {
+    "question": "How do I restore the LanternDesk mod011 status panel?",
+    "article_ids": [
+      "kb-11"
+    ],
+    "key_fact": "set recovery code LD-011 to enabled"
+  },
+  "q011-2": {
+    "question": "The status panel for LanternDesk mod011 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-11"
+    ],
+    "key_fact": "set recovery code LD-011 to enabled"
+  },
+  "q012-1": {
+    "question": "How do I restore the LanternDesk mod012 status panel?",
+    "article_ids": [
+      "kb-12"
+    ],
+    "key_fact": "set recovery code LD-012 to enabled"
+  },
+  "q012-2": {
+    "question": "The status panel for LanternDesk mod012 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-12"
+    ],
+    "key_fact": "set recovery code LD-012 to enabled"
+  },
+  "q013-1": {
+    "question": "How do I restore the LanternDesk mod013 status panel?",
+    "article_ids": [
+      "kb-13"
+    ],
+    "key_fact": "set recovery code LD-013 to enabled"
+  },
+  "q013-2": {
+    "question": "The status panel for LanternDesk mod013 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-13"
+    ],
+    "key_fact": "set recovery code LD-013 to enabled"
+  },
+  "q014-1": {
+    "question": "How do I restore the LanternDesk mod014 status panel?",
+    "article_ids": [
+      "kb-14"
+    ],
+    "key_fact": "set recovery code LD-014 to enabled"
+  },
+  "q014-2": {
+    "question": "The status panel for LanternDesk mod014 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-14"
+    ],
+    "key_fact": "set recovery code LD-014 to enabled"
+  },
+  "q015-1": {
+    "question": "How do I restore the LanternDesk mod015 status panel?",
+    "article_ids": [
+      "kb-15"
+    ],
+    "key_fact": "set recovery code LD-015 to enabled"
+  },
+  "q015-2": {
+    "question": "The status panel for LanternDesk mod015 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-15"
+    ],
+    "key_fact": "set recovery code LD-015 to enabled"
+  },
+  "q016-1": {
+    "question": "How do I restore the LanternDesk mod016 status panel?",
+    "article_ids": [
+      "kb-16"
+    ],
+    "key_fact": "set recovery code LD-016 to enabled"
+  },
+  "q016-2": {
+    "question": "The status panel for LanternDesk mod016 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-16"
+    ],
+    "key_fact": "set recovery code LD-016 to enabled"
+  },
+  "q017-1": {
+    "question": "How do I restore the LanternDesk mod017 status panel?",
+    "article_ids": [
+      "kb-17"
+    ],
+    "key_fact": "set recovery code LD-017 to enabled"
+  },
+  "q017-2": {
+    "question": "The status panel for LanternDesk mod017 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-17"
+    ],
+    "key_fact": "set recovery code LD-017 to enabled"
+  },
+  "q018-1": {
+    "question": "How do I restore the LanternDesk mod018 status panel?",
+    "article_ids": [
+      "kb-18"
+    ],
+    "key_fact": "set recovery code LD-018 to enabled"
+  },
+  "q018-2": {
+    "question": "The status panel for LanternDesk mod018 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-18"
+    ],
+    "key_fact": "set recovery code LD-018 to enabled"
+  },
+  "q019-1": {
+    "question": "How do I restore the LanternDesk mod019 status panel?",
+    "article_ids": [
+      "kb-19"
+    ],
+    "key_fact": "set recovery code LD-019 to enabled"
+  },
+  "q019-2": {
+    "question": "The status panel for LanternDesk mod019 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-19"
+    ],
+    "key_fact": "set recovery code LD-019 to enabled"
+  },
+  "q020-1": {
+    "question": "How do I restore the LanternDesk mod020 status panel?",
+    "article_ids": [
+      "kb-20"
+    ],
+    "key_fact": "set recovery code LD-020 to enabled"
+  },
+  "q020-2": {
+    "question": "The status panel for LanternDesk mod020 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-20"
+    ],
+    "key_fact": "set recovery code LD-020 to enabled"
+  },
+  "q021-1": {
+    "question": "How do I restore the LanternDesk mod021 status panel?",
+    "article_ids": [
+      "kb-21"
+    ],
+    "key_fact": "set recovery code LD-021 to enabled"
+  },
+  "q021-2": {
+    "question": "The status panel for LanternDesk mod021 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-21"
+    ],
+    "key_fact": "set recovery code LD-021 to enabled"
+  },
+  "q022-1": {
+    "question": "How do I restore the LanternDesk mod022 status panel?",
+    "article_ids": [
+      "kb-22"
+    ],
+    "key_fact": "set recovery code LD-022 to enabled"
+  },
+  "q022-2": {
+    "question": "The status panel for LanternDesk mod022 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-22"
+    ],
+    "key_fact": "set recovery code LD-022 to enabled"
+  },
+  "q023-1": {
+    "question": "How do I restore the LanternDesk mod023 status panel?",
+    "article_ids": [
+      "kb-23"
+    ],
+    "key_fact": "set recovery code LD-023 to enabled"
+  },
+  "q023-2": {
+    "question": "The status panel for LanternDesk mod023 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-23"
+    ],
+    "key_fact": "set recovery code LD-023 to enabled"
+  },
+  "q024-1": {
+    "question": "How do I restore the LanternDesk mod024 status panel?",
+    "article_ids": [
+      "kb-24"
+    ],
+    "key_fact": "set recovery code LD-024 to enabled"
+  },
+  "q024-2": {
+    "question": "The status panel for LanternDesk mod024 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-24"
+    ],
+    "key_fact": "set recovery code LD-024 to enabled"
+  },
+  "q025-1": {
+    "question": "How do I restore the LanternDesk mod025 status panel?",
+    "article_ids": [
+      "kb-25"
+    ],
+    "key_fact": "set recovery code LD-025 to enabled"
+  },
+  "q025-2": {
+    "question": "The status panel for LanternDesk mod025 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-25"
+    ],
+    "key_fact": "set recovery code LD-025 to enabled"
+  },
+  "q026-1": {
+    "question": "How do I restore the LanternDesk mod026 status panel?",
+    "article_ids": [
+      "kb-26"
+    ],
+    "key_fact": "set recovery code LD-026 to enabled"
+  },
+  "q026-2": {
+    "question": "The status panel for LanternDesk mod026 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-26"
+    ],
+    "key_fact": "set recovery code LD-026 to enabled"
+  },
+  "q027-1": {
+    "question": "How do I restore the LanternDesk mod027 status panel?",
+    "article_ids": [
+      "kb-27"
+    ],
+    "key_fact": "set recovery code LD-027 to enabled"
+  },
+  "q027-2": {
+    "question": "The status panel for LanternDesk mod027 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-27"
+    ],
+    "key_fact": "set recovery code LD-027 to enabled"
+  },
+  "q028-1": {
+    "question": "How do I restore the LanternDesk mod028 status panel?",
+    "article_ids": [
+      "kb-28"
+    ],
+    "key_fact": "set recovery code LD-028 to enabled"
+  },
+  "q028-2": {
+    "question": "The status panel for LanternDesk mod028 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-28"
+    ],
+    "key_fact": "set recovery code LD-028 to enabled"
+  },
+  "q029-1": {
+    "question": "How do I restore the LanternDesk mod029 status panel?",
+    "article_ids": [
+      "kb-29"
+    ],
+    "key_fact": "set recovery code LD-029 to enabled"
+  },
+  "q029-2": {
+    "question": "The status panel for LanternDesk mod029 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-29"
+    ],
+    "key_fact": "set recovery code LD-029 to enabled"
+  },
+  "q030-1": {
+    "question": "How do I restore the LanternDesk mod030 status panel?",
+    "article_ids": [
+      "kb-30"
+    ],
+    "key_fact": "set recovery code LD-030 to enabled"
+  },
+  "q030-2": {
+    "question": "The status panel for LanternDesk mod030 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-30"
+    ],
+    "key_fact": "set recovery code LD-030 to enabled"
+  },
+  "q031-1": {
+    "question": "How do I restore the LanternDesk mod031 status panel?",
+    "article_ids": [
+      "kb-31"
+    ],
+    "key_fact": "set recovery code LD-031 to enabled"
+  },
+  "q031-2": {
+    "question": "The status panel for LanternDesk mod031 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-31"
+    ],
+    "key_fact": "set recovery code LD-031 to enabled"
+  },
+  "q032-1": {
+    "question": "How do I restore the LanternDesk mod032 status panel?",
+    "article_ids": [
+      "kb-32"
+    ],
+    "key_fact": "set recovery code LD-032 to enabled"
+  },
+  "q032-2": {
+    "question": "The status panel for LanternDesk mod032 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-32"
+    ],
+    "key_fact": "set recovery code LD-032 to enabled"
+  },
+  "q033-1": {
+    "question": "How do I restore the LanternDesk mod033 status panel?",
+    "article_ids": [
+      "kb-33"
+    ],
+    "key_fact": "set recovery code LD-033 to enabled"
+  },
+  "q033-2": {
+    "question": "The status panel for LanternDesk mod033 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-33"
+    ],
+    "key_fact": "set recovery code LD-033 to enabled"
+  },
+  "q034-1": {
+    "question": "How do I restore the LanternDesk mod034 status panel?",
+    "article_ids": [
+      "kb-34"
+    ],
+    "key_fact": "set recovery code LD-034 to enabled"
+  },
+  "q034-2": {
+    "question": "The status panel for LanternDesk mod034 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-34"
+    ],
+    "key_fact": "set recovery code LD-034 to enabled"
+  },
+  "q035-1": {
+    "question": "How do I restore the LanternDesk mod035 status panel?",
+    "article_ids": [
+      "kb-35"
+    ],
+    "key_fact": "set recovery code LD-035 to enabled"
+  },
+  "q035-2": {
+    "question": "The status panel for LanternDesk mod035 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-35"
+    ],
+    "key_fact": "set recovery code LD-035 to enabled"
+  },
+  "q036-1": {
+    "question": "How do I restore the LanternDesk mod036 status panel?",
+    "article_ids": [
+      "kb-36"
+    ],
+    "key_fact": "set recovery code LD-036 to enabled"
+  },
+  "q036-2": {
+    "question": "The status panel for LanternDesk mod036 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-36"
+    ],
+    "key_fact": "set recovery code LD-036 to enabled"
+  },
+  "q037-1": {
+    "question": "How do I restore the LanternDesk mod037 status panel?",
+    "article_ids": [
+      "kb-37"
+    ],
+    "key_fact": "set recovery code LD-037 to enabled"
+  },
+  "q037-2": {
+    "question": "The status panel for LanternDesk mod037 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-37"
+    ],
+    "key_fact": "set recovery code LD-037 to enabled"
+  },
+  "q038-1": {
+    "question": "How do I restore the LanternDesk mod038 status panel?",
+    "article_ids": [
+      "kb-38"
+    ],
+    "key_fact": "set recovery code LD-038 to enabled"
+  },
+  "q038-2": {
+    "question": "The status panel for LanternDesk mod038 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-38"
+    ],
+    "key_fact": "set recovery code LD-038 to enabled"
+  },
+  "q039-1": {
+    "question": "How do I restore the LanternDesk mod039 status panel?",
+    "article_ids": [
+      "kb-39"
+    ],
+    "key_fact": "set recovery code LD-039 to enabled"
+  },
+  "q039-2": {
+    "question": "The status panel for LanternDesk mod039 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-39"
+    ],
+    "key_fact": "set recovery code LD-039 to enabled"
+  },
+  "q040-1": {
+    "question": "How do I restore the LanternDesk mod040 status panel?",
+    "article_ids": [
+      "kb-40"
+    ],
+    "key_fact": "set recovery code LD-040 to enabled"
+  },
+  "q040-2": {
+    "question": "The status panel for LanternDesk mod040 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-40"
+    ],
+    "key_fact": "set recovery code LD-040 to enabled"
+  },
+  "q041-1": {
+    "question": "How do I restore the LanternDesk mod041 status panel?",
+    "article_ids": [
+      "kb-41"
+    ],
+    "key_fact": "set recovery code LD-041 to enabled"
+  },
+  "q041-2": {
+    "question": "The status panel for LanternDesk mod041 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-41"
+    ],
+    "key_fact": "set recovery code LD-041 to enabled"
+  },
+  "q042-1": {
+    "question": "How do I restore the LanternDesk mod042 status panel?",
+    "article_ids": [
+      "kb-42"
+    ],
+    "key_fact": "set recovery code LD-042 to enabled"
+  },
+  "q042-2": {
+    "question": "The status panel for LanternDesk mod042 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-42"
+    ],
+    "key_fact": "set recovery code LD-042 to enabled"
+  },
+  "q043-1": {
+    "question": "How do I restore the LanternDesk mod043 status panel?",
+    "article_ids": [
+      "kb-43"
+    ],
+    "key_fact": "set recovery code LD-043 to enabled"
+  },
+  "q043-2": {
+    "question": "The status panel for LanternDesk mod043 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-43"
+    ],
+    "key_fact": "set recovery code LD-043 to enabled"
+  },
+  "q044-1": {
+    "question": "How do I restore the LanternDesk mod044 status panel?",
+    "article_ids": [
+      "kb-44"
+    ],
+    "key_fact": "set recovery code LD-044 to enabled"
+  },
+  "q044-2": {
+    "question": "The status panel for LanternDesk mod044 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-44"
+    ],
+    "key_fact": "set recovery code LD-044 to enabled"
+  },
+  "q045-1": {
+    "question": "How do I restore the LanternDesk mod045 status panel?",
+    "article_ids": [
+      "kb-45"
+    ],
+    "key_fact": "set recovery code LD-045 to enabled"
+  },
+  "q045-2": {
+    "question": "The status panel for LanternDesk mod045 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-45"
+    ],
+    "key_fact": "set recovery code LD-045 to enabled"
+  },
+  "q046-1": {
+    "question": "How do I restore the LanternDesk mod046 status panel?",
+    "article_ids": [
+      "kb-46"
+    ],
+    "key_fact": "set recovery code LD-046 to enabled"
+  },
+  "q046-2": {
+    "question": "The status panel for LanternDesk mod046 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-46"
+    ],
+    "key_fact": "set recovery code LD-046 to enabled"
+  },
+  "q047-1": {
+    "question": "How do I restore the LanternDesk mod047 status panel?",
+    "article_ids": [
+      "kb-47"
+    ],
+    "key_fact": "set recovery code LD-047 to enabled"
+  },
+  "q047-2": {
+    "question": "The status panel for LanternDesk mod047 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-47"
+    ],
+    "key_fact": "set recovery code LD-047 to enabled"
+  },
+  "q048-1": {
+    "question": "How do I restore the LanternDesk mod048 status panel?",
+    "article_ids": [
+      "kb-48"
+    ],
+    "key_fact": "set recovery code LD-048 to enabled"
+  },
+  "q048-2": {
+    "question": "The status panel for LanternDesk mod048 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-48"
+    ],
+    "key_fact": "set recovery code LD-048 to enabled"
+  },
+  "q049-1": {
+    "question": "How do I restore the LanternDesk mod049 status panel?",
+    "article_ids": [
+      "kb-49"
+    ],
+    "key_fact": "set recovery code LD-049 to enabled"
+  },
+  "q049-2": {
+    "question": "The status panel for LanternDesk mod049 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-49"
+    ],
+    "key_fact": "set recovery code LD-049 to enabled"
+  },
+  "q050-1": {
+    "question": "How do I restore the LanternDesk mod050 status panel?",
+    "article_ids": [
+      "kb-50"
+    ],
+    "key_fact": "set recovery code LD-050 to enabled"
+  },
+  "q050-2": {
+    "question": "The status panel for LanternDesk mod050 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-50"
+    ],
+    "key_fact": "set recovery code LD-050 to enabled"
+  },
+  "q051-1": {
+    "question": "How do I restore the LanternDesk mod051 status panel?",
+    "article_ids": [
+      "kb-51"
+    ],
+    "key_fact": "set recovery code LD-051 to enabled"
+  },
+  "q051-2": {
+    "question": "The status panel for LanternDesk mod051 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-51"
+    ],
+    "key_fact": "set recovery code LD-051 to enabled"
+  },
+  "q052-1": {
+    "question": "How do I restore the LanternDesk mod052 status panel?",
+    "article_ids": [
+      "kb-52"
+    ],
+    "key_fact": "set recovery code LD-052 to enabled"
+  },
+  "q052-2": {
+    "question": "The status panel for LanternDesk mod052 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-52"
+    ],
+    "key_fact": "set recovery code LD-052 to enabled"
+  },
+  "q053-1": {
+    "question": "How do I restore the LanternDesk mod053 status panel?",
+    "article_ids": [
+      "kb-53"
+    ],
+    "key_fact": "set recovery code LD-053 to enabled"
+  },
+  "q053-2": {
+    "question": "The status panel for LanternDesk mod053 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-53"
+    ],
+    "key_fact": "set recovery code LD-053 to enabled"
+  },
+  "q054-1": {
+    "question": "How do I restore the LanternDesk mod054 status panel?",
+    "article_ids": [
+      "kb-54"
+    ],
+    "key_fact": "set recovery code LD-054 to enabled"
+  },
+  "q054-2": {
+    "question": "The status panel for LanternDesk mod054 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-54"
+    ],
+    "key_fact": "set recovery code LD-054 to enabled"
+  },
+  "q055-1": {
+    "question": "How do I restore the LanternDesk mod055 status panel?",
+    "article_ids": [
+      "kb-55"
+    ],
+    "key_fact": "set recovery code LD-055 to enabled"
+  },
+  "q055-2": {
+    "question": "The status panel for LanternDesk mod055 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-55"
+    ],
+    "key_fact": "set recovery code LD-055 to enabled"
+  },
+  "q056-1": {
+    "question": "How do I restore the LanternDesk mod056 status panel?",
+    "article_ids": [
+      "kb-56"
+    ],
+    "key_fact": "set recovery code LD-056 to enabled"
+  },
+  "q056-2": {
+    "question": "The status panel for LanternDesk mod056 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-56"
+    ],
+    "key_fact": "set recovery code LD-056 to enabled"
+  },
+  "q057-1": {
+    "question": "How do I restore the LanternDesk mod057 status panel?",
+    "article_ids": [
+      "kb-57"
+    ],
+    "key_fact": "set recovery code LD-057 to enabled"
+  },
+  "q057-2": {
+    "question": "The status panel for LanternDesk mod057 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-57"
+    ],
+    "key_fact": "set recovery code LD-057 to enabled"
+  },
+  "q058-1": {
+    "question": "How do I restore the LanternDesk mod058 status panel?",
+    "article_ids": [
+      "kb-58"
+    ],
+    "key_fact": "set recovery code LD-058 to enabled"
+  },
+  "q058-2": {
+    "question": "The status panel for LanternDesk mod058 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-58"
+    ],
+    "key_fact": "set recovery code LD-058 to enabled"
+  },
+  "q059-1": {
+    "question": "How do I restore the LanternDesk mod059 status panel?",
+    "article_ids": [
+      "kb-59"
+    ],
+    "key_fact": "set recovery code LD-059 to enabled"
+  },
+  "q059-2": {
+    "question": "The status panel for LanternDesk mod059 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-59"
+    ],
+    "key_fact": "set recovery code LD-059 to enabled"
+  },
+  "q060-1": {
+    "question": "How do I restore the LanternDesk mod060 status panel?",
+    "article_ids": [
+      "kb-60"
+    ],
+    "key_fact": "set recovery code LD-060 to enabled"
+  },
+  "q060-2": {
+    "question": "The status panel for LanternDesk mod060 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-60"
+    ],
+    "key_fact": "set recovery code LD-060 to enabled"
+  },
+  "q061-1": {
+    "question": "How do I restore the LanternDesk mod061 status panel?",
+    "article_ids": [
+      "kb-61"
+    ],
+    "key_fact": "set recovery code LD-061 to enabled"
+  },
+  "q061-2": {
+    "question": "The status panel for LanternDesk mod061 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-61"
+    ],
+    "key_fact": "set recovery code LD-061 to enabled"
+  },
+  "q062-1": {
+    "question": "How do I restore the LanternDesk mod062 status panel?",
+    "article_ids": [
+      "kb-62"
+    ],
+    "key_fact": "set recovery code LD-062 to enabled"
+  },
+  "q062-2": {
+    "question": "The status panel for LanternDesk mod062 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-62"
+    ],
+    "key_fact": "set recovery code LD-062 to enabled"
+  },
+  "q063-1": {
+    "question": "How do I restore the LanternDesk mod063 status panel?",
+    "article_ids": [
+      "kb-63"
+    ],
+    "key_fact": "set recovery code LD-063 to enabled"
+  },
+  "q063-2": {
+    "question": "The status panel for LanternDesk mod063 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-63"
+    ],
+    "key_fact": "set recovery code LD-063 to enabled"
+  },
+  "q064-1": {
+    "question": "How do I restore the LanternDesk mod064 status panel?",
+    "article_ids": [
+      "kb-64"
+    ],
+    "key_fact": "set recovery code LD-064 to enabled"
+  },
+  "q064-2": {
+    "question": "The status panel for LanternDesk mod064 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-64"
+    ],
+    "key_fact": "set recovery code LD-064 to enabled"
+  },
+  "q065-1": {
+    "question": "How do I restore the LanternDesk mod065 status panel?",
+    "article_ids": [
+      "kb-65"
+    ],
+    "key_fact": "set recovery code LD-065 to enabled"
+  },
+  "q065-2": {
+    "question": "The status panel for LanternDesk mod065 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-65"
+    ],
+    "key_fact": "set recovery code LD-065 to enabled"
+  },
+  "q066-1": {
+    "question": "How do I restore the LanternDesk mod066 status panel?",
+    "article_ids": [
+      "kb-66"
+    ],
+    "key_fact": "set recovery code LD-066 to enabled"
+  },
+  "q066-2": {
+    "question": "The status panel for LanternDesk mod066 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-66"
+    ],
+    "key_fact": "set recovery code LD-066 to enabled"
+  },
+  "q067-1": {
+    "question": "How do I restore the LanternDesk mod067 status panel?",
+    "article_ids": [
+      "kb-67"
+    ],
+    "key_fact": "set recovery code LD-067 to enabled"
+  },
+  "q067-2": {
+    "question": "The status panel for LanternDesk mod067 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-67"
+    ],
+    "key_fact": "set recovery code LD-067 to enabled"
+  },
+  "q068-1": {
+    "question": "How do I restore the LanternDesk mod068 status panel?",
+    "article_ids": [
+      "kb-68"
+    ],
+    "key_fact": "set recovery code LD-068 to enabled"
+  },
+  "q068-2": {
+    "question": "The status panel for LanternDesk mod068 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-68"
+    ],
+    "key_fact": "set recovery code LD-068 to enabled"
+  },
+  "q069-1": {
+    "question": "How do I restore the LanternDesk mod069 status panel?",
+    "article_ids": [
+      "kb-69"
+    ],
+    "key_fact": "set recovery code LD-069 to enabled"
+  },
+  "q069-2": {
+    "question": "The status panel for LanternDesk mod069 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-69"
+    ],
+    "key_fact": "set recovery code LD-069 to enabled"
+  },
+  "q070-1": {
+    "question": "How do I restore the LanternDesk mod070 status panel?",
+    "article_ids": [
+      "kb-70"
+    ],
+    "key_fact": "set recovery code LD-070 to enabled"
+  },
+  "q070-2": {
+    "question": "The status panel for LanternDesk mod070 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-70"
+    ],
+    "key_fact": "set recovery code LD-070 to enabled"
+  },
+  "q071-1": {
+    "question": "How do I restore the LanternDesk mod071 status panel?",
+    "article_ids": [
+      "kb-71"
+    ],
+    "key_fact": "set recovery code LD-071 to enabled"
+  },
+  "q071-2": {
+    "question": "The status panel for LanternDesk mod071 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-71"
+    ],
+    "key_fact": "set recovery code LD-071 to enabled"
+  },
+  "q072-1": {
+    "question": "How do I restore the LanternDesk mod072 status panel?",
+    "article_ids": [
+      "kb-72"
+    ],
+    "key_fact": "set recovery code LD-072 to enabled"
+  },
+  "q072-2": {
+    "question": "The status panel for LanternDesk mod072 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-72"
+    ],
+    "key_fact": "set recovery code LD-072 to enabled"
+  },
+  "q073-1": {
+    "question": "How do I restore the LanternDesk mod073 status panel?",
+    "article_ids": [
+      "kb-73"
+    ],
+    "key_fact": "set recovery code LD-073 to enabled"
+  },
+  "q073-2": {
+    "question": "The status panel for LanternDesk mod073 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-73"
+    ],
+    "key_fact": "set recovery code LD-073 to enabled"
+  },
+  "q074-1": {
+    "question": "How do I restore the LanternDesk mod074 status panel?",
+    "article_ids": [
+      "kb-74"
+    ],
+    "key_fact": "set recovery code LD-074 to enabled"
+  },
+  "q074-2": {
+    "question": "The status panel for LanternDesk mod074 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-74"
+    ],
+    "key_fact": "set recovery code LD-074 to enabled"
+  },
+  "q075-1": {
+    "question": "How do I restore the LanternDesk mod075 status panel?",
+    "article_ids": [
+      "kb-75"
+    ],
+    "key_fact": "set recovery code LD-075 to enabled"
+  },
+  "q075-2": {
+    "question": "The status panel for LanternDesk mod075 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-75"
+    ],
+    "key_fact": "set recovery code LD-075 to enabled"
+  },
+  "q076-1": {
+    "question": "How do I restore the LanternDesk mod076 status panel?",
+    "article_ids": [
+      "kb-76"
+    ],
+    "key_fact": "set recovery code LD-076 to enabled"
+  },
+  "q076-2": {
+    "question": "The status panel for LanternDesk mod076 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-76"
+    ],
+    "key_fact": "set recovery code LD-076 to enabled"
+  },
+  "q077-1": {
+    "question": "How do I restore the LanternDesk mod077 status panel?",
+    "article_ids": [
+      "kb-77"
+    ],
+    "key_fact": "set recovery code LD-077 to enabled"
+  },
+  "q077-2": {
+    "question": "The status panel for LanternDesk mod077 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-77"
+    ],
+    "key_fact": "set recovery code LD-077 to enabled"
+  },
+  "q078-1": {
+    "question": "How do I restore the LanternDesk mod078 status panel?",
+    "article_ids": [
+      "kb-78"
+    ],
+    "key_fact": "set recovery code LD-078 to enabled"
+  },
+  "q078-2": {
+    "question": "The status panel for LanternDesk mod078 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-78"
+    ],
+    "key_fact": "set recovery code LD-078 to enabled"
+  },
+  "q079-1": {
+    "question": "How do I restore the LanternDesk mod079 status panel?",
+    "article_ids": [
+      "kb-79"
+    ],
+    "key_fact": "set recovery code LD-079 to enabled"
+  },
+  "q079-2": {
+    "question": "The status panel for LanternDesk mod079 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-79"
+    ],
+    "key_fact": "set recovery code LD-079 to enabled"
+  },
+  "q080-1": {
+    "question": "How do I restore the LanternDesk mod080 status panel?",
+    "article_ids": [
+      "kb-80"
+    ],
+    "key_fact": "set recovery code LD-080 to enabled"
+  },
+  "q080-2": {
+    "question": "The status panel for LanternDesk mod080 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-80"
+    ],
+    "key_fact": "set recovery code LD-080 to enabled"
+  },
+  "q081-1": {
+    "question": "How do I restore the LanternDesk mod081 status panel?",
+    "article_ids": [
+      "kb-81"
+    ],
+    "key_fact": "set recovery code LD-081 to enabled"
+  },
+  "q081-2": {
+    "question": "The status panel for LanternDesk mod081 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-81"
+    ],
+    "key_fact": "set recovery code LD-081 to enabled"
+  },
+  "q082-1": {
+    "question": "How do I restore the LanternDesk mod082 status panel?",
+    "article_ids": [
+      "kb-82"
+    ],
+    "key_fact": "set recovery code LD-082 to enabled"
+  },
+  "q082-2": {
+    "question": "The status panel for LanternDesk mod082 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-82"
+    ],
+    "key_fact": "set recovery code LD-082 to enabled"
+  },
+  "q083-1": {
+    "question": "How do I restore the LanternDesk mod083 status panel?",
+    "article_ids": [
+      "kb-83"
+    ],
+    "key_fact": "set recovery code LD-083 to enabled"
+  },
+  "q083-2": {
+    "question": "The status panel for LanternDesk mod083 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-83"
+    ],
+    "key_fact": "set recovery code LD-083 to enabled"
+  },
+  "q084-1": {
+    "question": "How do I restore the LanternDesk mod084 status panel?",
+    "article_ids": [
+      "kb-84"
+    ],
+    "key_fact": "set recovery code LD-084 to enabled"
+  },
+  "q084-2": {
+    "question": "The status panel for LanternDesk mod084 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-84"
+    ],
+    "key_fact": "set recovery code LD-084 to enabled"
+  },
+  "q085-1": {
+    "question": "How do I restore the LanternDesk mod085 status panel?",
+    "article_ids": [
+      "kb-85"
+    ],
+    "key_fact": "set recovery code LD-085 to enabled"
+  },
+  "q085-2": {
+    "question": "The status panel for LanternDesk mod085 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-85"
+    ],
+    "key_fact": "set recovery code LD-085 to enabled"
+  },
+  "q086-1": {
+    "question": "How do I restore the LanternDesk mod086 status panel?",
+    "article_ids": [
+      "kb-86"
+    ],
+    "key_fact": "set recovery code LD-086 to enabled"
+  },
+  "q086-2": {
+    "question": "The status panel for LanternDesk mod086 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-86"
+    ],
+    "key_fact": "set recovery code LD-086 to enabled"
+  },
+  "q087-1": {
+    "question": "How do I restore the LanternDesk mod087 status panel?",
+    "article_ids": [
+      "kb-87"
+    ],
+    "key_fact": "set recovery code LD-087 to enabled"
+  },
+  "q087-2": {
+    "question": "The status panel for LanternDesk mod087 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-87"
+    ],
+    "key_fact": "set recovery code LD-087 to enabled"
+  },
+  "q088-1": {
+    "question": "How do I restore the LanternDesk mod088 status panel?",
+    "article_ids": [
+      "kb-88"
+    ],
+    "key_fact": "set recovery code LD-088 to enabled"
+  },
+  "q088-2": {
+    "question": "The status panel for LanternDesk mod088 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-88"
+    ],
+    "key_fact": "set recovery code LD-088 to enabled"
+  },
+  "q089-1": {
+    "question": "How do I restore the LanternDesk mod089 status panel?",
+    "article_ids": [
+      "kb-89"
+    ],
+    "key_fact": "set recovery code LD-089 to enabled"
+  },
+  "q089-2": {
+    "question": "The status panel for LanternDesk mod089 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-89"
+    ],
+    "key_fact": "set recovery code LD-089 to enabled"
+  },
+  "q090-1": {
+    "question": "How do I restore the LanternDesk mod090 status panel?",
+    "article_ids": [
+      "kb-90"
+    ],
+    "key_fact": "set recovery code LD-090 to enabled"
+  },
+  "q090-2": {
+    "question": "The status panel for LanternDesk mod090 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-90"
+    ],
+    "key_fact": "set recovery code LD-090 to enabled"
+  },
+  "q091-1": {
+    "question": "How do I restore the LanternDesk mod091 status panel?",
+    "article_ids": [
+      "kb-91"
+    ],
+    "key_fact": "set recovery code LD-091 to enabled"
+  },
+  "q091-2": {
+    "question": "The status panel for LanternDesk mod091 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-91"
+    ],
+    "key_fact": "set recovery code LD-091 to enabled"
+  },
+  "q092-1": {
+    "question": "How do I restore the LanternDesk mod092 status panel?",
+    "article_ids": [
+      "kb-92"
+    ],
+    "key_fact": "set recovery code LD-092 to enabled"
+  },
+  "q092-2": {
+    "question": "The status panel for LanternDesk mod092 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-92"
+    ],
+    "key_fact": "set recovery code LD-092 to enabled"
+  },
+  "q093-1": {
+    "question": "How do I restore the LanternDesk mod093 status panel?",
+    "article_ids": [
+      "kb-93"
+    ],
+    "key_fact": "set recovery code LD-093 to enabled"
+  },
+  "q093-2": {
+    "question": "The status panel for LanternDesk mod093 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-93"
+    ],
+    "key_fact": "set recovery code LD-093 to enabled"
+  },
+  "q094-1": {
+    "question": "How do I restore the LanternDesk mod094 status panel?",
+    "article_ids": [
+      "kb-94"
+    ],
+    "key_fact": "set recovery code LD-094 to enabled"
+  },
+  "q094-2": {
+    "question": "The status panel for LanternDesk mod094 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-94"
+    ],
+    "key_fact": "set recovery code LD-094 to enabled"
+  },
+  "q095-1": {
+    "question": "How do I restore the LanternDesk mod095 status panel?",
+    "article_ids": [
+      "kb-95"
+    ],
+    "key_fact": "set recovery code LD-095 to enabled"
+  },
+  "q095-2": {
+    "question": "The status panel for LanternDesk mod095 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-95"
+    ],
+    "key_fact": "set recovery code LD-095 to enabled"
+  },
+  "q096-1": {
+    "question": "How do I restore the LanternDesk mod096 status panel?",
+    "article_ids": [
+      "kb-96"
+    ],
+    "key_fact": "set recovery code LD-096 to enabled"
+  },
+  "q096-2": {
+    "question": "The status panel for LanternDesk mod096 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-96"
+    ],
+    "key_fact": "set recovery code LD-096 to enabled"
+  },
+  "q097-1": {
+    "question": "How do I restore the LanternDesk mod097 status panel?",
+    "article_ids": [
+      "kb-97"
+    ],
+    "key_fact": "set recovery code LD-097 to enabled"
+  },
+  "q097-2": {
+    "question": "The status panel for LanternDesk mod097 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-97"
+    ],
+    "key_fact": "set recovery code LD-097 to enabled"
+  },
+  "q098-1": {
+    "question": "How do I restore the LanternDesk mod098 status panel?",
+    "article_ids": [
+      "kb-98"
+    ],
+    "key_fact": "set recovery code LD-098 to enabled"
+  },
+  "q098-2": {
+    "question": "The status panel for LanternDesk mod098 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-98"
+    ],
+    "key_fact": "set recovery code LD-098 to enabled"
+  },
+  "q099-1": {
+    "question": "How do I restore the LanternDesk mod099 status panel?",
+    "article_ids": [
+      "kb-99"
+    ],
+    "key_fact": "set recovery code LD-099 to enabled"
+  },
+  "q099-2": {
+    "question": "The status panel for LanternDesk mod099 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-99"
+    ],
+    "key_fact": "set recovery code LD-099 to enabled"
+  },
+  "q100-1": {
+    "question": "How do I restore the LanternDesk mod100 status panel?",
+    "article_ids": [
+      "kb-100"
+    ],
+    "key_fact": "set recovery code LD-100 to enabled"
+  },
+  "q100-2": {
+    "question": "The status panel for LanternDesk mod100 is unavailable. What exact setting fixes it?",
+    "article_ids": [
+      "kb-100"
+    ],
+    "key_fact": "set recovery code LD-100 to enabled"
+  },
+  "q101-1": {
+    "question": "How do I restore the LanternDesk mod101 status panel?",
+    "article_ids": [
+      "kb-101"
+    ],
+    "key_fact": "set recovery code LD-101 to enabled"
+  },
+  "q102-1": {
+    "question": "How do I restore the LanternDesk mod102 status panel?",
+    "article_ids": [
+      "kb-102"
+    ],
+    "key_fact": "set recovery code LD-102 to enabled"
+  },
+  "q103-1": {
+    "question": "How do I restore the LanternDesk mod103 status panel?",
+    "article_ids": [
+      "kb-103"
+    ],
+    "key_fact": "set recovery code LD-103 to enabled"
+  },
+  "q104-1": {
+    "question": "How do I restore the LanternDesk mod104 status panel?",
+    "article_ids": [
+      "kb-104"
+    ],
+    "key_fact": "set recovery code LD-104 to enabled"
+  },
+  "q105-1": {
+    "question": "How do I restore the LanternDesk mod105 status panel?",
+    "article_ids": [
+      "kb-105"
+    ],
+    "key_fact": "set recovery code LD-105 to enabled"
+  },
+  "q106-1": {
+    "question": "How do I restore the LanternDesk mod106 status panel?",
+    "article_ids": [
+      "kb-106"
+    ],
+    "key_fact": "set recovery code LD-106 to enabled"
+  },
+  "q107-1": {
+    "question": "How do I restore the LanternDesk mod107 status panel?",
+    "article_ids": [
+      "kb-107"
+    ],
+    "key_fact": "set recovery code LD-107 to enabled"
+  },
+  "q108-1": {
+    "question": "How do I restore the LanternDesk mod108 status panel?",
+    "article_ids": [
+      "kb-108"
+    ],
+    "key_fact": "set recovery code LD-108 to enabled"
+  },
+  "q109-1": {
+    "question": "How do I restore the LanternDesk mod109 status panel?",
+    "article_ids": [
+      "kb-109"
+    ],
+    "key_fact": "set recovery code LD-109 to enabled"
+  },
+  "q110-1": {
+    "question": "How do I restore the LanternDesk mod110 status panel?",
+    "article_ids": [
+      "kb-110"
+    ],
+    "key_fact": "set recovery code LD-110 to enabled"
+  },
+  "q111-1": {
+    "question": "How do I restore the LanternDesk mod111 status panel?",
+    "article_ids": [
+      "kb-111"
+    ],
+    "key_fact": "set recovery code LD-111 to enabled"
+  },
+  "q112-1": {
+    "question": "How do I restore the LanternDesk mod112 status panel?",
+    "article_ids": [
+      "kb-112"
+    ],
+    "key_fact": "set recovery code LD-112 to enabled"
+  },
+  "q113-1": {
+    "question": "How do I restore the LanternDesk mod113 status panel?",
+    "article_ids": [
+      "kb-113"
+    ],
+    "key_fact": "set recovery code LD-113 to enabled"
+  },
+  "q114-1": {
+    "question": "How do I restore the LanternDesk mod114 status panel?",
+    "article_ids": [
+      "kb-114"
+    ],
+    "key_fact": "set recovery code LD-114 to enabled"
+  },
+  "q115-1": {
+    "question": "How do I restore the LanternDesk mod115 status panel?",
+    "article_ids": [
+      "kb-115"
+    ],
+    "key_fact": "set recovery code LD-115 to enabled"
+  },
+  "q116-1": {
+    "question": "How do I restore the LanternDesk mod116 status panel?",
+    "article_ids": [
+      "kb-116"
+    ],
+    "key_fact": "set recovery code LD-116 to enabled"
+  },
+  "q117-1": {
+    "question": "How do I restore the LanternDesk mod117 status panel?",
+    "article_ids": [
+      "kb-117"
+    ],
+    "key_fact": "set recovery code LD-117 to enabled"
+  },
+  "q118-1": {
+    "question": "How do I restore the LanternDesk mod118 status panel?",
+    "article_ids": [
+      "kb-118"
+    ],
+    "key_fact": "set recovery code LD-118 to enabled"
+  },
+  "q119-1": {
+    "question": "How do I restore the LanternDesk mod119 status panel?",
+    "article_ids": [
+      "kb-119"
+    ],
+    "key_fact": "set recovery code LD-119 to enabled"
+  },
+  "q120-1": {
+    "question": "How do I restore the LanternDesk mod120 status panel?",
+    "article_ids": [
+      "kb-120"
+    ],
+    "key_fact": "set recovery code LD-120 to enabled"
+  },
+  "q121-1": {
+    "question": "How do I restore the LanternDesk mod121 status panel?",
+    "article_ids": [
+      "kb-121"
+    ],
+    "key_fact": "set recovery code LD-121 to enabled"
+  },
+  "q122-1": {
+    "question": "How do I restore the LanternDesk mod122 status panel?",
+    "article_ids": [
+      "kb-122"
+    ],
+    "key_fact": "set recovery code LD-122 to enabled"
+  },
+  "q123-1": {
+    "question": "How do I restore the LanternDesk mod123 status panel?",
+    "article_ids": [
+      "kb-123"
+    ],
+    "key_fact": "set recovery code LD-123 to enabled"
+  },
+  "q124-1": {
+    "question": "How do I restore the LanternDesk mod124 status panel?",
+    "article_ids": [
+      "kb-124"
+    ],
+    "key_fact": "set recovery code LD-124 to enabled"
+  },
+  "q125-1": {
+    "question": "How do I restore the LanternDesk mod125 status panel?",
+    "article_ids": [
+      "kb-125"
+    ],
+    "key_fact": "set recovery code LD-125 to enabled"
+  },
+  "q126-1": {
+    "question": "How do I restore the LanternDesk mod126 status panel?",
+    "article_ids": [
+      "kb-126"
+    ],
+    "key_fact": "set recovery code LD-126 to enabled"
+  },
+  "q127-1": {
+    "question": "How do I restore the LanternDesk mod127 status panel?",
+    "article_ids": [
+      "kb-127"
+    ],
+    "key_fact": "set recovery code LD-127 to enabled"
+  },
+  "q128-1": {
+    "question": "How do I restore the LanternDesk mod128 status panel?",
+    "article_ids": [
+      "kb-128"
+    ],
+    "key_fact": "set recovery code LD-128 to enabled"
+  },
+  "q129-1": {
+    "question": "How do I restore the LanternDesk mod129 status panel?",
+    "article_ids": [
+      "kb-129"
+    ],
+    "key_fact": "set recovery code LD-129 to enabled"
+  },
+  "q130-1": {
+    "question": "How do I restore the LanternDesk mod130 status panel?",
+    "article_ids": [
+      "kb-130"
+    ],
+    "key_fact": "set recovery code LD-130 to enabled"
+  },
+  "q131-1": {
+    "question": "How do I restore the LanternDesk mod131 status panel?",
+    "article_ids": [
+      "kb-131"
+    ],
+    "key_fact": "set recovery code LD-131 to enabled"
+  },
+  "q132-1": {
+    "question": "How do I restore the LanternDesk mod132 status panel?",
+    "article_ids": [
+      "kb-132"
+    ],
+    "key_fact": "set recovery code LD-132 to enabled"
+  },
+  "q133-1": {
+    "question": "How do I restore the LanternDesk mod133 status panel?",
+    "article_ids": [
+      "kb-133"
+    ],
+    "key_fact": "set recovery code LD-133 to enabled"
+  },
+  "q134-1": {
+    "question": "How do I restore the LanternDesk mod134 status panel?",
+    "article_ids": [
+      "kb-134"
+    ],
+    "key_fact": "set recovery code LD-134 to enabled"
+  },
+  "q135-1": {
+    "question": "How do I restore the LanternDesk mod135 status panel?",
+    "article_ids": [
+      "kb-135"
+    ],
+    "key_fact": "set recovery code LD-135 to enabled"
+  },
+  "q136-1": {
+    "question": "How do I restore the LanternDesk mod136 status panel?",
+    "article_ids": [
+      "kb-136"
+    ],
+    "key_fact": "set recovery code LD-136 to enabled"
+  },
+  "q137-1": {
+    "question": "How do I restore the LanternDesk mod137 status panel?",
+    "article_ids": [
+      "kb-137"
+    ],
+    "key_fact": "set recovery code LD-137 to enabled"
+  },
+  "q138-1": {
+    "question": "How do I restore the LanternDesk mod138 status panel?",
+    "article_ids": [
+      "kb-138"
+    ],
+    "key_fact": "set recovery code LD-138 to enabled"
+  },
+  "q139-1": {
+    "question": "How do I restore the LanternDesk mod139 status panel?",
+    "article_ids": [
+      "kb-139"
+    ],
+    "key_fact": "set recovery code LD-139 to enabled"
+  },
+  "q140-1": {
+    "question": "How do I restore the LanternDesk mod140 status panel?",
+    "article_ids": [
+      "kb-140"
+    ],
+    "key_fact": "set recovery code LD-140 to enabled"
+  },
+  "q141-1": {
+    "question": "How do I restore the LanternDesk mod141 status panel?",
+    "article_ids": [
+      "kb-141"
+    ],
+    "key_fact": "set recovery code LD-141 to enabled"
+  },
+  "q142-1": {
+    "question": "How do I restore the LanternDesk mod142 status panel?",
+    "article_ids": [
+      "kb-142"
+    ],
+    "key_fact": "set recovery code LD-142 to enabled"
+  },
+  "q143-1": {
+    "question": "How do I restore the LanternDesk mod143 status panel?",
+    "article_ids": [
+      "kb-143"
+    ],
+    "key_fact": "set recovery code LD-143 to enabled"
+  },
+  "q144-1": {
+    "question": "How do I restore the LanternDesk mod144 status panel?",
+    "article_ids": [
+      "kb-144"
+    ],
+    "key_fact": "set recovery code LD-144 to enabled"
+  },
+  "q145-1": {
+    "question": "How do I restore the LanternDesk mod145 status panel?",
+    "article_ids": [
+      "kb-145"
+    ],
+    "key_fact": "set recovery code LD-145 to enabled"
+  },
+  "q146-1": {
+    "question": "How do I restore the LanternDesk mod146 status panel?",
+    "article_ids": [
+      "kb-146"
+    ],
+    "key_fact": "set recovery code LD-146 to enabled"
+  },
+  "q147-1": {
+    "question": "How do I restore the LanternDesk mod147 status panel?",
+    "article_ids": [
+      "kb-147"
+    ],
+    "key_fact": "set recovery code LD-147 to enabled"
+  },
+  "q148-1": {
+    "question": "How do I restore the LanternDesk mod148 status panel?",
+    "article_ids": [
+      "kb-148"
+    ],
+    "key_fact": "set recovery code LD-148 to enabled"
+  },
+  "q149-1": {
+    "question": "How do I restore the LanternDesk mod149 status panel?",
+    "article_ids": [
+      "kb-149"
+    ],
+    "key_fact": "set recovery code LD-149 to enabled"
+  },
+  "q150-1": {
+    "question": "How do I restore the LanternDesk mod150 status panel?",
+    "article_ids": [
+      "kb-150"
+    ],
+    "key_fact": "set recovery code LD-150 to enabled"
+  },
+  "q151-1": {
+    "question": "How do I restore the LanternDesk mod151 status panel?",
+    "article_ids": [
+      "kb-151"
+    ],
+    "key_fact": "set recovery code LD-151 to enabled"
+  },
+  "q152-1": {
+    "question": "How do I restore the LanternDesk mod152 status panel?",
+    "article_ids": [
+      "kb-152"
+    ],
+    "key_fact": "set recovery code LD-152 to enabled"
+  },
+  "q153-1": {
+    "question": "How do I restore the LanternDesk mod153 status panel?",
+    "article_ids": [
+      "kb-153"
+    ],
+    "key_fact": "set recovery code LD-153 to enabled"
+  },
+  "q154-1": {
+    "question": "How do I restore the LanternDesk mod154 status panel?",
+    "article_ids": [
+      "kb-154"
+    ],
+    "key_fact": "set recovery code LD-154 to enabled"
+  },
+  "q155-1": {
+    "question": "How do I restore the LanternDesk mod155 status panel?",
+    "article_ids": [
+      "kb-155"
+    ],
+    "key_fact": "set recovery code LD-155 to enabled"
+  },
+  "q156-1": {
+    "question": "How do I restore the LanternDesk mod156 status panel?",
+    "article_ids": [
+      "kb-156"
+    ],
+    "key_fact": "set recovery code LD-156 to enabled"
+  },
+  "q157-1": {
+    "question": "How do I restore the LanternDesk mod157 status panel?",
+    "article_ids": [
+      "kb-157"
+    ],
+    "key_fact": "set recovery code LD-157 to enabled"
+  },
+  "q158-1": {
+    "question": "How do I restore the LanternDesk mod158 status panel?",
+    "article_ids": [
+      "kb-158"
+    ],
+    "key_fact": "set recovery code LD-158 to enabled"
+  },
+  "q159-1": {
+    "question": "How do I restore the LanternDesk mod159 status panel?",
+    "article_ids": [
+      "kb-159"
+    ],
+    "key_fact": "set recovery code LD-159 to enabled"
+  },
+  "q160-1": {
+    "question": "How do I restore the LanternDesk mod160 status panel?",
+    "article_ids": [
+      "kb-160"
+    ],
+    "key_fact": "set recovery code LD-160 to enabled"
+  },
+  "q161-1": {
+    "question": "How do I restore the LanternDesk mod161 status panel?",
+    "article_ids": [
+      "kb-161"
+    ],
+    "key_fact": "set recovery code LD-161 to enabled"
+  },
+  "q162-1": {
+    "question": "How do I restore the LanternDesk mod162 status panel?",
+    "article_ids": [
+      "kb-162"
+    ],
+    "key_fact": "set recovery code LD-162 to enabled"
+  },
+  "q163-1": {
+    "question": "How do I restore the LanternDesk mod163 status panel?",
+    "article_ids": [
+      "kb-163"
+    ],
+    "key_fact": "set recovery code LD-163 to enabled"
+  },
+  "q164-1": {
+    "question": "How do I restore the LanternDesk mod164 status panel?",
+    "article_ids": [
+      "kb-164"
+    ],
+    "key_fact": "set recovery code LD-164 to enabled"
+  },
+  "q165-1": {
+    "question": "How do I restore the LanternDesk mod165 status panel?",
+    "article_ids": [
+      "kb-165"
+    ],
+    "key_fact": "set recovery code LD-165 to enabled"
+  },
+  "q166-1": {
+    "question": "How do I restore the LanternDesk mod166 status panel?",
+    "article_ids": [
+      "kb-166"
+    ],
+    "key_fact": "set recovery code LD-166 to enabled"
+  },
+  "q167-1": {
+    "question": "How do I restore the LanternDesk mod167 status panel?",
+    "article_ids": [
+      "kb-167"
+    ],
+    "key_fact": "set recovery code LD-167 to enabled"
+  },
+  "q168-1": {
+    "question": "How do I restore the LanternDesk mod168 status panel?",
+    "article_ids": [
+      "kb-168"
+    ],
+    "key_fact": "set recovery code LD-168 to enabled"
+  },
+  "q169-1": {
+    "question": "How do I restore the LanternDesk mod169 status panel?",
+    "article_ids": [
+      "kb-169"
+    ],
+    "key_fact": "set recovery code LD-169 to enabled"
+  },
+  "q170-1": {
+    "question": "How do I restore the LanternDesk mod170 status panel?",
+    "article_ids": [
+      "kb-170"
+    ],
+    "key_fact": "set recovery code LD-170 to enabled"
+  },
+  "q171-1": {
+    "question": "How do I restore the LanternDesk mod171 status panel?",
+    "article_ids": [
+      "kb-171"
+    ],
+    "key_fact": "set recovery code LD-171 to enabled"
+  },
+  "q172-1": {
+    "question": "How do I restore the LanternDesk mod172 status panel?",
+    "article_ids": [
+      "kb-172"
+    ],
+    "key_fact": "set recovery code LD-172 to enabled"
+  },
+  "q173-1": {
+    "question": "How do I restore the LanternDesk mod173 status panel?",
+    "article_ids": [
+      "kb-173"
+    ],
+    "key_fact": "set recovery code LD-173 to enabled"
+  },
+  "q174-1": {
+    "question": "How do I restore the LanternDesk mod174 status panel?",
+    "article_ids": [
+      "kb-174"
+    ],
+    "key_fact": "set recovery code LD-174 to enabled"
+  },
+  "q175-1": {
+    "question": "How do I restore the LanternDesk mod175 status panel?",
+    "article_ids": [
+      "kb-175"
+    ],
+    "key_fact": "set recovery code LD-175 to enabled"
+  },
+  "q176-1": {
+    "question": "How do I restore the LanternDesk mod176 status panel?",
+    "article_ids": [
+      "kb-176"
+    ],
+    "key_fact": "set recovery code LD-176 to enabled"
+  },
+  "q177-1": {
+    "question": "How do I restore the LanternDesk mod177 status panel?",
+    "article_ids": [
+      "kb-177"
+    ],
+    "key_fact": "set recovery code LD-177 to enabled"
+  },
+  "q178-1": {
+    "question": "How do I restore the LanternDesk mod178 status panel?",
+    "article_ids": [
+      "kb-178"
+    ],
+    "key_fact": "set recovery code LD-178 to enabled"
+  },
+  "q179-1": {
+    "question": "How do I restore the LanternDesk mod179 status panel?",
+    "article_ids": [
+      "kb-179"
+    ],
+    "key_fact": "set recovery code LD-179 to enabled"
+  },
+  "q180-1": {
+    "question": "How do I restore the LanternDesk mod180 status panel?",
+    "article_ids": [
+      "kb-180"
+    ],
+    "key_fact": "set recovery code LD-180 to enabled"
+  },
+  "q181-1": {
+    "question": "How do I restore the LanternDesk mod181 status panel?",
+    "article_ids": [
+      "kb-181"
+    ],
+    "key_fact": "set recovery code LD-181 to enabled"
+  },
+  "q182-1": {
+    "question": "How do I restore the LanternDesk mod182 status panel?",
+    "article_ids": [
+      "kb-182"
+    ],
+    "key_fact": "set recovery code LD-182 to enabled"
+  },
+  "q183-1": {
+    "question": "How do I restore the LanternDesk mod183 status panel?",
+    "article_ids": [
+      "kb-183"
+    ],
+    "key_fact": "set recovery code LD-183 to enabled"
+  },
+  "q184-1": {
+    "question": "How do I restore the LanternDesk mod184 status panel?",
+    "article_ids": [
+      "kb-184"
+    ],
+    "key_fact": "set recovery code LD-184 to enabled"
+  },
+  "q185-1": {
+    "question": "How do I restore the LanternDesk mod185 status panel?",
+    "article_ids": [
+      "kb-185"
+    ],
+    "key_fact": "set recovery code LD-185 to enabled"
+  },
+  "q186-1": {
+    "question": "How do I restore the LanternDesk mod186 status panel?",
+    "article_ids": [
+      "kb-186"
+    ],
+    "key_fact": "set recovery code LD-186 to enabled"
+  },
+  "q187-1": {
+    "question": "How do I restore the LanternDesk mod187 status panel?",
+    "article_ids": [
+      "kb-187"
+    ],
+    "key_fact": "set recovery code LD-187 to enabled"
+  },
+  "q188-1": {
+    "question": "How do I restore the LanternDesk mod188 status panel?",
+    "article_ids": [
+      "kb-188"
+    ],
+    "key_fact": "set recovery code LD-188 to enabled"
+  },
+  "q189-1": {
+    "question": "How do I restore the LanternDesk mod189 status panel?",
+    "article_ids": [
+      "kb-189"
+    ],
+    "key_fact": "set recovery code LD-189 to enabled"
+  },
+  "q190-1": {
+    "question": "How do I restore the LanternDesk mod190 status panel?",
+    "article_ids": [
+      "kb-190"
+    ],
+    "key_fact": "set recovery code LD-190 to enabled"
+  },
+  "q191-1": {
+    "question": "How do I restore the LanternDesk mod191 status panel?",
+    "article_ids": [
+      "kb-191"
+    ],
+    "key_fact": "set recovery code LD-191 to enabled"
+  },
+  "q192-1": {
+    "question": "How do I restore the LanternDesk mod192 status panel?",
+    "article_ids": [
+      "kb-192"
+    ],
+    "key_fact": "set recovery code LD-192 to enabled"
+  },
+  "q193-1": {
+    "question": "How do I restore the LanternDesk mod193 status panel?",
+    "article_ids": [
+      "kb-193"
+    ],
+    "key_fact": "set recovery code LD-193 to enabled"
+  },
+  "q194-1": {
+    "question": "How do I restore the LanternDesk mod194 status panel?",
+    "article_ids": [
+      "kb-194"
+    ],
+    "key_fact": "set recovery code LD-194 to enabled"
+  },
+  "q195-1": {
+    "question": "How do I restore the LanternDesk mod195 status panel?",
+    "article_ids": [
+      "kb-195"
+    ],
+    "key_fact": "set recovery code LD-195 to enabled"
+  },
+  "q196-1": {
+    "question": "How do I restore the LanternDesk mod196 status panel?",
+    "article_ids": [
+      "kb-196"
+    ],
+    "key_fact": "set recovery code LD-196 to enabled"
+  },
+  "q197-1": {
+    "question": "How do I restore the LanternDesk mod197 status panel?",
+    "article_ids": [
+      "kb-197"
+    ],
+    "key_fact": "set recovery code LD-197 to enabled"
+  },
+  "q198-1": {
+    "question": "How do I restore the LanternDesk mod198 status panel?",
+    "article_ids": [
+      "kb-198"
+    ],
+    "key_fact": "set recovery code LD-198 to enabled"
+  },
+  "q199-1": {
+    "question": "How do I restore the LanternDesk mod199 status panel?",
+    "article_ids": [
+      "kb-199"
+    ],
+    "key_fact": "set recovery code LD-199 to enabled"
+  },
+  "q200-1": {
+    "question": "How do I restore the LanternDesk mod200 status panel?",
+    "article_ids": [
+      "kb-200"
+    ],
+    "key_fact": "set recovery code LD-200 to enabled"
+  }
+}

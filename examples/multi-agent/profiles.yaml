@@ -1,0 +1,57 @@
+# All durations are milliseconds. Zero fetch_rate_per_s means no throttle.
+none:
+  model_slots: 32
+  model_base_ms: 25
+  model_per_token_ms: 0.05
+  model_error_rate: 0
+  search_workers: 16
+  search_latency_ms: 5
+  search_error_rate: 0
+  fetch_rate_per_s: 0
+  fetch_latency_ms: 5
+  fetch_error_rate: 0
+  model_timeout_s: 10
+  search_timeout_s: 10
+  fetch_timeout_s: 10
+search-pool:
+  model_slots: 32
+  model_base_ms: 25
+  model_per_token_ms: 0.05
+  model_error_rate: 0
+  search_workers: 2
+  search_latency_ms: 300
+  search_error_rate: 0
+  fetch_rate_per_s: 0
+  fetch_latency_ms: 5
+  fetch_error_rate: 0
+  model_timeout_s: 10
+  search_timeout_s: 10
+  fetch_timeout_s: 10
+llm-slots:
+  model_slots: 2
+  model_base_ms: 300
+  model_per_token_ms: 0.1
+  model_error_rate: 0
+  search_workers: 16
+  search_latency_ms: 5
+  search_error_rate: 0
+  fetch_rate_per_s: 0
+  fetch_latency_ms: 5
+  fetch_error_rate: 0
+  model_timeout_s: 10
+  search_timeout_s: 10
+  fetch_timeout_s: 10
+fetch-ratelimit:
+  model_slots: 32
+  model_base_ms: 25
+  model_per_token_ms: 0.05
+  model_error_rate: 0
+  search_workers: 16
+  search_latency_ms: 5
+  search_error_rate: 0
+  fetch_rate_per_s: 7
+  fetch_latency_ms: 5
+  fetch_error_rate: 0
+  model_timeout_s: 10
+  search_timeout_s: 10
+  fetch_timeout_s: 10
