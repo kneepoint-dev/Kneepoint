@@ -5,6 +5,13 @@ rejected, and `kneepoint validate my.yaml` checks a file without running
 anything. Every value below can be overridden by a CLI flag: **flag beats
 scenario beats default**.
 
+## `trace`
+
+`trace: true` (default) sends W3C `traceparent` and `baggage` on every load
+attempt and stores its trace and span IDs in the request record. Set
+`trace: false` or pass `kneepoint run --no-trace` to omit the headers and store
+null IDs. The CLI flag takes precedence over the scenario setting.
+
 ## `target`
 
 | Field | Type | Default | Meaning |

@@ -73,12 +73,15 @@ PROXY_FAULT_LOG_OPTION = typer.Option(
 )
 
 
-async def _calibrate(target: str, model: str, sampler, transport, headers) -> RequestRecord:
+async def _calibrate(
+    target: str, model: str, sampler, transport, headers,
+    run_id: str | None = None, trace: bool = True,
+) -> RequestRecord:
     async with httpx.AsyncClient(timeout=120, transport=transport, headers=headers) as client:
         outcome = await run_turn(
             client, target, model,
             [{"role": "user", "content": sampler.sample()}],
-            concurrency=1, session_id="calibration",
+            concurrency=1, session_id="calibration", run_id=run_id, trace=trace,
         )
     return outcome.record
 
@@ -314,6 +317,7 @@ def run(
         10, "--min-samples", help="Min successful requests per level for knee math."
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
+    no_trace: bool = typer.Option(False, "--no-trace", help="Omit W3C trace headers."),
     out_dir: Path = OUT_DIR_OPTION,
 ) -> None:
     """Ramp concurrency against the target and find the knee point."""
@@ -325,6 +329,7 @@ def run(
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
 
+    trace = not no_trace and (sc.trace if sc else True)
     target_url = _pick(target, sc.target.url if sc else None, None)
     if target_url is None:
         raise typer.BadParameter("provide --target or --scenario")
@@ -429,7 +434,9 @@ def run(
     elif price_in or price_out:
         calibration_scope = "outside_generator_accounting"
         typer.echo("Calibration spend is outside completed generator attempt accounting.")
-        calibration = asyncio.run(_calibrate(target_url, model_name, sampler, transport, headers))
+        calibration = asyncio.run(_calibrate(
+            target_url, model_name, sampler, transport, headers, run_id, trace,
+        ))
         estimate = estimate_run_cost(spec.levels(), spec.hold_seconds, calibration, rates)
         if estimate is not None:
             typer.echo(f"Estimated spend for this run: ~${estimate:.2f}")
@@ -472,6 +479,7 @@ def run(
                     seed=seed, transport=transport, headers=headers,
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
                     stop=controller.stop, evidence=evidence,
+                    run_id=run_id, trace=trace,
                 )
             )
         except BaseException:

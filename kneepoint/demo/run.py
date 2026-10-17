@@ -155,11 +155,12 @@ def run_demo(
             echo(f"  level {level:>2}: {len(sessions)} sessions, "
                  f"{len(records)} requests, {errors} errors")
 
+        run_id = time.strftime("%Y%m%d-%H%M%S")
         started_at = time.time()
         all_sessions, records, _ = asyncio.run(
             run_ramp(
                 f"{agent.url}/v1", "demo", spec, sampler, session_spec,
-                seed=seed, transport=transport, on_level=on_level,
+                seed=seed, transport=transport, on_level=on_level, run_id=run_id,
             )
         )
         # in-process, so the log object is right here; `kneepoint run` reaches the
@@ -180,7 +181,6 @@ def run_demo(
             echo("Note: some requests were abandoned at the client wall - the levels "
                  "after them may be measuring leftover work (see the report banner).")
 
-        run_id = time.strftime("%Y%m%d-%H%M%S")
         jsonl_path = out_dir / f"demo-{run_id}.jsonl"
         sessions_path = out_dir / f"demo-{run_id}-sessions.jsonl"
         meta_path = out_dir / f"demo-{run_id}-meta.json"

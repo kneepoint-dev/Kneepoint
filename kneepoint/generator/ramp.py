@@ -12,6 +12,7 @@ from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.pool import run_level
 from kneepoint.generator.session import SessionSpec
+from kneepoint.targets.trace_context import new_run_id
 
 _RAMP_RE = re.compile(r"^(\d+)\.\.(\d+)$")
 
@@ -47,6 +48,8 @@ async def run_ramp(
     sampler: CorpusSampler,
     session_spec: SessionSpec,
     *,
+    run_id: str | None = None,
+    trace: bool = True,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
     headers: dict | None = None,
@@ -64,6 +67,7 @@ async def run_ramp(
     Caller-owned evidence also survives exceptions and external cancellation.
     """
     evidence = evidence if evidence is not None else RunEvidence()
+    run_id = run_id if run_id is not None else new_run_id()
     first_session, first_record = len(evidence.sessions), len(evidence.records)
     evidence.status = "running"
     try:
@@ -73,7 +77,8 @@ async def run_ramp(
                 break
             sessions, records = await run_level(
                 base_url, model, level, spec.hold_seconds, sampler, session_spec,
-                seed=seed, transport=transport, headers=headers, on_record=on_record,
+                run_id=run_id, trace=trace, seed=seed, transport=transport,
+                headers=headers, on_record=on_record,
                 on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                 stop=stop, evidence=evidence,
             )

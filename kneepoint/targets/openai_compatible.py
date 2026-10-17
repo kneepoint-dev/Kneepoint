@@ -5,11 +5,13 @@ import json
 import statistics
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 import httpx
 from pydantic import BaseModel
 
 from kneepoint.collect.schemas import RequestRecord
+from kneepoint.targets.trace_context import attempt_context, new_run_id
 
 _DATA_PREFIX = "data: "
 
@@ -48,6 +50,20 @@ def _record(session_id, concurrency, turn_index, attempt, started_at, t0, **kw) 
     )
 
 
+@asynccontextmanager
+async def _stream_attempt(client, url, request_headers, body, *, trace_headers):
+    """Stream a request after removing any stale caller-supplied trace context."""
+    request = client.build_request("POST", url, headers=request_headers, json=body)
+    for name in ("traceparent", "baggage", "tracestate"):
+        request.headers.pop(name, None)
+    request.headers.update(trace_headers)
+    response = await client.send(request, stream=True)
+    try:
+        yield response
+    finally:
+        await response.aclose()
+
+
 async def run_turn(
     client: httpx.AsyncClient,
     base_url: str,
@@ -59,6 +75,8 @@ async def run_turn(
     turn_index: int = 0,
     attempt: int = 1,
     wall_seconds: float | None = None,
+    run_id: str | None = None,
+    trace: bool = True,
 ) -> TurnOutcome:
     """Run one streamed chat turn; record TTFT, latency, tokens, and text.
 
@@ -72,6 +90,18 @@ async def run_turn(
     The record is marked `abandoned` either way so contaminated levels can be flagged.
     """
     wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
+    run_id = run_id if run_id is not None else new_run_id()
+    trace_id = span_id = None
+    request_headers = {"x-kneepoint-session": session_id}
+    trace_headers = {}
+    if trace:
+        trace_id, span_id, traceparent, baggage = attempt_context(
+            run_id, session_id, concurrency, turn_index, attempt,
+        )
+        trace_headers = {"traceparent": traceparent, "baggage": baggage}
+
+    def record(*args, **kwargs) -> RequestRecord:
+        return _record(*args, trace_id=trace_id, span_id=span_id, **kwargs)
     started_at = time.time()
     t0 = time.perf_counter()
     ttft_ms: float | None = None
@@ -87,23 +117,22 @@ async def run_turn(
         # where no bytes arrive — that is the gap httpx's timeout resets on and
         # the one Run D's requests died in. On expiry the read is cancelled and
         # `client.stream`'s teardown closes the response, which shuts the socket.
-        async with asyncio.timeout(wall), client.stream(
-            "POST",
-            f"{base_url.rstrip('/')}/chat/completions",
-            headers={"x-kneepoint-session": session_id},
-            json={
+        async with asyncio.timeout(wall), _stream_attempt(
+            client, f"{base_url.rstrip('/')}/chat/completions", request_headers,
+            {
                 "model": model,
                 "messages": messages,
                 "stream": True,
                 "stream_options": {"include_usage": True},
             },
+            trace_headers=trace_headers,
         ) as resp:
             status_code = resp.status_code
             fault = resp.headers.get("x-kneepoint-fault")
             if resp.status_code >= 400:
                 retry_after = resp.headers.get("retry-after")
                 return TurnOutcome(
-                    record=_record(
+                    record=record(
                         session_id, concurrency, turn_index, attempt, started_at, t0,
                         ok=False, status_code=resp.status_code, fault=fault,
                         error=f"HTTP {resp.status_code}",
@@ -133,7 +162,7 @@ async def run_turn(
                     input_tokens = usage.get("prompt_tokens")
                     output_tokens = usage.get("completion_tokens")
         return TurnOutcome(
-            record=_record(
+            record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 # the status the server sent, not a literal 200: a 2xx that is
                 # not 200 still streams, and the record must say what arrived
@@ -148,7 +177,7 @@ async def run_turn(
         )
     except TimeoutError:  # the wall
         return TurnOutcome(
-            record=_record(
+            record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 ok=False, status_code=status_code, fault=fault, ttft_ms=ttft_ms,
                 abandoned=status_code is not None,
@@ -162,7 +191,7 @@ async def run_turn(
         # asserts the server observes it). Connect/pool timeouts are NOT
         # abandonment — no upstream work ever started — so they fall through.
         return TurnOutcome(
-            record=_record(
+            record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 ok=False, ttft_ms=ttft_ms, abandoned=True,
                 error=f"{type(exc).__name__}: {exc}"[:200],
@@ -170,7 +199,7 @@ async def run_turn(
         )
     except Exception as exc:  # noqa: BLE001 - record the failure, keep the run alive
         return TurnOutcome(
-            record=_record(
+            record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 ok=False, ttft_ms=ttft_ms, error=f"{type(exc).__name__}: {exc}"[:200],
             ),

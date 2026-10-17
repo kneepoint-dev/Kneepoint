@@ -10,6 +10,7 @@ from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.session import SessionSpec, run_session
+from kneepoint.targets.trace_context import new_run_id
 
 REQUEST_TIMEOUT_S = 120.0
 
@@ -22,6 +23,8 @@ async def run_level(
     sampler: CorpusSampler,
     spec: SessionSpec,
     *,
+    run_id: str | None = None,
+    trace: bool = True,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
     headers: dict | None = None,
@@ -34,6 +37,7 @@ async def run_level(
     """Run `concurrency` workers for `hold_seconds`; each worker loops full
     sessions and always completes at least one."""
     evidence = evidence if evidence is not None else RunEvidence()
+    run_id = run_id if run_id is not None else new_run_id()
     first_session, first_record = len(evidence.sessions), len(evidence.records)
     evidence.status = "running"
     evidence.level_status[concurrency] = "running"
@@ -57,7 +61,7 @@ async def run_level(
                 while stop is None or not stop.is_set():
                     session, recs = await run_session(
                         client, base_url, model, sampler, spec,
-                        concurrency=concurrency, rng=rng,
+                        concurrency=concurrency, rng=rng, run_id=run_id, trace=trace,
                         on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                         stop=stop, evidence=evidence,
                     )

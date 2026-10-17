@@ -42,6 +42,8 @@ class RequestRecord(VersionedRecord):
     error: str | None = None
     turn_index: int = 0       # 0-based position within the session
     attempt: int = 1          # 1-based; >1 means this was a retry
+    trace_id: str | None = None  # W3C trace ID for this attempt; null when disabled/legacy
+    span_id: str | None = None   # W3C parent span ID sent to the target
     fault: str | None = None  # chaos fault injected into this attempt, if any
     status_code: int | None = None
     # Inter-token latency, at *chunk* granularity — a streamed chunk is not

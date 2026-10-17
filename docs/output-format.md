@@ -68,6 +68,13 @@ Anything in the second list bumps `schema_version`. So: **read by field name,
 tolerate unknown fields, and treat a higher `schema_version` than you know as a
 reason to warn, not to crash.**
 
+Trace propagation adds optional `trace_id` and `span_id` fields to request
+records without changing existing fields or their meaning. It therefore stays
+at schema version **1** under the compatibility promise above. Both fields
+default to `null` in older files, and a released 0.2.0 reader ignores them in
+new files. A schema bump would make older readers warn despite being able to
+parse every record, so it is not warranted for this additive change.
+
 ## `run-<id>.jsonl` — one line per request attempt
 
 A session is many turns; a turn is one or more attempts, because a failed turn
@@ -91,6 +98,8 @@ The fields, in the order they appear on the line:
 | `error` | string \| null | free text, truncated to 200 chars. Shape is not contractual. `null` whenever `ok` is true |
 | `turn_index` | int | 0-based position within the session |
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
+| `trace_id` | string \| null | 32 lowercase hex characters from the W3C `traceparent` sent on this attempt; `null` for older files or when tracing is disabled |
+| `span_id` | string \| null | 16 lowercase hex characters from that attempt's `traceparent`; `null` for older files or when tracing is disabled |
 | `fault` | string \| null | chaos fault injected into this attempt, read from the response: `llm_rate_limit`, `llm_server_error`. Tool faults arrive via the proxy's fault log, not here |
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
@@ -103,6 +112,15 @@ Fields that exist only on a successful request (`input_tokens`,
 the provider had sent some of them. A partial answer's tokens are not spend
 that produced an answer, and a broken stream's chunk gaps would describe the
 break, not the server.
+
+Every traced attempt carries `traceparent: 00-<trace_id>-<span_id>-01` and W3C
+`baggage` entries `kneepoint.run_id`, `kneepoint.level` (the concurrency),
+`kneepoint.session`, `kneepoint.turn` (0-based) and `kneepoint.attempt`
+(1-based). Baggage values are percent-encoded. IDs are deterministically
+derived from those five identity values; retries receive distinct IDs. The
+target must propagate the incoming trace context into its OpenTelemetry spans
+for an observer to join them to this record. `--no-trace` or `trace: false` in
+the scenario omits both headers and stores `null` IDs.
 
 ### `itl_*` is inter-*chunk*, not strictly inter-*token*
 

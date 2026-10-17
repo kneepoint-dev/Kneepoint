@@ -12,6 +12,7 @@ from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import AttemptStart, RunEvidence, wait_or_stop
 from kneepoint.targets.openai_compatible import run_turn
+from kneepoint.targets.trace_context import new_run_id
 
 RETRYABLE_STATUS = {429, 500, 502, 503}
 
@@ -58,6 +59,8 @@ async def run_session(
     *,
     concurrency: int,
     rng: random.Random,
+    run_id: str | None = None,
+    trace: bool = True,
     on_attempt_start=None,
     on_attempt_complete=None,
     stop: asyncio.Event | None = None,
@@ -65,6 +68,7 @@ async def run_session(
 ) -> tuple[SessionRecord, list[RequestRecord]]:
     """One simulated user: sampled prompts, history grows, failed turns retry."""
     session_id = uuid.uuid4().hex[:12]
+    run_id = run_id if run_id is not None else new_run_id()
     started_at = time.time()
     t0 = time.perf_counter()
     n_turns = rng.randint(spec.turns.min, spec.turns.max)
@@ -99,7 +103,7 @@ async def run_session(
                 outcome = await run_turn(
                     client, base_url, model, messages,
                     concurrency=concurrency, session_id=session_id,
-                    turn_index=turn_index, attempt=attempt,
+                    turn_index=turn_index, attempt=attempt, run_id=run_id, trace=trace,
                 )
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)

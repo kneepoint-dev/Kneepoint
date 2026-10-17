@@ -85,6 +85,7 @@ class ChaosConfig(_Strict):
 
 
 class Scenario(_Strict):
+    trace: bool = True
     target: TargetConfig
     workload: WorkloadConfig = WorkloadConfig()
     resolution: ResolutionConfig = ResolutionConfig()
