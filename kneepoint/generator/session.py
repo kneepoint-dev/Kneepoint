@@ -61,6 +61,7 @@ async def run_session(
     rng: random.Random,
     run_id: str | None = None,
     trace: bool = True,
+    run_origin_s: float | None = None,
     on_attempt_start=None,
     on_attempt_complete=None,
     stop: asyncio.Event | None = None,
@@ -104,6 +105,7 @@ async def run_session(
                     client, base_url, model, messages,
                     concurrency=concurrency, session_id=session_id,
                     turn_index=turn_index, attempt=attempt, run_id=run_id, trace=trace,
+                    run_origin_s=run_origin_s,
                 )
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)

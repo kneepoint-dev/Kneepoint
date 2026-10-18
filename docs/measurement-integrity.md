@@ -1,5 +1,45 @@
 # Measurement integrity
 
+## Clocks, steady windows and the closed-loop check
+
+Kneepoint records two clocks. `started_at` is wall time: it says when an
+attempt happened on the calendar, but the operating system may move it forward
+or backward. `started_monotonic_s` is elapsed seconds from the run's monotonic
+origin. Request durations already use that clock. New runs use it for level
+windows, throughput and run duration too. Old records have no monotonic start;
+their rates use `started_at` and the report says **wall fallback**. Such rates
+can be wrong after a clock step.
+
+For a level held for `H` seconds, the steady window is exactly
+`[level start + H/3, level start + 4H/5)`. It is 5 through 12 seconds for a
+15-second hold. Only attempts that **complete** inside that half-open window
+count toward steady throughput `X`; their mean full response time is `R`.
+The older raw `throughput_rps` uses all attempts from the first start through
+the last completion, including the drain tail. It remains available for
+compatibility. New runs record the actual start of each level's hold; older
+records approximate it with their first observed attempt.
+
+In a closed loop, `N` active sessions should produce roughly `N/X = R + Z`,
+where `Z` is the configured mean think time between requests. The report shows
+`N/X − R − Z` for each level. A magnitude above the larger of 50 ms or 5% of
+`R` is marked **suspected client or instrument stall**. This is a consistency
+check, not a diagnosis: retries, variable think time and short holds can also
+affect it. A level without completions in the steady window has no gap value.
+Old metadata did not record `Z`, so re-rendering it shows the law gap as `n/a`
+instead of guessing zero.
+
+Two clock checks mark a level **clock step, host sleep or client stall** when
+they see more than one second of unexplained time. New records compare the
+wall and monotonic elapsed time within each level. Both new and old records
+also check whether the next request begins much later than the preceding one
+could have finished plus think time. For old one-turn sessions, the check uses
+the closed-loop pool's last completion because the records have no worker ID.
+The marked level and later levels are shaded as contaminated; knee confidence
+is lowered. The check cannot prove which of the three causes occurred.
+
+For long runs on macOS, wrap the command with `caffeinate -dimsu` to keep the
+host awake. The clock checks still apply.
+
 A capacity number is only worth as much as the measurement behind it. This page
 documents the one place where kneepoint's own measurement can be contaminated,
 what kneepoint does about it, and what it cannot do.

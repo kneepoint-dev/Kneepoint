@@ -34,6 +34,7 @@ class RequestRecord(VersionedRecord):
     session_id: str
     concurrency: int          # ramp level this request ran at
     started_at: float         # unix epoch seconds
+    started_monotonic_s: float | None = None  # seconds since this run's monotonic origin
     ttft_ms: float | None = None
     total_ms: float
     input_tokens: int | None = None
@@ -143,8 +144,8 @@ class RunMetadata(VersionedRecord):
     header line; a sidecar rather than per-record fields, because a target URL
     and a price table on every line is bloat. Absent (files written before this
     existed) means *unknown*, never a guess. `started_at`/`finished_at` are unix
-    epoch seconds like the JSONL's `started_at`, and are the only timestamps —
-    one representation, nothing to drift.
+    epoch seconds like the JSONL's `started_at`. Optional monotonic readings
+    and level starts make durations recoverable after a wall-clock step.
     """
 
     run_id: str
@@ -164,3 +165,8 @@ class RunMetadata(VersionedRecord):
     started_at: float         # taken before the first request is sent
     finished_at: float        # taken when this file is written
     environment: Environment
+    started_monotonic_s: float | None = None  # absolute perf_counter reading, run origin
+    finished_monotonic_s: float | None = None
+    level_starts_monotonic_s: dict[int, float] | None = None  # run-relative
+    think_time_min_ms: int | None = None
+    think_time_max_ms: int | None = None

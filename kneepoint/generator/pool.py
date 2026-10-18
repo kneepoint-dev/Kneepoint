@@ -25,6 +25,7 @@ async def run_level(
     *,
     run_id: str | None = None,
     trace: bool = True,
+    run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
     headers: dict | None = None,
@@ -44,7 +45,10 @@ async def run_level(
     if stop is not None and stop.is_set():
         evidence.status = evidence.level_status[concurrency] = "stopped"
         return [], []
-    deadline = time.perf_counter() + hold_seconds
+    level_origin = time.perf_counter()
+    deadline = level_origin + hold_seconds
+    if run_origin_s is not None:
+        evidence.level_starts_monotonic_s[concurrency] = level_origin - run_origin_s
     limits = httpx.Limits(
         max_connections=concurrency + 10,
         max_keepalive_connections=concurrency + 10,
@@ -62,6 +66,7 @@ async def run_level(
                     session, recs = await run_session(
                         client, base_url, model, sampler, spec,
                         concurrency=concurrency, rng=rng, run_id=run_id, trace=trace,
+                        run_origin_s=run_origin_s,
                         on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                         stop=stop, evidence=evidence,
                     )

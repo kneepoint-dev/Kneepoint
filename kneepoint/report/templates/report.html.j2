@@ -104,13 +104,34 @@ throughput had plateaued by c=4 and p95 first doubled at c=7.{% endcall %}
 {% if contaminated %}
 <div class="contaminated">
 <strong>Contaminated levels: {{ contaminated | map(attribute="concurrency") | join(", ") }}.</strong>
-{{ abandoned_total }} request{{ "" if abandoned_total == 1 else "s" }} were abandoned at the
-client wall. Kneepoint closes the connection the moment it gives up, but a server is
-free to finish generating anyway — so these levels may be measuring work left over
-from the level before, and are no longer independent. Treat their latencies, and any
-knee that depends on them, as unpublishable. Every chart below shades the ramp from
-the first contaminated level onward.
+{% if abandoned_total %}{{ abandoned_total }} request{{ "" if abandoned_total == 1 else "s" }}
+were abandoned at the client wall; the server may keep generating after the client
+disconnects.{% endif %}
+{% if clock_levels %}<strong>clock step, host sleep or client stall</strong> at c={{ clock_levels | join(", ") }}.{% endif %}
+Treat these levels and any knee that depends on them as unpublishable. Every chart
+below shades the ramp from the first contaminated level onward.
 </div>
+{% endif %}
+
+{% if stats %}
+<h2>Throughput and closed-loop check</h2>
+<p class="muted">Steady completions finish inside [level start + hold/3,
+level start + 4×hold/5); warm-up and the drain tail are excluded. Raw throughput
+uses the whole observed window. A wall-clock fallback means the record predates
+monotonic starts, so a clock step can distort its rates.</p>
+<table>
+  <tr><th>c (N)</th><th>Clock</th><th>Raw X /s</th><th>Steady X /s</th>
+      <th>Completions</th><th>Mean R s</th><th>N/X − R − Z</th><th>Check</th></tr>
+  {% for s in stats %}
+  <tr><td>{{ s.concurrency }}</td><td>{{ s.timing_source }}</td>
+      <td>{{ "%.3f"|format(s.throughput_rps) if s.throughput_rps is not none else "n/a" }}</td>
+      <td>{{ "%.3f"|format(s.steady_throughput_rps) if s.steady_throughput_rps is not none else "n/a" }}</td>
+      <td>{{ s.steady_completions }}</td>
+      <td>{{ "%.3f"|format(s.steady_mean_response_s) if s.steady_mean_response_s is not none else "n/a" }}</td>
+      <td>{{ "%+.3f"|format(s.little_gap_s) if s.little_gap_s is not none else "n/a" }}</td>
+      <td>{% if s.suspected_stall %}<strong>suspected client or instrument stall</strong>{% else %}—{% endif %}</td></tr>
+  {% endfor %}
+</table>
 {% endif %}
 
 <h2>The knee curve</h2>

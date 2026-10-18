@@ -93,7 +93,13 @@ def metadata_rows(meta: RunMetadata) -> list[tuple[str, str]]:
         ("Thresholds", f"min_samples {meta.min_samples} (percentiles and knee), "
                        f"min_group {meta.min_group} (resilience grid)"),
         ("Started", format_started(meta.started_at)),
-        ("Duration", _duration(meta.finished_at - meta.started_at)),
+        ("Duration", _duration(
+            meta.finished_monotonic_s - meta.started_monotonic_s
+            if meta.finished_monotonic_s is not None
+            and meta.started_monotonic_s is not None
+            else meta.finished_at - meta.started_at
+        ) + (" (monotonic)" if meta.finished_monotonic_s is not None
+             and meta.started_monotonic_s is not None else " (wall-clock fallback)")),
         ("Versions", f"kneepoint {meta.kneepoint_version or UNKNOWN + ' (source tree)'} · "
                      f"python {meta.environment.python} · schema {meta.schema_version}"),
         ("Platform", meta.environment.platform),
@@ -195,6 +201,7 @@ def write_report(
         cost=cost, res=res, knee_summary=knee_summary,
         contaminated=contaminated,
         abandoned_total=sum(s.abandoned for s in stats),
+        clock_levels=[s.concurrency for s in stats if s.clock_anomaly],
         stats=stats, min_samples=min_samples, quality=quality, quality_summary=quality_summary,
         latency_rows=[s for s in stats if s.ttft_p50_ms is not None],
         retry_levels=retry_levels,

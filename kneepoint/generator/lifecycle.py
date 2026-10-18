@@ -38,6 +38,7 @@ class RunEvidence:
     attempts: dict[str, dict] = field(default_factory=dict)
     session_status: dict[str, str] = field(default_factory=dict)
     level_status: dict[int, str] = field(default_factory=dict)
+    level_starts_monotonic_s: dict[int, float] = field(default_factory=dict)
     status: str = "running"
 
     def start(self, event: AttemptStart) -> None:

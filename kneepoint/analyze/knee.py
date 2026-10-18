@@ -23,6 +23,7 @@ import warnings
 from kneed import KneeLocator
 from pydantic import BaseModel, Field, model_validator
 
+from kneepoint.analyze.timing import analyze_timing
 from kneepoint.collect.schemas import RequestRecord
 
 # the p95-doubling heuristic (docs/metrics.md): the knee is the first level
@@ -46,6 +47,17 @@ class LevelStats(BaseModel):
     # client walked away from can keep running on the server, so from that point
     # on the ramp levels are no longer independent measurements (Run D finding 4).
     contaminated: bool = False
+    clock_anomaly: bool = False
+    exact_clock_step: bool = False
+    continuity_gap: bool = False
+    max_continuity_gap_s: float = 0.0
+    timing_source: str = "wall fallback"
+    throughput_rps: float | None = None
+    steady_throughput_rps: float | None = None
+    steady_completions: int = 0
+    steady_mean_response_s: float | None = None
+    little_gap_s: float | None = None
+    suspected_stall: bool = False
     # Latency breakdown. Every one is None rather than 0 when the underlying
     # field was never reported — no provider usage means no TPOT, a single
     # content chunk means no ITL. See docs/output-format.md.
@@ -182,7 +194,11 @@ def _pct(values: list[float], p: int) -> float:
     return cuts[p - 1]
 
 
-def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
+def aggregate(
+    records: list[RequestRecord], *, hold_seconds: float | None = None,
+    think_time_ms: tuple[int, int] | None = (0, 0),
+    level_starts_monotonic_s: dict[int, float] | None = None,
+) -> list[LevelStats]:
     """Group records by ramp level; percentiles use successful requests only.
     Levels where every request failed retain their counts and null percentiles.
 
@@ -194,12 +210,17 @@ def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
     by_level: dict[int, list[RequestRecord]] = {}
     for record in records:
         by_level.setdefault(record.concurrency, []).append(record)
+    timing = analyze_timing(
+        records, hold_seconds=hold_seconds, think_time_ms=think_time_ms,
+        level_starts_monotonic_s=level_starts_monotonic_s,
+    )
     stats: list[LevelStats] = []
-    seen_abandonment = False
+    seen_contamination = False
     for level in sorted(by_level):
         recs = by_level[level]
         abandoned = sum(1 for r in recs if r.abandoned)
-        seen_abandonment = seen_abandonment or abandoned > 0
+        clock = timing[level]
+        seen_contamination = seen_contamination or abandoned > 0 or clock.clock_anomaly
         ok = [r for r in recs if r.ok]
         ok_latencies = [r.total_ms for r in ok]
 
@@ -221,7 +242,18 @@ def aggregate(records: list[RequestRecord]) -> list[LevelStats]:
                 p95_ms=pct(ok_latencies, 95),
                 p99_ms=pct(ok_latencies, 99),
                 abandoned=abandoned,
-                contaminated=seen_abandonment,
+                contaminated=seen_contamination,
+                clock_anomaly=clock.clock_anomaly,
+                exact_clock_step=clock.exact_clock_step,
+                continuity_gap=clock.continuity_gap,
+                max_continuity_gap_s=clock.max_continuity_gap_s,
+                timing_source=clock.source,
+                throughput_rps=clock.throughput_rps,
+                steady_throughput_rps=clock.steady_throughput_rps,
+                steady_completions=clock.steady_completions,
+                steady_mean_response_s=clock.steady_mean_response_s,
+                little_gap_s=clock.little_gap_s,
+                suspected_stall=clock.suspected_stall,
                 ttft_p50_ms=pct(ttfts, 50),
                 ttft_p95_ms=pct(ttfts, 95),
                 tpot_p50_ms=pct(tpots, 50),
@@ -416,7 +448,8 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
         confidence = "low"
         notes.append(
             f"levels {', '.join(str(c) for c in contaminated)} are contaminated by "
-            "abandoned work - this knee is not publishable whatever its confidence"
+            "abandoned work or a clock step, host sleep or client stall - "
+            "this knee is not publishable whatever its confidence"
         )
     return KneeReport(
         min_samples=min_samples, usable_levels=len(usable),

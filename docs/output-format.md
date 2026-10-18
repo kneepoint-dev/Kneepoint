@@ -68,12 +68,11 @@ Anything in the second list bumps `schema_version`. So: **read by field name,
 tolerate unknown fields, and treat a higher `schema_version` than you know as a
 reason to warn, not to crash.**
 
-Trace propagation adds optional `trace_id` and `span_id` fields to request
-records without changing existing fields or their meaning. It therefore stays
-at schema version **1** under the compatibility promise above. Both fields
-default to `null` in older files, and a released 0.2.0 reader ignores them in
-new files. A schema bump would make older readers warn despite being able to
-parse every record, so it is not warranted for this additive change.
+Trace propagation and monotonic timing add optional fields without changing
+existing fields or their meaning. They therefore stay at schema version **1**
+under the compatibility promise above. The fields default to `null` in older
+files, and a released 0.2.0 reader ignores them in new files. A schema bump
+would make older readers warn despite being able to parse every record.
 
 ## `run-<id>.jsonl` — one line per request attempt
 
@@ -90,6 +89,7 @@ The fields, in the order they appear on the line:
 | `session_id` | string | joins to `SessionRecord.session_id` |
 | `concurrency` | int | the ramp level this attempt ran at |
 | `started_at` | float | unix epoch seconds, wall clock |
+| `started_monotonic_s` | float \| null | optional attempt start in seconds since this run's monotonic origin. Older records have no value and remain valid schema-1 records |
 | `ttft_ms` | float \| null | time to first *content* chunk. `null` when no content chunk arrived before the request ended — an HTTP error, a failure during the silent prefill gap, or a stream that only ever carried usage. A request that failed *after* its first content chunk keeps its `ttft_ms` |
 | `total_ms` | float | full request duration, client-side — from just before the request was sent to the moment the record was made, whether the request succeeded, failed or was abandoned |
 | `input_tokens` | int \| null | from the provider's `usage` on a successful request. `null` when the provider didn't send one — kneepoint never estimates tokens — and always `null` when `ok` is false |
@@ -215,7 +215,12 @@ rates, whether chaos was on when no fault happened to fire).
   "slo": {"p95_total_ms": null, "min_resolution_rate": 0.9, "max_cost_per_resolved": null},
   "started_at": 1787067705.472,
   "finished_at": 1787067722.828,
-  "environment": {"python": "3.14.6", "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O"}
+  "environment": {"python": "3.14.6", "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O"},
+  "started_monotonic_s": null,
+  "finished_monotonic_s": null,
+  "level_starts_monotonic_s": null,
+  "think_time_min_ms": null,
+  "think_time_max_ms": null
 }
 ```
 
@@ -239,9 +244,17 @@ rates, whether chaos was on when no fault happened to fire).
 | `started_at` | float | unix epoch seconds, taken **before the first request** of the ramp is sent (the cost calibration request is not part of the run) |
 | `finished_at` | float | unix epoch seconds, taken as this file is written — after the ramp has finished and the sessions have been judged, before the report is rendered |
 | `environment` | object | `python` version and `platform` string, read from the machine that ran it |
+| `started_monotonic_s` | float \| null | optional monotonic reading at run start |
+| `finished_monotonic_s` | float \| null | optional monotonic reading at run end; the difference from the start is the run duration even if the wall clock changes |
+| `level_starts_monotonic_s` | object \| null | optional level start offsets in seconds since the run's monotonic origin; the generator starts each hold here |
+| `think_time_min_ms` | int \| null | optional minimum configured think time |
+| `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is used by the closed-loop consistency check |
 
-Timestamps are epoch floats like the JSONL's `started_at`, and there is no
-second, human-formatted copy of them — one representation, nothing to drift.
+The wall timestamps are epoch floats for calendar display. Monotonic readings
+are seconds from a clock that does not follow wall-clock corrections. Old
+sidecars lack them; the report labels its wall-clock duration as a fallback.
+New optional fields keep the schema version at 1, so older readers can ignore
+them and older records still parse.
 
 Files written before the sidecar existed — everything the 0.1.0 PyPI release
 ever wrote — have none. Anything that reads one must treat *absent* as

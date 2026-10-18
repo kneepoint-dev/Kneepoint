@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import time
 
 import httpx
 from pydantic import BaseModel
@@ -50,6 +51,7 @@ async def run_ramp(
     *,
     run_id: str | None = None,
     trace: bool = True,
+    run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
     headers: dict | None = None,
@@ -67,6 +69,7 @@ async def run_ramp(
     Caller-owned evidence also survives exceptions and external cancellation.
     """
     evidence = evidence if evidence is not None else RunEvidence()
+    run_origin_s = time.perf_counter() if run_origin_s is None else run_origin_s
     run_id = run_id if run_id is not None else new_run_id()
     first_session, first_record = len(evidence.sessions), len(evidence.records)
     evidence.status = "running"
@@ -78,6 +81,7 @@ async def run_ramp(
             sessions, records = await run_level(
                 base_url, model, level, spec.hold_seconds, sampler, session_spec,
                 run_id=run_id, trace=trace, seed=seed, transport=transport,
+                run_origin_s=run_origin_s,
                 headers=headers, on_record=on_record,
                 on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                 stop=stop, evidence=evidence,

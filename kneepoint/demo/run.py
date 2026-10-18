@@ -42,6 +42,7 @@ from kneepoint.collect.writer import (
 )
 from kneepoint.demo.agent import create_app
 from kneepoint.generator.corpus import DEFAULT_PROMPTS, CorpusSampler
+from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, run_ramp
 from kneepoint.generator.session import RetryPolicy, SessionSpec, TurnsSpec
 from kneepoint.judge.deterministic import CheckConfig, apply_deterministic
@@ -157,10 +158,13 @@ def run_demo(
 
         run_id = time.strftime("%Y%m%d-%H%M%S")
         started_at = time.time()
+        started_monotonic_s = time.perf_counter()
+        evidence = RunEvidence()
         all_sessions, records, _ = asyncio.run(
             run_ramp(
                 f"{agent.url}/v1", "demo", spec, sampler, session_spec,
                 seed=seed, transport=transport, on_level=on_level, run_id=run_id,
+                run_origin_s=started_monotonic_s, evidence=evidence,
             )
         )
         # in-process, so the log object is right here; `kneepoint run` reaches the
@@ -174,12 +178,16 @@ def run_demo(
         cost_note = incomplete_cost_note(records, DEMO_PRICES)
         cost = summarize_cost(records, all_sessions, DEMO_PRICES) if cost_note is None else None
         res = resilience(all_sessions, min_group=DEMO_MIN_GROUP)
-        stats = aggregate(records)
+        stats = aggregate(
+            records, hold_seconds=spec.hold_seconds,
+            think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
+            level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+        )
         knee_summary = knee_report(stats, min_samples=DEMO_MIN_SAMPLES)
         knee = find_knee(stats, min_samples=DEMO_MIN_SAMPLES)
         if any(s.contaminated for s in stats):
-            echo("Note: some requests were abandoned at the client wall - the levels "
-                 "after them may be measuring leftover work (see the report banner).")
+            echo("Note: contaminated levels include abandoned work or a clock step, "
+                 "host sleep or client stall (see the report banner).")
 
         jsonl_path = out_dir / f"demo-{run_id}.jsonl"
         sessions_path = out_dir / f"demo-{run_id}-sessions.jsonl"
@@ -188,6 +196,8 @@ def run_demo(
             w.write_many(records)
         with JsonlWriter(sessions_path) as w:
             w.write_many(all_sessions)
+        finished_at = time.time()
+        finished_monotonic_s = time.perf_counter()
         write_run_meta(meta_path, RunMetadata(
             run_id=run_id, command="demo", target=f"{agent.url}/v1", model="demo",
             ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
@@ -200,7 +210,12 @@ def run_demo(
             price=PriceRates(input_per_mtok=DEMO_PRICES.input_per_mtok,
                              output_per_mtok=DEMO_PRICES.output_per_mtok),
             min_samples=DEMO_MIN_SAMPLES, min_group=DEMO_MIN_GROUP, slo=SloConfig(),
-            started_at=started_at, finished_at=time.time(),
+            started_at=started_at, finished_at=finished_at,
+            started_monotonic_s=started_monotonic_s,
+            finished_monotonic_s=finished_monotonic_s,
+            level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+            think_time_min_ms=session_spec.think_time.min_ms,
+            think_time_max_ms=session_spec.think_time.max_ms,
             environment=current_environment(),
         ))
         run_meta = read_run_meta(meta_path)   # the stamped file, same as `report` reads
@@ -221,6 +236,12 @@ def run_demo(
 
         for line in knee_summary.lines():
             echo(line)
+        for s in stats:
+            if s.steady_throughput_rps is not None:
+                gap = "n/a" if s.little_gap_s is None else f"{s.little_gap_s * 1000:+.1f} ms"
+                warning = " - suspected client or instrument stall" if s.suspected_stall else ""
+                echo(f"  c={s.concurrency}: steady X={s.steady_throughput_rps:.3f}/s, "
+                     f"law gap={gap}{warning}")
         if knee is None:
             echo("  (a longer demo helps - try --hold-seconds 10)")
         for line in quality_summary.lines():

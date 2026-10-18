@@ -212,6 +212,44 @@ def _streamed_stats():
     return stats
 
 
+def test_monotonic_duration_and_clock_law_warning_render(tmp_path):
+    from kneepoint.analyze.knee import aggregate
+
+    records = [RequestRecord(session_id=f"s{i}", concurrency=1,
+                             started_at=1000 + i + (900 if i >= 8 else 0),
+                             started_monotonic_s=float(i), total_ms=1000, ok=True)
+               for i in range(16)]
+    stats = aggregate(records, hold_seconds=15, level_starts_monotonic_s={1: 0})
+    assert stats[0].clock_anomaly
+    meta = _run_meta(started_at=1000, finished_at=1930,
+                     started_monotonic_s=50, finished_monotonic_s=80,
+                     level_starts_monotonic_s={1: 2.5})
+    meta = RunMetadata.model_validate_json(meta.model_dump_json())
+    assert meta.level_starts_monotonic_s == {1: 2.5}
+    rows = dict(metadata_rows(meta))
+    assert rows["Duration"] == "30 s (monotonic)"
+    html = write_report(tmp_path / "timing.html", meta=_meta(), stats=stats,
+                        knee=None, quality=[], cost=None, res=None,
+                        run_meta=meta).read_text(encoding="utf-8")
+    assert "clock step, host sleep or client stall</strong> at c=1" in html
+    assert "Throughput and closed-loop check" in html
+    assert "<td>monotonic</td>" in html
+
+
+def test_little_law_stall_appears_in_report(tmp_path):
+    stats = _stats()
+    stats[0].steady_throughput_rps = 0.5
+    stats[0].steady_completions = 4
+    stats[0].steady_mean_response_s = 1.0
+    stats[0].little_gap_s = 1.0
+    stats[0].suspected_stall = True
+    html = write_report(tmp_path / "stall.html", meta=_meta(), stats=stats,
+                        knee=None, quality=[], cost=None, res=None).read_text(
+                            encoding="utf-8")
+    assert "suspected client or instrument stall" in html
+    assert "+1.000" in html
+
+
 def test_errors_section_shows_the_rate_the_status_mix_and_the_strings(tmp_path):
     recs = [RequestRecord(session_id="s", concurrency=1, started_at=0.0, total_ms=1.0,
                           ok=True)] * 10
@@ -311,7 +349,7 @@ def test_metadata_block_handles_off_chaos_no_prices_and_an_unstamped_sidecar():
     assert rows["Chaos"] == "off — none"
     assert rows["Prices"] == "not tracked"
     assert rows["Sessions"].startswith("2 turn(s) each")
-    assert rows["Duration"] == "42 s"
+    assert rows["Duration"] == "42 s (wall-clock fallback)"
     assert rows["Versions"].startswith("kneepoint unknown (source tree)")
     assert rows["Seed"] == "7"
 

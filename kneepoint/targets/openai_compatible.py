@@ -77,6 +77,7 @@ async def run_turn(
     wall_seconds: float | None = None,
     run_id: str | None = None,
     trace: bool = True,
+    run_origin_s: float | None = None,
 ) -> TurnOutcome:
     """Run one streamed chat turn; record TTFT, latency, tokens, and text.
 
@@ -100,10 +101,13 @@ async def run_turn(
         )
         trace_headers = {"traceparent": traceparent, "baggage": baggage}
 
-    def record(*args, **kwargs) -> RequestRecord:
-        return _record(*args, trace_id=trace_id, span_id=span_id, **kwargs)
     started_at = time.time()
     t0 = time.perf_counter()
+    started_monotonic_s = t0 - run_origin_s if run_origin_s is not None else None
+
+    def record(*args, **kwargs) -> RequestRecord:
+        return _record(*args, trace_id=trace_id, span_id=span_id,
+                       started_monotonic_s=started_monotonic_s, **kwargs)
     ttft_ms: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None

@@ -87,7 +87,9 @@ def _render(annotation) -> str:
         return "string"
     if annotation in (int, float, bool):
         return annotation.__name__
-    if annotation is dict or (isinstance(annotation, type) and issubclass(annotation, BaseModel)):
+    if origin is dict or annotation is dict or (
+        isinstance(annotation, type) and issubclass(annotation, BaseModel)
+    ):
         return "object"
     raise AssertionError(f"no documented spelling for {annotation!r}")
 

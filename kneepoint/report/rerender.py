@@ -17,7 +17,7 @@ from pathlib import Path
 
 from kneepoint.analyze.cost import CostRates, CostSummary, incomplete_cost_note, summarize_cost
 from kneepoint.analyze.errors import errors_by_level
-from kneepoint.analyze.knee import KneeReport, aggregate, find_knee, knee_report
+from kneepoint.analyze.knee import KneeReport, LevelStats, aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level
@@ -44,6 +44,7 @@ class RerenderResult:
     meta: RunMetadata | None
     min_samples: int
     knee_summary: KneeReport
+    stats: list[LevelStats]
     cost: CostSummary | None
     slo: RunSloEvaluation
     unknown: list[str] = field(default_factory=list)   # what could not be recovered, and why
@@ -198,7 +199,14 @@ def render_from_files(
         if not sessions_path.exists() else None
     )
 
-    stats = aggregate(records)
+    stats = aggregate(
+        records,
+        hold_seconds=meta.hold_seconds if meta else None,
+        think_time_ms=(meta.think_time_min_ms, meta.think_time_max_ms)
+        if meta and meta.think_time_min_ms is not None
+        and meta.think_time_max_ms is not None else None,
+        level_starts_monotonic_s=meta.level_starts_monotonic_s if meta else None,
+    )
     knee_summary = knee_report(stats, min_samples=min_samples)
     knee = find_knee(stats, min_samples=min_samples)
     if meta is not None:
@@ -235,7 +243,7 @@ def render_from_files(
     return RerenderResult(
         report_path=report_path, records_path=records_path, sessions_path=sessions_path,
         meta_path=meta_path, meta=meta, min_samples=min_samples,
-        knee_summary=knee_summary, cost=cost, unknown=unknown,
+        knee_summary=knee_summary, stats=stats, cost=cost, unknown=unknown,
         slo=evaluate_run_slo(
             meta.slo if meta else None, stats=stats,
             quality=resolution_summary(sessions) if sessions_path.exists() else None,

@@ -227,6 +227,8 @@ def report(
         raise typer.Exit(code=1) from exc
     for line in result.knee_summary.lines():
         typer.echo(line)
+    _warn_contamination(result.stats)
+    _print_timing(result.stats)
     for line in result.slo.lines():
         typer.echo(line)
     for reason in result.unknown:
@@ -235,18 +237,32 @@ def report(
 
 
 def _warn_contamination(stats, echo=typer.echo) -> None:
-    """Say it out loud when abandoned work makes the later levels non-independent."""
+    """Say it out loud when measured levels are no longer independent."""
     hit = [s for s in stats if s.contaminated]
     if not hit:
         return
     abandoned = sum(s.abandoned for s in stats)
     levels = ", ".join(str(s.concurrency) for s in hit)
-    echo(
-        f"Contaminated levels: {levels} - {abandoned} request(s) abandoned at the "
-        f"{REQUEST_WALL_S:g}s wall. Kneepoint closes the connection immediately, but the "
-        "server may keep generating, so these levels can be measuring the previous "
-        "level's leftovers. Do not publish latencies or a knee from them."
-    )
+    causes = []
+    if abandoned:
+        causes.append(f"{abandoned} request(s) abandoned at the {REQUEST_WALL_S:g}s wall")
+    if any(s.clock_anomaly for s in stats):
+        causes.append("clock step, host sleep or client stall at c=" + ", ".join(
+            str(s.concurrency) for s in stats if s.clock_anomaly))
+    echo(f"Contaminated levels: {levels} - {'; '.join(causes)}. "
+         "Do not publish latencies or a knee from them.")
+
+
+def _print_timing(stats, echo=typer.echo) -> None:
+    """Show the steady window and Little's-law check in a compact CLI table."""
+    for s in stats:
+        if s.steady_throughput_rps is None:
+            continue
+        gap = "n/a" if s.little_gap_s is None else f"{s.little_gap_s * 1000:+.1f} ms"
+        warning = " - suspected client or instrument stall" if s.suspected_stall else ""
+        echo(f"  c={s.concurrency}: steady X={s.steady_throughput_rps:.3f}/s, "
+             f"completions={s.steady_completions}, law gap={gap} "
+             f"({s.timing_source}){warning}")
 
 
 def _merge_tool_faults(path: Path, sessions: list, echo=typer.echo) -> None:
@@ -446,6 +462,7 @@ def run(
         f"holding {spec.hold_seconds}s per level"
     )
     started_at = time.time()  # the calibration request above is not part of the run
+    started_monotonic_s = time.perf_counter()
     evidence = RunEvidence()
     lifecycle_path = out_dir / f"run-{run_id}-lifecycle.json"
 
@@ -480,6 +497,7 @@ def run(
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
                     stop=controller.stop, evidence=evidence,
                     run_id=run_id, trace=trace,
+                    run_origin_s=started_monotonic_s,
                 )
             )
         except BaseException:
@@ -559,6 +577,8 @@ def run(
         session_writer.write_many(all_sessions)
     # the sidecar goes down before the report is rendered, so a run whose report
     # failed to write is still re-renderable from what is on disk
+    finished_at = time.time()
+    finished_monotonic_s = time.perf_counter()
     write_run_meta(meta_path, RunMetadata(
         run_id=run_id, command="run", target=target_url, model=model_name,
         ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
@@ -573,7 +593,12 @@ def run(
         ),
         min_samples=min_samples, min_group=RUN_MIN_GROUP,
         slo=sc.slo if sc else SloConfig(),
-        started_at=started_at, finished_at=time.time(),
+        started_at=started_at, finished_at=finished_at,
+        started_monotonic_s=started_monotonic_s,
+        finished_monotonic_s=finished_monotonic_s,
+        level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+        think_time_min_ms=session_spec.think_time.min_ms,
+        think_time_max_ms=session_spec.think_time.max_ms,
         environment=current_environment(),
     ))
     # read back, not reused: the file carries the version stamps the in-memory
@@ -581,8 +606,13 @@ def run(
     # `kneepoint report` will later read from the same file
     run_meta = read_run_meta(meta_path)
 
-    stats = aggregate(records)
+    stats = aggregate(
+        records, hold_seconds=run_meta.hold_seconds,
+        think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
+        level_starts_monotonic_s=run_meta.level_starts_monotonic_s,
+    )
     _warn_contamination(stats)
+    _print_timing(stats)
     retry_levels = retry_by_level(records, all_sessions)
     worst = worst_amplification(retry_levels)
     if worst is not None:
