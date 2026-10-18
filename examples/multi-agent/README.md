@@ -15,9 +15,39 @@ short articles and 300 questions are synthetic. Each `prompts/*.txt` question
 has a known article ID and key fact in `answers.json`. `generate_data.py`
 recreates the fixtures deterministically.
 
-This slice accepts incoming `traceparent` without error. The graph and tools do
-not propagate it or emit OTel spans yet; that is slice B. Kneepoint's public
-`codex/trace-propagation` branch does send trace context to this front door.
+The front door extracts Kneepoint's W3C `traceparent` and `baggage`. Its server
+span is a child of the exact load-attempt span, with the same trace ID. Context
+stays current through all three LangGraph nodes and is injected into the real
+localhost fetch request. Tracing is opt-in: `DEMO_TRACING=1` enables a batch
+OTLP/HTTP exporter; `DEMO_TRACING=0` (the default) runs without recording spans.
+Incoming W3C context is still forwarded to the fetch hop when recording is off.
+The exporter accepts only a local HTTP `OTEL_EXPORTER_OTLP_ENDPOINT` (default
+`http://127.0.0.1:4318`, with `/v1/traces` appended). No paid endpoint is used.
+
+The GenAI names and attributes follow **OpenTelemetry semantic conventions
+v1.41.1**, specifically the [GenAI agent spans](https://github.com/open-telemetry/semantic-conventions/blob/v1.41.1/docs/gen-ai/gen-ai-agent-spans.md)
+and [GenAI model/tool spans](https://github.com/open-telemetry/semantic-conventions/blob/v1.41.1/docs/gen-ai/gen-ai-spans.md).
+These conventions are marked Development. The custom `demo.*` attributes are
+LanternDesk's measurement contract, not OTel standard attributes. The example
+pins the Python OTel SDK/exporter/protobuf packages to 1.45.1 separately from
+the semantic-convention document version.
+
+| Span | Meaning |
+|---|---|
+| `POST /v1/chat/completions` (SERVER) | One incoming attempt through final SSE delivery; parent is Kneepoint's sent span ID. |
+| `invoke_agent planner/researcher/writer` (INTERNAL) | One named LangGraph node each; provider is `langgraph`. |
+| `chat lantern-sim` or `chat <Ollama model>` (CLIENT) | One model call; provider, model and actual token usage are attributes. |
+| `execute_tool search/fetch` (INTERNAL) | One tool call each. |
+| `wait model slot/search worker/fetch rate limiter` (INTERNAL) | Time queued before service; capacity and in-flight count are recorded. |
+| `GET /documents/{article_id}` (CLIENT then SERVER) | Injected fetch hop and local document route. |
+
+Each completed model and tool span has `demo.queue_wait_ms`, `demo.service_time_ms`,
+`demo.pool.capacity` and `demo.pool.in_flight`. Service time starts only after
+the worker, model slot or rate limiter admits the step. For search and model,
+utilization can be reconstructed from spans as `U = X × S / m`, where `X` is
+step completions per second, `S` is mean service seconds and `m` is capacity.
+`demo.pool.capacity` on fetch is starts per second, so this simple utilization
+formula does not apply to fetch. The sink stores no prompt or article content.
 
 ## Start the agent
 
@@ -98,6 +128,40 @@ against `answers.json`; a marker alone does not pass. It reports answer-only
 accuracy and all-session accuracy by level. Test the graph and tools with
 `examples/multi-agent/.venv/bin/python -m unittest discover -s
 examples/multi-agent -p 'test_*.py'` from the public root.
+
+## Try it yourself: traces and local sink
+
+In three terminals, from the public repository root (after installing the
+example requirements above):
+
+```bash
+# Terminal A: local OTLP/HTTP receiver
+cd examples/multi-agent
+.venv/bin/python otlp_sink.py /tmp/lanterndesk-spans.jsonl \
+  --first-payload /tmp/lanterndesk-first-otlp-request.pb
+```
+
+```bash
+# Terminal B: traced app
+cd examples/multi-agent
+DEMO_PROFILE=search-pool DEMO_TRACING=1 \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
+.venv/bin/uvicorn app:create_app --factory --host 127.0.0.1 --port 8765
+```
+
+```bash
+# Terminal C: public CLI on codex/trace-propagation or a descendant
+caffeinate -dimsu .venv/bin/kneepoint run \
+  --scenario examples/multi-agent/kneepoint.yaml --out /tmp/lanterndesk-run
+```
+
+Each line in `/tmp/lanterndesk-spans.jsonl` is one decoded OTLP span. Join its
+`trace_id` to `trace_id` in the run's `run-*.jsonl`; the chat server span's
+`parent_span_id` equals the attempt's `span_id`. `baggage.kneepoint.level` on
+that server span supplies the concurrency level. The `.pb` file is an actual
+OTLP/HTTP request body suitable for later receiver tests. The private experiment's
+`analyze.py` reproduces join, fan-out and per-step queue/service results.
+Switch to `DEMO_TRACING=0` for the same ramp without exporter overhead.
 
 ## Try it yourself in Kneepoint Plus
 

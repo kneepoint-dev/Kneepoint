@@ -1,8 +1,4 @@
-"""LanternDesk: a controllable LangGraph support agent for load experiments.
-
-Slice A has explicit graph nodes and local tools. OTel spans and traceparent
-propagation inside the agent belong to slice B.
-"""
+"""LanternDesk: a controllable LangGraph support agent for load experiments."""
 
 import asyncio
 import hashlib
@@ -23,6 +19,10 @@ import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from langgraph.graph import END, START, StateGraph
+from opentelemetry import context as otel_context
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+from telemetry import Telemetry
 
 ROOT = Path(__file__).resolve().parent
 MODULE = re.compile(r"\bmod\d{3}\b", re.IGNORECASE)
@@ -121,9 +121,29 @@ class ModelResult:
     output_tokens: int
 
 
+class TraceStreamingResponse(StreamingResponse):
+    """Close the request span after the full SSE response or a disconnect."""
+
+    def __init__(self, *args, trace_span, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trace_span = trace_span
+
+    async def __call__(self, scope, receive, send):
+        try:
+            with trace.use_span(self.trace_span, end_on_exit=False):
+                await super().__call__(scope, receive, send)
+        except BaseException as exc:
+            self.trace_span.set_attribute("error.type", type(exc).__name__)
+            self.trace_span.set_status(Status(StatusCode.ERROR))
+            raise
+        finally:
+            self.trace_span.end()
+
+
 class Runtime:
-    def __init__(self, config: Config, articles: list[dict]) -> None:
+    def __init__(self, config: Config, articles: list[dict], telemetry: Telemetry) -> None:
         self.config = config
+        self.telemetry = telemetry
         self.articles = {article["id"]: article for article in articles}
         self.index = sqlite3.connect(":memory:", check_same_thread=False)
         self.index.execute("CREATE VIRTUAL TABLE kb USING fts5(id UNINDEXED, module, body)")
@@ -133,6 +153,9 @@ class Runtime:
         )
         self.model_slots = asyncio.Semaphore(config.model_slots)
         self.search_workers = asyncio.Semaphore(config.search_workers)
+        self.model_in_flight = 0
+        self.search_in_flight = 0
+        self.fetch_in_flight = 0
         self.fetch_lock = asyncio.Lock()
         self.next_fetch_at = 0.0
         self.client: httpx.AsyncClient | None = None
@@ -141,14 +164,24 @@ class Runtime:
             "model_errors": 0, "search_errors": 0, "fetch_errors": 0,
         }
         graph = StateGraph(AgentState)
-        graph.add_node("planner", self.planner)
-        graph.add_node("researcher", self.researcher)
-        graph.add_node("writer", self.writer)
+        graph.add_node("planner", self._node("planner", self.planner))
+        graph.add_node("researcher", self._node("researcher", self.researcher))
+        graph.add_node("writer", self._node("writer", self.writer))
         graph.add_edge(START, "planner")
         graph.add_edge("planner", "researcher")
         graph.add_edge("researcher", "writer")
         graph.add_edge("writer", END)
         self.graph = graph.compile()
+
+    def _node(self, name, action):
+        async def invoke(state):
+            with self.telemetry.span(f"invoke_agent {name}", attributes={
+                "gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": name,
+                "gen_ai.provider.name": "langgraph",
+            }):
+                return await action(state)
+
+        return invoke
 
     @staticmethod
     def _fails(rate: float, key: str) -> bool:
@@ -159,18 +192,42 @@ class Runtime:
         self, role: str, prompt: str, key: str, article: dict | None = None,
     ) -> ModelResult:
         self.stats["model_calls"] += 1
-        try:
-            return await asyncio.wait_for(
-                self._model(role, prompt, key, article), self.config.model_timeout_s,
-            )
-        except (TimeoutError, DemoError):
-            self.stats["model_errors"] += 1
-            raise
+        model_name = "lantern-sim" if self.config.llm_backend == "sim" else self.config.ollama_model
+        with self.telemetry.span(f"chat {model_name}", kind=trace.SpanKind.CLIENT,
+                                 attributes={
+                                     "gen_ai.operation.name": "chat",
+                                     "gen_ai.provider.name": self.config.llm_backend,
+                                     "gen_ai.request.model": model_name,
+                                     "demo.step.name": "model",
+                                     "demo.pool.capacity": self.config.model_slots,
+                                 }) as span:
+            try:
+                result = await asyncio.wait_for(
+                    self._model(role, prompt, key, article, span), self.config.model_timeout_s,
+                )
+                span.set_attribute("gen_ai.usage.input_tokens", result.input_tokens)
+                span.set_attribute("gen_ai.usage.output_tokens", result.output_tokens)
+                return result
+            except (TimeoutError, DemoError) as exc:
+                span.set_attribute("error.type", type(exc).__name__)
+                span.set_status(Status(StatusCode.ERROR))
+                self.stats["model_errors"] += 1
+                raise
 
     async def _model(
-        self, role: str, prompt: str, key: str, article: dict | None,
+        self, role: str, prompt: str, key: str, article: dict | None, span,
     ) -> ModelResult:
-        async with self.model_slots:
+        wait_start = time.monotonic_ns()
+        with self.telemetry.span("wait model slot", attributes={
+            "demo.wait.for": "model", "demo.pool.capacity": self.config.model_slots,
+            "demo.pool.in_flight": self.model_in_flight,
+        }):
+            await self.model_slots.acquire()
+        service_start = time.monotonic_ns()
+        self.model_in_flight += 1
+        span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+        span.set_attribute("demo.pool.in_flight", self.model_in_flight)
+        try:
             if self.config.llm_backend == "ollama":
                 if self.client is None:
                     raise DemoError("HTTP client is not ready")
@@ -216,12 +273,26 @@ class Runtime:
                 / 1000,
             )
             return ModelResult(text, in_tokens, out_tokens)
+        finally:
+            span.set_attribute("demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6)
+            self.model_in_flight -= 1
+            self.model_slots.release()
 
     async def search(self, query: str, key: str) -> str | None:
         self.stats["search_calls"] += 1
 
         async def work() -> str | None:
-            async with self.search_workers:
+            wait_start = time.monotonic_ns()
+            with self.telemetry.span("wait search worker", attributes={
+                "demo.wait.for": "search", "demo.pool.capacity": self.config.search_workers,
+                "demo.pool.in_flight": self.search_in_flight,
+            }):
+                await self.search_workers.acquire()
+            service_start = time.monotonic_ns()
+            self.search_in_flight += 1
+            span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+            span.set_attribute("demo.pool.in_flight", self.search_in_flight)
+            try:
                 await asyncio.sleep(self.config.search_latency_ms / 1000)
                 if self._fails(self.config.search_error_rate, f"{key}:search"):
                     raise DemoError("simulated search error")
@@ -232,12 +303,24 @@ class Runtime:
                     "SELECT id FROM kb WHERE kb MATCH ? LIMIT 1", (match.group(0).lower(),),
                 ).fetchone()
                 return row[0] if row else None
+            finally:
+                span.set_attribute(
+                    "demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6,
+                )
+                self.search_in_flight -= 1
+                self.search_workers.release()
 
-        try:
-            return await asyncio.wait_for(work(), self.config.search_timeout_s)
-        except (TimeoutError, DemoError):
-            self.stats["search_errors"] += 1
-            return None
+        with self.telemetry.span("execute_tool search", attributes={
+            "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "search",
+            "demo.step.name": "search", "demo.pool.capacity": self.config.search_workers,
+        }) as span:
+            try:
+                return await asyncio.wait_for(work(), self.config.search_timeout_s)
+            except (TimeoutError, DemoError) as exc:
+                span.set_attribute("error.type", type(exc).__name__)
+                span.set_status(Status(StatusCode.ERROR))
+                self.stats["search_errors"] += 1
+                return None
 
     async def fetch(self, article_id: str, key: str) -> dict | None:
         self.stats["fetch_calls"] += 1
@@ -247,26 +330,64 @@ class Runtime:
         async def work() -> dict:
             # Include the rate-limit queue in the fetch timeout. Keeping the
             # wait under the lock avoids reserving a slot for cancelled calls.
-            async with self.fetch_lock:
-                if self.config.fetch_rate_per_s:
-                    delay = max(0.0, self.next_fetch_at - time.monotonic())
-                    if delay:
-                        await asyncio.sleep(delay)
-                    self.next_fetch_at = time.monotonic() + 1 / self.config.fetch_rate_per_s
-            response = await self.client.get(
-                f"{self.config.local_base_url}/documents/{article_id}",
-                timeout=self.config.fetch_timeout_s,
-            )
-            response.raise_for_status()
-            if self._fails(self.config.fetch_error_rate, f"{key}:fetch"):
-                raise DemoError("simulated fetch error")
-            return response.json()
+            wait_start = time.monotonic_ns()
+            with self.telemetry.span("wait fetch rate limiter", attributes={
+                "demo.wait.for": "fetch", "demo.pool.capacity": self.config.fetch_rate_per_s,
+                "demo.pool.in_flight": self.fetch_in_flight,
+            }):
+                async with self.fetch_lock:
+                    if self.config.fetch_rate_per_s:
+                        delay = max(0.0, self.next_fetch_at - time.monotonic())
+                        if delay:
+                            await asyncio.sleep(delay)
+                        self.next_fetch_at = time.monotonic() + 1 / self.config.fetch_rate_per_s
+            service_start = time.monotonic_ns()
+            self.fetch_in_flight += 1
+            span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+            span.set_attribute("demo.pool.in_flight", self.fetch_in_flight)
+            url = f"{self.config.local_base_url}/documents/{article_id}"
+            try:
+                with self.telemetry.span(
+                    "GET /documents/{article_id}", kind=trace.SpanKind.CLIENT,
+                    attributes={"http.request.method": "GET", "url.full": url,
+                                "server.address": urlparse(url).hostname,
+                                "server.port": urlparse(url).port or 80},
+                ) as http_span:
+                    headers = {}
+                    self.telemetry.inject(headers)
+                    try:
+                        response = await self.client.get(
+                            url, headers=headers, timeout=self.config.fetch_timeout_s,
+                        )
+                    except httpx.HTTPError as exc:
+                        http_span.set_attribute("error.type", type(exc).__name__)
+                        http_span.set_status(Status(StatusCode.ERROR))
+                        raise
+                    http_span.set_attribute("http.response.status_code", response.status_code)
+                    if response.status_code >= 400:
+                        http_span.set_attribute("error.type", str(response.status_code))
+                        http_span.set_status(Status(StatusCode.ERROR))
+                response.raise_for_status()
+                if self._fails(self.config.fetch_error_rate, f"{key}:fetch"):
+                    raise DemoError("simulated fetch error")
+                return response.json()
+            finally:
+                span.set_attribute(
+                    "demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6,
+                )
+                self.fetch_in_flight -= 1
 
-        try:
-            return await asyncio.wait_for(work(), self.config.fetch_timeout_s)
-        except (TimeoutError, httpx.HTTPError, DemoError, ValueError):
-            self.stats["fetch_errors"] += 1
-            return None
+        with self.telemetry.span("execute_tool fetch", attributes={
+            "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "fetch",
+            "demo.step.name": "fetch", "demo.pool.capacity": self.config.fetch_rate_per_s,
+        }) as span:
+            try:
+                return await asyncio.wait_for(work(), self.config.fetch_timeout_s)
+            except (TimeoutError, httpx.HTTPError, DemoError, ValueError) as exc:
+                span.set_attribute("error.type", type(exc).__name__)
+                span.set_status(Status(StatusCode.ERROR))
+                self.stats["fetch_errors"] += 1
+                return None
 
     async def planner(self, state: AgentState) -> AgentState:
         prompt = (
@@ -321,14 +442,14 @@ class Runtime:
         }
 
 
-def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAPI:
-    # This target never exports telemetry in slice A, even if the caller's
-    # shell enables LangSmith tracing for unrelated projects.
+def create_app(config: Config | None = None, *, data_dir: Path = ROOT,
+               telemetry: Telemetry | None = None) -> FastAPI:
     os.environ["LANGSMITH_TRACING"] = "false"
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
     config = config or load_config()
     articles = json.loads((data_dir / "articles.json").read_text(encoding="utf-8"))
-    runtime = Runtime(config, articles)
+    telemetry = telemetry or Telemetry()
+    runtime = Runtime(config, articles, telemetry)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -338,6 +459,7 @@ def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAP
         finally:
             await runtime.client.aclose()
             runtime.index.close()
+            telemetry.shutdown()
 
     app = FastAPI(title="LanternDesk demo agent", docs_url=None, redoc_url=None,
                   lifespan=lifespan)
@@ -352,19 +474,55 @@ def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAP
         return dict(runtime.stats)
 
     @app.get("/documents/{article_id}")
-    async def get_document(article_id: str):
-        await asyncio.sleep(config.fetch_latency_ms / 1000)
-        article = runtime.articles.get(article_id)
-        return article if article else JSONResponse({"error": "not found"}, status_code=404)
+    async def get_document(article_id: str, request: Request):
+        context = telemetry.extract(request.headers)
+        with telemetry.span("GET /documents/{article_id}", kind=trace.SpanKind.SERVER,
+                            context=context, attributes={
+                                "http.request.method": "GET",
+                                "http.route": "/documents/{article_id}",
+                            }) as span:
+            await asyncio.sleep(config.fetch_latency_ms / 1000)
+            article = runtime.articles.get(article_id)
+            span.set_attribute("http.response.status_code", 200 if article else 404)
+            return article if article else JSONResponse({"error": "not found"}, status_code=404)
 
     @app.post("/v1/chat/completions")
     async def chat(request: Request):
+        context = telemetry.extract(request.headers)
+        span = telemetry.start_span("POST /v1/chat/completions",
+                                    kind=trace.SpanKind.SERVER, context=context,
+                                    attributes={
+                                        "http.request.method": "POST",
+                                        "http.route": "/v1/chat/completions",
+                                        **telemetry.baggage_attributes(context),
+                                    })
+        token = otel_context.attach(context)
+        try:
+            if telemetry.enabled:
+                with trace.use_span(span, end_on_exit=False):
+                    response = await chat_inner(request, span)
+            else:
+                response = await chat_inner(request, span)
+        except BaseException as exc:
+            span.set_attribute("error.type", type(exc).__name__)
+            span.set_status(Status(StatusCode.ERROR))
+            span.end()
+            raise
+        finally:
+            otel_context.detach(token)
+        if not isinstance(response, TraceStreamingResponse):
+            span.end()
+        return response
+
+    async def chat_inner(request: Request, span):
         body = await request.json()
         messages = body.get("messages") or []
         if not isinstance(messages, list) or not messages:
+            span.set_attribute("http.response.status_code", 400)
             return JSONResponse({"error": "messages required"}, status_code=400)
         user_messages = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
         if not user_messages:
+            span.set_attribute("http.response.status_code", 400)
             return JSONResponse({"error": "user message required"}, status_code=400)
         question = user_messages[-1]
         # A follow-up can omit the module. Prefer the latest user's explicit
@@ -376,7 +534,7 @@ def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAP
             "unknown",
         )
         session = request.headers.get("x-kneepoint-session", "")
-        traceparent = request.headers.get("traceparent", "")  # accepted; slice B propagates it
+        traceparent = request.headers.get("traceparent", "")
         key = f"{session}:{traceparent}:{question}"
         runtime.stats["requests"] += 1
         try:
@@ -387,7 +545,11 @@ def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAP
                 "model_calls": 0, "search_calls": 0, "fetch_calls": 0,
             })
         except (DemoError, TimeoutError) as exc:
+            span.set_attribute("http.response.status_code", 503)
+            span.set_attribute("error.type", type(exc).__name__)
+            span.set_status(Status(StatusCode.ERROR))
             return JSONResponse({"error": str(exc)}, status_code=503)
+        span.set_attribute("http.response.status_code", 200)
         answer = state["answer"]
         completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
@@ -413,11 +575,13 @@ def create_app(config: Config | None = None, *, data_dir: Path = ROOT) -> FastAP
                 yield f"data: {json.dumps(payload)}\n\n"
             yield "data: [DONE]\n\n"
 
-        return StreamingResponse(
-            stream(), media_type="text/event-stream",
-            headers={"x-demo-model-calls": str(state["model_calls"]),
-                     "x-demo-search-calls": str(state["search_calls"]),
-                     "x-demo-fetch-calls": str(state["fetch_calls"])},
-        )
+        headers = {"x-demo-model-calls": str(state["model_calls"]),
+                   "x-demo-search-calls": str(state["search_calls"]),
+                   "x-demo-fetch-calls": str(state["fetch_calls"])}
+        if telemetry.enabled:
+            return TraceStreamingResponse(
+                stream(), trace_span=span, media_type="text/event-stream", headers=headers,
+            )
+        return StreamingResponse(stream(), media_type="text/event-stream", headers=headers)
 
     return app
