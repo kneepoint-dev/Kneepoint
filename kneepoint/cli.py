@@ -597,6 +597,7 @@ def run(
         started_monotonic_s=started_monotonic_s,
         finished_monotonic_s=finished_monotonic_s,
         level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+        level_status=evidence.level_status,
         think_time_min_ms=session_spec.think_time.min_ms,
         think_time_max_ms=session_spec.think_time.max_ms,
         environment=current_environment(),
@@ -610,6 +611,7 @@ def run(
         records, hold_seconds=run_meta.hold_seconds,
         think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
         level_starts_monotonic_s=run_meta.level_starts_monotonic_s,
+        level_status=run_meta.level_status,
     )
     _warn_contamination(stats)
     _print_timing(stats)

@@ -102,6 +102,23 @@ def _is_saved_zero_cap_run(records_path: Path, meta: RunMetadata | None) -> bool
             and all(accounting.get(key) == value for key, value in expected_accounting.items()))
 
 
+def _level_status_from_lifecycle(records_path: Path) -> dict[int, str] | None:
+    """Recover per-level outcomes from older runs whose metadata lacks them."""
+    lifecycle_path = records_path.with_name(f"{records_path.stem}-lifecycle.json")
+    try:
+        lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    raw = lifecycle.get("level_status") if isinstance(lifecycle, dict) else None
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return {int(level): status for level, status in raw.items()
+                if isinstance(status, str)}
+    except (TypeError, ValueError):
+        return None
+
+
 def render_from_files(
     records_path: Path,
     *,
@@ -206,6 +223,8 @@ def render_from_files(
         if meta and meta.think_time_min_ms is not None
         and meta.think_time_max_ms is not None else None,
         level_starts_monotonic_s=meta.level_starts_monotonic_s if meta else None,
+        level_status=(meta.level_status if meta and meta.level_status is not None else
+                      _level_status_from_lifecycle(records_path)),
     )
     knee_summary = knee_report(stats, min_samples=min_samples)
     knee = find_knee(stats, min_samples=min_samples)

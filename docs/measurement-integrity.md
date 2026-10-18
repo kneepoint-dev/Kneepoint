@@ -18,11 +18,20 @@ The older raw `throughput_rps` uses all attempts from the first start through
 the last completion, including the drain tail. It remains available for
 compatibility. New runs record the actual start of each level's hold; older
 records approximate it with their first observed attempt.
+If a level stops or fails before finishing its hold, the configured steady
+window was not fully observed. Its steady rate and law check are unavailable;
+the raw rate still describes the attempts that completed.
+When old metadata lacks a level outcome, the report uses its lifecycle file
+if present. Without one, it requires at least one observed completion at or
+after the steady window's end before reporting a steady rate.
 
 In a closed loop, `N` active sessions should produce roughly `N/X = R + Z`,
-where `Z` is the configured mean think time between requests. The report shows
-`N/X − R − Z` for each level. A magnitude above the larger of 50 ms or 5% of
-`R` is marked **suspected client or instrument stall**. This is a consistency
+where `Z` is the configured mean think time **per completed request**. The
+generator sleeps between turns of a session, then starts its next session
+without a pause. The analysis counts which completed turns were followed by
+another turn and applies the configured mean pause only to that fraction.
+The report shows `N/X − R − Z` for each level. A magnitude above the larger of
+50 ms or 5% of `R` is marked **suspected client or instrument stall**. This is a consistency
 check, not a diagnosis: retries, variable think time and short holds can also
 affect it. A level without completions in the steady window has no gap value.
 Old metadata did not record `Z`, so re-rendering it shows the law gap as `n/a`
@@ -34,6 +43,10 @@ wall and monotonic elapsed time within each level. Both new and old records
 also check whether the next request begins much later than the preceding one
 could have finished plus think time. For old one-turn sessions, the check uses
 the closed-loop pool's last completion because the records have no worker ID.
+If old metadata does not say how long multi-turn sessions could think, that
+continuity check is unavailable rather than treating normal pauses as stalls.
+One-turn sessions never think between requests, even if a nonzero think-time
+setting was supplied, so their pool continuity check uses no think allowance.
 The marked level and later levels are shaded as contaminated; knee confidence
 is lowered. The check cannot prove which of the three causes occurred.
 

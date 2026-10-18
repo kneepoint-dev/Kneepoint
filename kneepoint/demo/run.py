@@ -182,6 +182,7 @@ def run_demo(
             records, hold_seconds=spec.hold_seconds,
             think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
             level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+            level_status=evidence.level_status,
         )
         knee_summary = knee_report(stats, min_samples=DEMO_MIN_SAMPLES)
         knee = find_knee(stats, min_samples=DEMO_MIN_SAMPLES)
@@ -214,6 +215,7 @@ def run_demo(
             started_monotonic_s=started_monotonic_s,
             finished_monotonic_s=finished_monotonic_s,
             level_starts_monotonic_s=evidence.level_starts_monotonic_s,
+            level_status=evidence.level_status,
             think_time_min_ms=session_spec.think_time.min_ms,
             think_time_max_ms=session_spec.think_time.max_ms,
             environment=current_environment(),

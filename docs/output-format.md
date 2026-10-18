@@ -219,6 +219,7 @@ rates, whether chaos was on when no fault happened to fire).
   "started_monotonic_s": null,
   "finished_monotonic_s": null,
   "level_starts_monotonic_s": null,
+  "level_status": null,
   "think_time_min_ms": null,
   "think_time_max_ms": null
 }
@@ -247,8 +248,9 @@ rates, whether chaos was on when no fault happened to fire).
 | `started_monotonic_s` | float \| null | optional monotonic reading at run start |
 | `finished_monotonic_s` | float \| null | optional monotonic reading at run end; the difference from the start is the run duration even if the wall clock changes |
 | `level_starts_monotonic_s` | object \| null | optional level start offsets in seconds since the run's monotonic origin; the generator starts each hold here |
+| `level_status` | object \| null | optional outcome per level (for example `completed`, `stopped`, `failed`, or `budget_exceeded`); steady measurements require a completed hold |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
-| `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is used by the closed-loop consistency check |
+| `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
 
 The wall timestamps are epoch floats for calendar display. Monotonic readings
 are seconds from a clock that does not follow wall-clock corrections. Old

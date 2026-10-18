@@ -1,5 +1,6 @@
 """Clock and closed-loop checks without a server or a load run."""
 
+import json
 import time
 
 import httpx
@@ -13,6 +14,7 @@ from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, run_ramp
 from kneepoint.generator.session import SessionSpec
+from kneepoint.report.rerender import _level_status_from_lifecycle
 from kneepoint.targets.openai_compatible import run_turn
 
 
@@ -70,10 +72,68 @@ def test_legacy_records_parse_and_pool_continuity_finds_step():
 
 def test_same_session_continuity_accounts_for_think_time():
     rows = [rec(1, "same", 0), rec(1, "same", 1.5), rec(1, "same", 4)]
+    rows[1].turn_index = 1
+    rows[2].turn_index = 2
     level = timing.analyze_timing(rows, think_time_ms=(500, 500))[1]
     assert level.continuity_gap is False  # the second gap is exactly 1 s
     rows[-1] = rec(1, "same", 4.1)
+    rows[-1].turn_index = 2
     assert timing.analyze_timing(rows, think_time_ms=(500, 500))[1].continuity_gap
+
+
+def test_unknown_legacy_think_time_does_not_flag_healthy_multi_turns():
+    rows = [rec(1, str(i), 4 * i + turn)
+            for i in range(16) for turn in (0, 3)]
+    for row in rows:
+        row.turn_index = 0 if row.started_at % 4 == 0 else 1
+    level = timing.analyze_timing(rows, hold_seconds=60, think_time_ms=None)[1]
+    assert not level.clock_anomaly
+    assert level.little_gap_s is None
+
+
+def test_law_uses_think_time_only_between_turns():
+    rows = [rec(1, str(i), 4 * i + turn, 4 * i + turn)
+            for i in range(16) for turn in (0, 3)]
+    for row in rows:
+        row.turn_index = 0 if row.started_at % 4 == 0 else 1
+    level = timing.analyze_timing(
+        rows, hold_seconds=60, think_time_ms=(2000, 2000),
+        level_starts_monotonic_s={1: 0},
+    )[1]
+    assert level.steady_throughput_rps == pytest.approx(0.5)
+    assert level.little_gap_s == pytest.approx(0)
+    assert not level.suspected_stall
+
+
+def test_stopped_level_does_not_score_unobserved_steady_window():
+    rows = [rec(1, str(i), i, i) for i in range(30)]
+    level = timing.analyze_timing(
+        rows, hold_seconds=60, level_starts_monotonic_s={1: 0},
+        level_status={1: "stopped"},
+    )[1]
+    assert level.steady_throughput_rps is None
+    assert level.little_gap_s is None
+    assert not level.suspected_stall
+    assert level.throughput_rps == pytest.approx(1)
+
+
+def test_legacy_partial_level_with_no_status_abstains_from_steady_rate(tmp_path):
+    rows = [rec(1, str(i), i) for i in range(30)]
+    level = timing.analyze_timing(rows, hold_seconds=60)[1]
+    assert level.steady_throughput_rps is None
+    assert level.little_gap_s is None
+
+    records_path = tmp_path / "run-old.jsonl"
+    lifecycle = tmp_path / "run-old-lifecycle.json"
+    lifecycle.write_text(json.dumps({"level_status": {"1": "budget_exceeded"}}))
+    assert _level_status_from_lifecycle(records_path) == {1: "budget_exceeded"}
+
+
+def test_one_turn_pool_ignores_unused_configured_think_time():
+    rows = [rec(1, str(i), t, t) for i, t in enumerate((0, 1, 2, 5, 6, 7))]
+    level = timing.analyze_timing(rows, think_time_ms=(5000, 5000))[1]
+    assert level.continuity_gap
+    assert level.max_continuity_gap_s == pytest.approx(2)
 
 
 def test_steady_completions_exclude_warmup_and_drain_tail():

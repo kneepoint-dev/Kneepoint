@@ -198,6 +198,7 @@ def aggregate(
     records: list[RequestRecord], *, hold_seconds: float | None = None,
     think_time_ms: tuple[int, int] | None = (0, 0),
     level_starts_monotonic_s: dict[int, float] | None = None,
+    level_status: dict[int, str] | None = None,
 ) -> list[LevelStats]:
     """Group records by ramp level; percentiles use successful requests only.
     Levels where every request failed retain their counts and null percentiles.
@@ -213,6 +214,7 @@ def aggregate(
     timing = analyze_timing(
         records, hold_seconds=hold_seconds, think_time_ms=think_time_ms,
         level_starts_monotonic_s=level_starts_monotonic_s,
+        level_status=level_status,
     )
     stats: list[LevelStats] = []
     seen_contamination = False

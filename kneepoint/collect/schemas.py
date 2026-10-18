@@ -168,5 +168,6 @@ class RunMetadata(VersionedRecord):
     started_monotonic_s: float | None = None  # absolute perf_counter reading, run origin
     finished_monotonic_s: float | None = None
     level_starts_monotonic_s: dict[int, float] | None = None  # run-relative
+    level_status: dict[int, str] | None = None  # terminal outcome per level
     think_time_min_ms: int | None = None
     think_time_max_ms: int | None = None
