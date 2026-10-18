@@ -190,3 +190,18 @@ each active setting at `/debug/config`. The search constraint should raise
 latency and flatten throughput at lower concurrency. Plus's current
 `kneepoint==0.2.0` pin does not include the new public trace headers, and Plus
 does not ingest spans yet; this exercise checks its load and dashboard path.
+
+### Tool-neutral step measurements
+
+The `chat` and `execute_tool` spans also emit an additive convention usable by
+any trace consumer: `kneepoint.step.queue_wait_ms` and
+`kneepoint.step.service_ms` are monotonic elapsed milliseconds spent waiting
+and serving. `kneepoint.step.capacity` is the number of shared service slots
+(model or search). Fetch instead emits `kneepoint.step.rate_per_s`, the allowed
+starts per second; zero means the limiter is disabled, not zero capacity.
+The existing `demo.*` attributes remain and carry the same measured values.
+A timeout before admission has no service measurement; consumers must not
+fill missing values with zero. Step identity comes from `gen_ai.operation.name`
+and `gen_ai.tool.name` or `gen_ai.request.model`, not the demo attributes.
+For steady completion rate X and mean service seconds S, slot utilization is
+X × S / capacity; rate-limiter utilization is X / rate_per_s.

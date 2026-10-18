@@ -330,6 +330,14 @@ class TraceTests(unittest.IsolatedAsyncioTestCase):
                                  by_name["invoke_agent researcher"].context.span_id)
                 self.assertIn("demo.service_time_ms", span.attributes)
                 self.assertGreaterEqual(span.attributes["demo.pool.in_flight"], 1)
+            for step in chats + [by_name["execute_tool search"], by_name["execute_tool fetch"]]:
+                attrs = step.attributes
+                self.assertEqual(attrs["kneepoint.step.queue_wait_ms"], attrs["demo.queue_wait_ms"])
+                self.assertEqual(attrs["kneepoint.step.service_ms"], attrs["demo.service_time_ms"])
+                capacity_key = ("kneepoint.step.rate_per_s" if
+                                attrs.get("gen_ai.tool.name") == "fetch" else
+                                "kneepoint.step.capacity")
+                self.assertEqual(attrs[capacity_key], attrs["demo.pool.capacity"])
             waits = [s for s in spans if s.name.startswith("wait ")]
             self.assertEqual(len(waits), 5)
             self.assertTrue(all("demo.pool.capacity" in s.attributes for s in waits))

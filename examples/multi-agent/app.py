@@ -200,6 +200,7 @@ class Runtime:
                                      "gen_ai.request.model": model_name,
                                      "demo.step.name": "model",
                                      "demo.pool.capacity": self.config.model_slots,
+                                     "kneepoint.step.capacity": self.config.model_slots,
                                  }) as span:
             try:
                 result = await asyncio.wait_for(
@@ -225,7 +226,9 @@ class Runtime:
             await self.model_slots.acquire()
         service_start = time.monotonic_ns()
         self.model_in_flight += 1
-        span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+        queue_ms = (service_start - wait_start) / 1e6
+        span.set_attribute("demo.queue_wait_ms", queue_ms)
+        span.set_attribute("kneepoint.step.queue_wait_ms", queue_ms)
         span.set_attribute("demo.pool.in_flight", self.model_in_flight)
         try:
             if self.config.llm_backend == "ollama":
@@ -274,7 +277,9 @@ class Runtime:
             )
             return ModelResult(text, in_tokens, out_tokens)
         finally:
-            span.set_attribute("demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6)
+            service_ms = (time.monotonic_ns() - service_start) / 1e6
+            span.set_attribute("demo.service_time_ms", service_ms)
+            span.set_attribute("kneepoint.step.service_ms", service_ms)
             self.model_in_flight -= 1
             self.model_slots.release()
 
@@ -290,7 +295,9 @@ class Runtime:
                 await self.search_workers.acquire()
             service_start = time.monotonic_ns()
             self.search_in_flight += 1
-            span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+            queue_ms = (service_start - wait_start) / 1e6
+            span.set_attribute("demo.queue_wait_ms", queue_ms)
+            span.set_attribute("kneepoint.step.queue_wait_ms", queue_ms)
             span.set_attribute("demo.pool.in_flight", self.search_in_flight)
             try:
                 await asyncio.sleep(self.config.search_latency_ms / 1000)
@@ -304,15 +311,16 @@ class Runtime:
                 ).fetchone()
                 return row[0] if row else None
             finally:
-                span.set_attribute(
-                    "demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6,
-                )
+                service_ms = (time.monotonic_ns() - service_start) / 1e6
+                span.set_attribute("demo.service_time_ms", service_ms)
+                span.set_attribute("kneepoint.step.service_ms", service_ms)
                 self.search_in_flight -= 1
                 self.search_workers.release()
 
         with self.telemetry.span("execute_tool search", attributes={
             "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "search",
             "demo.step.name": "search", "demo.pool.capacity": self.config.search_workers,
+            "kneepoint.step.capacity": self.config.search_workers,
         }) as span:
             try:
                 return await asyncio.wait_for(work(), self.config.search_timeout_s)
@@ -343,7 +351,9 @@ class Runtime:
                         self.next_fetch_at = time.monotonic() + 1 / self.config.fetch_rate_per_s
             service_start = time.monotonic_ns()
             self.fetch_in_flight += 1
-            span.set_attribute("demo.queue_wait_ms", (service_start - wait_start) / 1e6)
+            queue_ms = (service_start - wait_start) / 1e6
+            span.set_attribute("demo.queue_wait_ms", queue_ms)
+            span.set_attribute("kneepoint.step.queue_wait_ms", queue_ms)
             span.set_attribute("demo.pool.in_flight", self.fetch_in_flight)
             url = f"{self.config.local_base_url}/documents/{article_id}"
             try:
@@ -372,14 +382,15 @@ class Runtime:
                     raise DemoError("simulated fetch error")
                 return response.json()
             finally:
-                span.set_attribute(
-                    "demo.service_time_ms", (time.monotonic_ns() - service_start) / 1e6,
-                )
+                service_ms = (time.monotonic_ns() - service_start) / 1e6
+                span.set_attribute("demo.service_time_ms", service_ms)
+                span.set_attribute("kneepoint.step.service_ms", service_ms)
                 self.fetch_in_flight -= 1
 
         with self.telemetry.span("execute_tool fetch", attributes={
             "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "fetch",
             "demo.step.name": "fetch", "demo.pool.capacity": self.config.fetch_rate_per_s,
+            "kneepoint.step.rate_per_s": self.config.fetch_rate_per_s,
         }) as span:
             try:
                 return await asyncio.wait_for(work(), self.config.fetch_timeout_s)
