@@ -191,10 +191,11 @@ Each configured SLO is **pass**, **fail** (a measured SLO breach), or
 **unknown** (insufficient evidence), with its threshold, measurement and reason
 in the CLI and report. No configured SLO means no fabricated pass.
 The latency check uses levels with at least `--min-samples` successful requests.
-By default, any recorded level below that minimum makes latency **unknown**,
-even if another level passes or fails. The policy constant in
-`kneepoint/analyze/slo.py` can allow a measured thin-level breach to fail;
-a thin level can never establish a pass.
+An eligible-level breach makes the whole-run latency check **fail**, even when
+another level is thin or invalid. Otherwise, any thin or invalid level makes it
+**unknown**; with all levels eligible and valid, it can **pass**. The policy
+constant in `kneepoint/analyze/slo.py` can also allow a measured thin-level
+breach to fail. A thin level can never establish a pass.
 Exit codes: `0` completed with no failed or unknown configured checks · `1` any
 failed or unknown SLO · `2` usage error · `3` budget control stop (takes precedence
 over SLO results). Checks describe observed records; they do not certify completion

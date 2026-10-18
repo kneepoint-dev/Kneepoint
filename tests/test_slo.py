@@ -16,6 +16,7 @@ from kneepoint.collect.writer import read_run_meta
 from kneepoint.config import SloConfig, evaluate_slo
 from kneepoint.report.rerender import render_from_files
 from kneepoint.slo import evaluate_slo_results
+from kneepoint.targets.openai_compatible import TurnOutcome
 from tests.test_cli_observed_spend import completions as _completions
 from tests.test_cli_observed_spend import invoke, saved
 
@@ -91,6 +92,31 @@ def test_eligible_healthy_and_breaching_levels_keep_their_verdicts():
     assert result(500).status == "fail"
 
 
+@pytest.mark.parametrize("eligible_ms,thin_ms,expected,measured", [
+    (1000, 600, "fail", 1000),
+    (100, 600, "unknown", 100),
+    (1000, None, "fail", 1000),
+])
+def test_p6_eligible_breach_is_not_masked(eligible_ms, thin_ms, expected, measured):
+    records = [RequestRecord(session_id=f"1-{i}", concurrency=1, started_at=0,
+                             total_ms=eligible_ms, ok=True) for i in range(20)]
+    if thin_ms is None:
+        records += [RequestRecord(session_id=f"2-{i}", concurrency=2, started_at=0,
+                                  total_ms=100, ok=True) for i in range(20)]
+    else:
+        records.append(RequestRecord(session_id="2-0", concurrency=2, started_at=0,
+                                     total_ms=thin_ms, ok=True))
+        records += [RequestRecord(session_id=f"2-f{i}", concurrency=2, started_at=0,
+                                  total_ms=5, ok=False) for i in range(19)]
+    result = evaluate_run_slo(SloConfig(p95_total_ms=500), stats=aggregate(records),
+                              quality=None, cost=None).results[0]
+    assert (result.status, result.measured) == (expected, measured)
+    if expected == "fail":
+        assert "c=1" in result.reason
+    if thin_ms is not None:
+        assert "Thin level(s): c=2" in result.reason
+
+
 def test_opt_in_thin_breach_reports_worst_applicable_p95(monkeypatch):
     monkeypatch.setattr(slo_analysis, "THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE", True)
     records = [RequestRecord(session_id=f"1-{i}", concurrency=1, started_at=0,
@@ -100,6 +126,22 @@ def test_opt_in_thin_breach_reports_worst_applicable_p95(monkeypatch):
     result = evaluate_run_slo(SloConfig(p95_total_ms=500), stats=aggregate(records),
                               quality=None, cost=None).results[0]
     assert result.status == "fail" and result.measured == 1000
+
+
+def test_opt_in_thin_breach_alone_can_fail_but_not_pass(monkeypatch):
+    monkeypatch.setattr(slo_analysis, "THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE", True)
+    records = [RequestRecord(session_id=f"1-{i}", concurrency=1, started_at=0,
+                             total_ms=100, ok=True) for i in range(20)]
+    records.append(RequestRecord(session_id="2-0", concurrency=2, started_at=0,
+                                 total_ms=600, ok=True))
+    stats = aggregate(records)
+    breach = evaluate_run_slo(SloConfig(p95_total_ms=500), stats=stats,
+                              quality=None, cost=None).results[0]
+    assert (breach.status, breach.measured) == ("fail", 600)
+    assert "Thin-level breach" in breach.reason and "c=2" in breach.reason
+    within_limit = evaluate_run_slo(SloConfig(p95_total_ms=700), stats=stats,
+                                    quality=None, cost=None).results[0]
+    assert within_limit.status == "unknown"
 
 
 def test_threshold_provenance_is_distinct_from_disabled_checks():
@@ -173,6 +215,29 @@ def test_cli_thin_latency_is_unknown_and_nonpassing(tmp_path, completions):
     assert result.exit_code == 1, result.output
     assert "SLO unknown - p95_total_ms" in result.output
     assert "c=1" in result.output
+
+
+def test_cli_eligible_breach_with_thin_level_prints_fail_and_exits_one(
+    tmp_path, completions, monkeypatch,
+):
+    import kneepoint.generator.session as session
+
+    async def turn(*args, **kwargs):
+        c = kwargs["concurrency"]
+        ok = c == 1 or kwargs["turn_index"] == 0
+        return TurnOutcome(record=RequestRecord(
+            started_at=0, total_ms=1000 if c == 1 else 600,
+            ok=ok, status_code=200 if ok else 400, **kwargs,
+        ), text="[RESOLVED]" if ok else "")
+
+    monkeypatch.setattr(session, "run_turn", turn)
+    path = scenario(tmp_path, thresholds={"p95_total_ms": 500})
+    result = invoke(tmp_path, "--scenario", str(path), "--ramp", "1..2",
+                    "--turns", "20..20")
+    assert result.exit_code == 1, result.output
+    assert "SLO fail - p95_total_ms" in result.output
+    assert "Eligible-level breach: c=1" in result.output
+    assert "Thin level(s): c=2" in result.output
 
 
 def test_old_metadata_empty_declaration_and_price_override(tmp_path, completions):

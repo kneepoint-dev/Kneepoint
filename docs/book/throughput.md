@@ -85,9 +85,23 @@ c=4, while p95 first doubled at c=7:
 | 7 | 6.571 | 1,215.02 |
 | 10 | 6.571 | 1,522.98 |
 
-Source: `experiments/2026-10-17-demo-agent/README.md` in the project evidence
-workspace. The [public LanternDesk example](https://github.com/kneepoint-dev/Kneepoint/blob/codex/demo-agent/examples/multi-agent/README.md)
-documents the planted limit of two search workers at 300 ms each.
+The [public LanternDesk example](https://github.com/kneepoint-dev/Kneepoint/blob/codex/demo-agent-traces/examples/multi-agent/README.md)
+documents the planted limit of two search workers at 300 ms each. From the
+public repository root, start the agent with the search-pool preset:
+
+```bash
+cd examples/multi-agent
+DEMO_PROFILE=search-pool .venv/bin/uvicorn app:create_app --factory \
+  --host 127.0.0.1 --port 8765
+```
+
+Then run the [example scenario](https://github.com/kneepoint-dev/Kneepoint/blob/codex/demo-agent-traces/examples/multi-agent/kneepoint.yaml)
+from the repository root:
+
+```bash
+.venv/bin/kneepoint run --scenario examples/multi-agent/kneepoint.yaml \
+  --out reports/lantern-search-pool
+```
 
 ### How Kneepoint finds it — two methods
 

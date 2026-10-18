@@ -11,16 +11,17 @@ from kneepoint.slo import SloConfig, SloResult, evaluate_slo_results
 SLO_SCOPE = (
     "Checks cover observed records, not a guarantee that the configured ramp completed. "
     "Latency uses the worst eligible successful-request p95 across observed levels "
-    "(not pooled). By default, any level below min_samples makes its verdict unknown; "
-    "the optional thin-breach policy can establish fail but never pass. "
+    "(not pooled). An eligible-level breach fails even when another level is thin "
+    "or invalid; otherwise such a level makes latency unknown. The optional "
+    "thin-breach policy can also establish fail but never pass. "
     "Resolution requires verdicts for all recorded sessions. "
     "Cost per confirmed resolution covers completed generator attempts only; "
     "calibration and judging excluded."
 )
 
-# Default evidence policy: a level below min_samples can neither pass nor fail
-# the whole-run latency SLO. Set True only if a thin-level measured breach should
-# count as fail; even then, a thin level can never establish pass.
+# Default evidence policy: a thin level cannot establish pass or fail by itself,
+# but cannot erase a breach measured at an eligible level. Set True to also let
+# a measured thin-level breach establish fail; thin levels never establish pass.
 THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE = False
 
 
@@ -79,27 +80,38 @@ def evaluate_run_slo(
             "max_cost_per_resolved": cost_reason,
         },
     )
-    if ineligible:
+    thin = [level for level in ineligible if not level.latency_eligible(min_samples)]
+    invalid = [level for level in ineligible if level.latency_eligible(min_samples)]
+    gaps = []
+    if thin:
         names = ", ".join(f"c={level.concurrency} ({level.successful_n or 0} successful)"
-                          for level in ineligible)
-        reason = (f"Latency-ineligible observed level(s): {names}; each needs at least "
-                  f"{min_samples} successful requests with a valid p95. "
-                  "The whole-run latency threshold cannot be verified.")
-        thin_p95 = [level.p95_ms for level in ineligible if valid_p95(level)]
-        revised = []
-        for result in results:
-            if result.metric != "p95_total_ms":
-                revised.append(result)
-            elif (THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE
-                  and slo.p95_total_ms is not None
-                  and any(value > slo.p95_total_ms for value in thin_p95)):
-                revised.append(replace(
-                    result, status="fail", measured=max([*observed, *thin_p95]),
-                    reason="Thin-level breach accepted by policy. " + reason,
-                ))
-            elif THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE and result.status == "fail":
-                revised.append(result)
-            else:
-                revised.append(replace(result, status="unknown", reason=reason))
-        results = revised
+                          for level in thin)
+        gaps.append(f"Thin level(s): {names}; need at least {min_samples} successes")
+    if invalid:
+        gaps.append("Invalid p95 level(s): " + ", ".join(
+            f"c={level.concurrency}" for level in invalid))
+    gap_reason = "; ".join(gaps)
+    thin_p95 = [level.p95_ms for level in thin if valid_p95(level)]
+    revised = []
+    for result in results:
+        if result.metric != "p95_total_ms":
+            revised.append(result)
+        elif result.status == "fail":
+            breaching = ", ".join(
+                f"c={level.concurrency} (p95 {level.p95_ms:.4g} ms)"
+                for level in eligible if level.p95_ms > result.threshold)
+            reason = f"Eligible-level breach: {breaching}."
+            revised.append(replace(
+                result, reason=f"{reason} {gap_reason}." if gaps else reason))
+        elif (THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE
+              and any(value > result.threshold for value in thin_p95)):
+            revised.append(replace(
+                result, status="fail", measured=max([*observed, *thin_p95]),
+                reason=f"Thin-level breach accepted by policy. {gap_reason}.",
+            ))
+        elif ineligible:
+            revised.append(replace(result, status="unknown", reason=gap_reason + "."))
+        else:
+            revised.append(result)
+    results = revised
     return RunSloEvaluation(results, None if results else "No SLO configured.")
