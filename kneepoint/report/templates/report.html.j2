@@ -81,23 +81,25 @@ ramp {{ meta.ramp }} · chaos {{ meta.chaos }} ·
 heuristic decides on — a value marked * is within 15% of the 2.0 threshold and
 flips between repetitions on run noise alone:<br>
 {% for r in knee_summary.ratios %}c={{ r.concurrency }}
-{{ "%.2f"|format(r.ratio) }}×{% if r.near_threshold %}*{% endif %}{{ ", " if not loop.last }}{% endfor %}
+{{ r.display_ratio }}×{% if r.near_threshold %}*{% endif %}{{ ", " if not loop.last }}{% endfor %}
 </p>
 {% endif %}
 {% for note in knee_summary.notes %}
 <p class="muted">{{ note }}.</p>
 {% endfor %}
 {% endif %}
-{% call howto("throughput", "Throughput & capacity") %}The knee is where
-degradation accelerates, not a limit you must never exceed: below it, adding load
-costs a little latency; above it, a lot. When a range is given, <strong>plan for
-the low end</strong> — being under the knee costs some headroom, being over it
-costs everyone's latency at once. The practical operating point is usually a
-level or two below, chosen against your SLO. p95 doubling is the headline and
+{% call howto("throughput", "Throughput & capacity") %}The reported p95 threshold
+is the first level whose p95 doubles against the floor. When a range is given,
+its low end is the cautious threshold estimate. Choose an operating load using
+throughput, quality and your SLO; service capacity may saturate earlier.
+p95 doubling is the headline and
 can be checked by hand from the JSONL; Kneedle corroborates, and when the two
 disagree the disagreement lowers the confidence rather than replacing the
 answer. A knee is not meaningful without quality — read it next to the
-resolution rate below.{% endcall %}
+resolution rate below. p95 doubling is a latency-tolerance threshold, not the
+onset of queueing: throughput can plateau earlier. In the LanternDesk demo-agent
+search-pool run (project evidence: experiments/2026-10-17-demo-agent/README.md),
+throughput had plateaued by c=4 and p95 first doubled at c=7.{% endcall %}
 
 {% if contaminated %}
 <div class="contaminated">
@@ -207,7 +209,8 @@ requests wait to start but generate at full speed once started; the server is at
 its concurrency limit, and more replicas help. <strong>TPOT rising, TTFT
 flat</strong>: decode saturation — memory bandwidth or KV-cache pressure from many
 simultaneous streams; a faster-memory machine helps, more concurrency will not.
-<strong>Both rising</strong>: past the knee, out of headroom everywhere.
+<strong>Both rising</strong>: several latency components are slowing; inspect
+throughput and your SLO to assess saturation and acceptable load.
 <strong>Neither, yet total latency is up</strong>: not the model — look at tool
 calls and retries. On a reasoning-capable model TTFT includes thinking time, so
 a chart built on it is a chart of reasoning length unless the reasoning knob was

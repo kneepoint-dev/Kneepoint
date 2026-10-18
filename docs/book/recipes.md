@@ -13,7 +13,7 @@ real run open; they're the fastest way to internalize the earlier chapters.
 |---|---|---|
 | TTFT rises, TPOT flat | **Queueing.** Requests wait to start; once started they generate at full speed. The server is at its concurrency limit. | Look at goodput; consider more replicas rather than a bigger box |
 | TPOT rises, TTFT flat | **Decode saturation.** Generation itself slowed — usually memory bandwidth or KV-cache pressure from many simultaneous streams. | A bigger/faster-memory machine helps; more concurrency won't |
-| Both rise together | Broad saturation — the server is out of headroom everywhere. | You're past the knee; back off |
+| Both rise together | Several latency components are growing; inspect throughput to see whether service capacity has saturated. | Compare with your SLO and reduce load if it is breached |
 | Neither rises much, `total_ms` still up | Not the model. Tool calls, retries, or orchestration. | Check `retry_share`, `session_total_ms` vs `total_ms × turns` |
 
 ---

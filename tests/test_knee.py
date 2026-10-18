@@ -157,11 +157,13 @@ def test_doubling_at_the_top_of_the_ramp_is_a_lower_bound_not_a_knee():
     assert report.lower_bound is True
     assert report.confidence == "low"
     assert "high confidence" not in report.headline
-    assert report.headline.startswith("Knee point: 6 concurrent sessions or beyond, low confidence")
+    assert report.headline.startswith(
+        "Knee point: 5-6 concurrent sessions or beyond, low confidence"
+    )
     assert "widen it past 6" in report.headline
     assert any("lower bound" in note for note in report.notes)
-    assert report.recommended == 6  # "not below 6" is still the number to size from
-    assert find_knee(_stats(p95)).concurrency == 6
+    assert report.recommended == 5  # the inclusive 1.70× near band widens the range
+    assert find_knee(_stats(p95)).concurrency == 5
 
 
 def test_a_near_threshold_level_below_a_top_of_ramp_crossing_still_widens_the_range():
@@ -212,13 +214,60 @@ def test_kneedle_abstaining_does_not_weaken_a_clean_doubling_knee():
 
 
 def test_no_knee_invents_no_confidence():
-    p95 = {c: 1000.0 + 100.0 * c for c in range(1, 11)}
+    p95 = {c: 1000.0 + 50.0 * c for c in range(1, 11)}
     report = knee_report(_stats(p95))
     assert report.knee is None
     assert report.knee_range is None
     assert report.confidence is None
     assert report.headline == "No clear knee found."
     assert any("never doubles" in note for note in [report.p95_doubling.note or ""])
+
+
+def test_near_threshold_without_crossing_is_inconclusive_and_names_levels():
+    report = knee_report(_stats({1: 100.0, 4: 110.0, 7: 140.0,
+                                 10: 199.0, 13: 198.0, 16: 197.0}))
+    assert report.knee is None and report.knee_range is None
+    assert report.recommended is None and report.confidence == "low"
+    assert [(r.concurrency, r.ratio) for r in report.near_threshold_levels] == [
+        (10, 1.99), (13, 1.98), (16, 1.97),
+    ]
+    assert "c=10 (1.99×)" in report.headline
+    assert "inconclusive" in report.headline.lower()
+    assert "never breaks from its floor" not in "\n".join(report.lines())
+    assert report.model_dump()["near_threshold_levels"][0]["concurrency"] == 10
+
+
+def test_r1_demo_agent_recorded_levels_remain_inconclusive():
+    # Aggregates from experiments/2026-10-16-cowork-review/outputs/
+    # r1-demo-agent-released-run.jsonl. The c=1 level has only six successes,
+    # so the min_samples=10 floor comes from c=4.
+    rows = [(1, 6, 1084.0), (4, 24, 1067.0), (7, 42, 1079.0),
+            (10, 50, 2120.0), (13, 53, 2125.0), (16, 56, 2121.0)]
+    stats = [LevelStats(concurrency=c, n=n, error_rate=0,
+                        p50_ms=p95, p95_ms=p95, p99_ms=p95)
+             for c, n, p95 in rows]
+    report = knee_report(stats, min_samples=10)
+    assert report.knee is None and report.confidence == "low"
+    assert [r.concurrency for r in report.near_threshold_levels] == [10, 13, 16]
+    assert "c=10 (1.99×)" in report.headline
+    assert "never breaks from its floor" not in "\n".join(report.lines())
+
+
+def test_two_eligible_levels_still_expose_near_threshold_ratio():
+    report = knee_report(_stats({1: 100.0, 2: 199.0}))
+    assert report.knee is None and report.confidence == "low"
+    assert [(r.concurrency, r.ratio) for r in report.near_threshold_levels] == [(2, 1.99)]
+    assert "inconclusive" in report.headline.lower()
+    assert "not enough levels" in report.p95_doubling.note
+
+
+def test_inclusive_near_band_and_rounding_below_two():
+    lower = knee_report(_stats({1: 100.0, 2: 170.0, 3: 160.0}))
+    assert [r.concurrency for r in lower.near_threshold_levels] == [2]
+    assert lower.confidence == "low" and lower.knee is None
+    upper = knee_report(_stats({1: 100.0, 2: 199.9, 3: 190.0}))
+    assert upper.knee is None and "<2.00×" in upper.headline
+    assert "c=2 <2.00x*" in "\n".join(upper.lines())
 
 
 def test_thin_levels_produce_a_reason_not_a_guess():

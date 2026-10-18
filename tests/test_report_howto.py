@@ -55,7 +55,7 @@ def test_every_section_carries_a_how_to_read_line(tmp_path):
     assert all(line.endswith("→") for line in lines)
     # one distinctive claim per section, in document order
     expected = [
-        "plan for the low end",                       # verdict
+        "latency-tolerance threshold",                # verdict
         "where p95 bends",                            # knee curve
         "Read verdict coverage before the rate",       # quality populations
         "caused by load",                             # quality under load
@@ -82,7 +82,8 @@ def test_how_to_read_lines_are_not_shown_for_sections_that_rendered_nothing(tmp_
     ).read_text(encoding="utf-8")
     lines = _howto_lines(html)
     assert len(lines) == 2                      # the verdict and the knee curve
-    assert "plan for the low end" in lines[0] and "where p95 bends" in lines[1]
+    assert "latency-tolerance threshold" in lines[0]
+    assert "where p95 bends" in lines[1]
 
 
 def test_how_to_read_lines_link_to_book_chapters_that_exist():
@@ -111,8 +112,8 @@ def test_how_to_read_wording_is_the_books_wording(tmp_path):
     chapters = {p.stem: " ".join(p.read_text(encoding="utf-8").split()).lower()
                 for p in BOOK.glob("*.md")}
     sourced = [
-        ("throughput", "plan for the low end"),
-        ("throughput", "not a limit you must never exceed"),
+        ("throughput", "latency-tolerance threshold"),
+        ("throughput", "not the onset of queueing"),
         ("throughput", "kneedle corroborates"),
         ("foundations", "an absence of data"),
         ("foundations", "the median stays flat long after the system starts struggling"),
@@ -140,7 +141,7 @@ def test_how_to_read_wording_is_the_books_wording(tmp_path):
     # sentence had to be recast for the report (e.g. "level 1" → "first level"),
     # so the check is on the phrase's distinctive head
     heads = {
-        "plan for the low end", "not a limit you must never exceed",
+        "latency-tolerance threshold", "not the onset of queueing",
         "kneedle corroborates", "an absence of data",
         "median stays flat long after the system starts struggling",
         "a suppressed point, not a rendering bug", "caused by load",

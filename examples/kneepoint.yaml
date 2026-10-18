@@ -20,7 +20,8 @@ resolution:
 cost:
   input_per_mtok: 3.00
   output_per_mtok: 15.00
-  max_spend: 5.00                 # hard cap: the run stops if real spend crosses this
+  max_spend: 5.00                 # observed-spend threshold: stops new admission;
+                                  # in-flight work may overshoot before it drains
                                   # (the full 1..50 demo ramp estimates ~$2-3 of mock-token play money;
                                   #  the estimate carries a deliberate 1.5x safety margin)
 

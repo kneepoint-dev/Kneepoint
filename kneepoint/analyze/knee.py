@@ -89,6 +89,12 @@ class LevelRatio(BaseModel):
     ratio: float
     near_threshold: bool  # within CONFIDENCE_BAND of KNEE_RATIO: could go either way
 
+    @property
+    def display_ratio(self) -> str:
+        """Keep a subthreshold value from rounding up to a displayed 2.00×."""
+        return "<2.00" if self.ratio < KNEE_RATIO and round(self.ratio, 2) >= KNEE_RATIO \
+            else f"{self.ratio:.2f}"
+
 
 class MethodVerdict(BaseModel):
     """What one method concluded, including when it concluded nothing and why."""
@@ -114,23 +120,29 @@ class KneeReport(BaseModel):
     # 2x eventually without ever breaking - and the headline says so.
     lower_bound: bool = False
     ratios: list[LevelRatio]
+    near_threshold_levels: list[LevelRatio] = Field(default_factory=list)
     contaminated_levels: list[int]
     notes: list[str]
 
     @property
     def recommended(self) -> int | None:
-        """The one integer to act on: the low end of the range.
+        """The low end of the latency-threshold range for callers needing one integer.
 
-        Anything that must pick a single number — an SLO gate, a capacity
-        recommendation, the chart marker — takes this. A capacity number errs
-        low: running under the knee costs headroom, running over it costs
-        everyone's latency at once.
+        This is a threshold estimate, not an operating-capacity recommendation.
+        Choose operating load from throughput, quality and declared SLOs.
         """
         return None if self.knee_range is None else self.knee_range[0]
 
     @property
     def headline(self) -> str:
         if self.knee is None:
+            if self.near_threshold_levels:
+                reached = ", ".join(
+                    f"c={r.concurrency} ({r.display_ratio}×)"
+                    for r in self.near_threshold_levels
+                )
+                return (f"Inconclusive, low confidence: p95 reached {reached} of the floor; "
+                        "within 15% of the 2.0× threshold.")
             return "No clear knee found."
         low, high = self.knee_range
         if self.lower_bound:
@@ -153,7 +165,7 @@ class KneeReport(BaseModel):
             out.append(f"  {verdict.method}: {value}{note}")
         if self.ratios:
             shown = ", ".join(
-                f"c={r.concurrency} {r.ratio:.2f}x{'*' if r.near_threshold else ''}"
+                f"c={r.concurrency} {r.display_ratio}x{'*' if r.near_threshold else ''}"
                 for r in self.ratios
             )
             out.append(f"  p95 vs curve floor: {shown}"
@@ -255,7 +267,8 @@ def _ratios(usable: list[LevelStats]) -> list[LevelRatio]:
         ratio = s.p95_ms / floor if floor else float("inf")
         out.append(LevelRatio(
             concurrency=s.concurrency, p95_ms=s.p95_ms, ratio=ratio,
-            near_threshold=abs(ratio - KNEE_RATIO) <= KNEE_RATIO * CONFIDENCE_BAND,
+            near_threshold=(KNEE_RATIO * (1 - CONFIDENCE_BAND) - 1e-12 <= ratio
+                            <= KNEE_RATIO * (1 + CONFIDENCE_BAND) + 1e-12),
         ))
     return out
 
@@ -272,10 +285,10 @@ def _p95_doubling(ratios: list[LevelRatio]) -> MethodVerdict:
     """
     crossing = next((r for r in ratios if r.ratio >= KNEE_RATIO), None)
     if crossing is None:
-        top = max(r.ratio for r in ratios)
+        top = max(ratios, key=lambda r: r.ratio)
         return MethodVerdict(
             method="p95_doubling", concurrency=None,
-            note=f"p95 never doubles across this ramp (peak {top:.2f}x the floor)",
+            note=f"p95 never doubles across this ramp (peak {top.display_ratio}x the floor)",
         )
     if crossing is ratios[-1]:
         return MethodVerdict(
@@ -304,6 +317,8 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
     contaminated = [s.concurrency for s in stats if s.contaminated]
     gaps = [s.concurrency for s in stats if not s.latency_eligible(min_samples)
             and usable and usable[0].concurrency < s.concurrency < usable[-1].concurrency]
+    ratios = _ratios(usable) if usable else []
+    near_threshold_levels = [r for r in ratios if r.near_threshold]
     if len(usable) < 3 or gaps:
         reason = ("insufficient successful samples at interior levels "
                   + ", ".join(map(str, sorted(gaps))) + " - no curve is fit across this gap"
@@ -314,14 +329,16 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
                                   note=reason),
             p95_doubling=MethodVerdict(method="p95_doubling", concurrency=None,
                                        note=reason),
-            agree=None, knee=None, knee_range=None, confidence=None, ratios=[],
+            agree=None, knee=None, knee_range=None,
+            confidence="low" if near_threshold_levels else None,
+            ratios=ratios, near_threshold_levels=near_threshold_levels,
             contaminated_levels=contaminated,
             notes=([reason + "; no knee is claimed"] if gaps else
                    [f"fewer than 3 levels have at least {min_samples} successful requests "
-                    "with measured p95 - no knee is claimed"]),
+                    "with measured p95 - no knee is claimed"])
+            + (["near-threshold latency is inconclusive"] if near_threshold_levels else []),
         )
 
-    ratios = _ratios(usable)
     kneedle = _kneedle(usable)
     doubling = _p95_doubling(ratios)
     notes: list[str] = []
@@ -339,8 +356,8 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
                 "or it doesn't - it never replaces it"
             )
     elif kneedle.concurrency is not None and doubling.concurrency is None:
-        # Kneedle finding curvature where p95 never doubled is not a knee: by
-        # kneepoint's stated definition nothing broke. It gets said, not scored.
+        # Kneedle finding curvature where p95 never doubled does not cross the
+        # declared latency-tolerance threshold. It gets said, not scored.
         notes.append(
             f"kneedle sees curvature at c={kneedle.concurrency}, but {doubling.note} - "
             "no knee is claimed. Widen the ramp if you need to find one"
@@ -352,15 +369,21 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
     # range, or one unreliable method would smear every answer across the ramp.
     knee = doubling.concurrency
     if knee is None:
+        if near_threshold_levels:
+            notes.append("p95 approached the doubling threshold; repeat or widen the ramp "
+                         "before drawing a latency conclusion")
+        elif (kneedle.concurrency is None
+              and max(r.ratio for r in ratios) < KNEE_RATIO * (1 - CONFIDENCE_BAND)):
+            notes.append("neither method finds a knee - the curve never breaks from its "
+                         "floor. Widen the ramp or hold longer")
         return KneeReport(
             min_samples=min_samples, usable_levels=len(usable),
             kneedle=kneedle, p95_doubling=doubling, agree=agree,
-            knee=None, knee_range=None, confidence=None, ratios=ratios,
+            knee=None, knee_range=None,
+            confidence="low" if near_threshold_levels else None,
+            ratios=ratios, near_threshold_levels=near_threshold_levels,
             contaminated_levels=contaminated,
-            notes=notes + ([] if kneedle.concurrency is not None else [
-                "neither method finds a knee - the curve never breaks from its "
-                "floor. Widen the ramp or hold longer"
-            ]),
+            notes=notes,
         )
 
     candidates = {knee}
@@ -400,6 +423,7 @@ def knee_report(stats: list[LevelStats], min_samples: int = 10) -> KneeReport:
         kneedle=kneedle, p95_doubling=doubling, agree=agree,
         knee=knee, knee_range=knee_range, confidence=confidence,
         lower_bound=lower_bound, ratios=ratios,
+        near_threshold_levels=near_threshold_levels,
         contaminated_levels=contaminated, notes=notes,
     )
 

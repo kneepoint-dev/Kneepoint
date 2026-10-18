@@ -7,8 +7,8 @@ flat and starts climbing. Two methods, and **both are always reported** — but
 only one of them is ever the headline:
 
 * **`p95_doubling`** — the first level whose p95 reaches 2× the curve's floor.
-  This is kneepoint's definition of the knee and the number it leads with: it
-  has a stated threshold and a ratio you can check by hand from the raw JSONL.
+  This is Kneepoint's latency-tolerance threshold and the number it leads with:
+  it has a stated threshold and a ratio you can check by hand from the raw JSONL.
 * **`kneedle`** — maximum curvature, as corroboration only. It is refused when
   it lands on the top of the ramp, which is what it does on a near-linear curve;
   that answer is the ramp's own upper bound, not a property of your system. When
@@ -17,7 +17,10 @@ only one of them is ever the headline:
   every one, 5/6/5/4/5/5/6 against p95-doubling's 2 or 3.)
 
 Levels with fewer than `--min-samples` successful requests are excluded, and
-when there's no trustworthy knee, kneepoint says so instead of inventing one.
+when there's no trustworthy knee, Kneepoint says so instead of inventing one.
+When a level reaches 1.70×–1.99× but none crosses 2×, the result is
+**inconclusive, low confidence** with `knee: null`; the report names every
+near-threshold level and ratio.
 
 ### Confidence, and why the knee is sometimes a range
 
@@ -39,16 +42,17 @@ Knee point: 2-3 concurrent sessions, low confidence (plan for 2)
   either side of it
 ```
 
-**Plan for the low end.** Anything that has to pick one integer — the SLO gate,
-`find_knee()`, the chart marker — takes the bottom of the range. Being under the
-knee costs headroom; being over it costs everyone's latency at once.
+**Use the low end as a cautious threshold estimate.** Anything that has to
+pick one integer — `find_knee()` or the chart marker — takes the bottom of the
+range. Choose operating load from throughput, quality and your SLO; capacity
+may have saturated before this latency threshold.
 
 A single number with `high confidence` means `p95_doubling` crossed cleanly, no
 level sat near the threshold, Kneedle did not contradict it, **and the crossing
 was not the last level of the ramp**. Anything else is a range or a lowered
 confidence. Kneedle answering while `p95_doubling` found nothing is **not a
-knee** — p95 never doubled, so by kneepoint's own definition nothing broke; the
-curvature is reported as a note.
+knee** — p95 never doubled, so the latency-tolerance threshold was not crossed;
+the curvature is reported as a note.
 
 ### A crossing at the top of the ramp is a lower bound
 
@@ -76,9 +80,12 @@ repetition for repetition, where the old headline reached 7. Three of the five
 model configs pass the three-repetition agreement gate; two genuinely disagree
 across repetitions and are reported as such.
 
-Why it matters: agents don't degrade linearly. Below the knee you have
-headroom; above it every added session makes *everyone* slower — a closed
-queueing system hitting its service capacity.
+Why it matters: p95 doubling can occur well after service capacity saturates.
+In the [LanternDesk search-pool run](book/throughput.md), throughput had
+plateaued near 6.57 requests/s by c=4, while p95 first doubled at c=7.
+The linked table reproduces the project demo-agent evidence. Inspect throughput
+to locate saturation; treat doubling as a declared latency tolerance, not the
+instant queueing begins.
 
 A ramp level that abandoned a request — and every level after it — is flagged
 `contaminated`, because abandoned work can still be running on the server while

@@ -58,8 +58,9 @@ Kneepoint's signature metric. ([Throughput](throughput.md))
 **Kneedle** — a curvature-based knee algorithm; degenerates on near-linear
 curves.
 
-**p95 doubling** — Kneepoint's fallback method: first level where p95 is ≥ 2×
-baseline. Simple, hand-checkable, unstable near its threshold.
+**p95 doubling** — Kneepoint's headline latency-tolerance threshold: first
+level where p95 is ≥ 2× its floor. Hand-checkable, unstable near 2×, and
+typically later than throughput saturation.
 
 **Goodput** — throughput that met your latency SLO; capacity that actually
 counts.

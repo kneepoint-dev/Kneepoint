@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+import kneepoint.analyze.slo as slo_analysis
 from kneepoint.analyze.knee import aggregate
 from kneepoint.analyze.resolution import resolution_summary
 from kneepoint.analyze.slo import evaluate_run_slo
@@ -63,16 +64,42 @@ def test_resolution_threshold_range_and_zero_thresholds():
     assert [r.status for r in evaluate(0, 0, 0, zero)] == ["pass"] * 3
 
 
-@pytest.mark.parametrize("p95,expected", [(1, "unknown"), (3, "fail")])
-def test_missing_level_cannot_hide_known_failure_or_claim_pass(p95, expected):
-    records = [RequestRecord(session_id=str(c), concurrency=c, started_at=0,
-                             total_ms=p95, ok=c == 1) for c in (1, 2)]
-    result = evaluate_run_slo(SloConfig(p95_total_ms=2), stats=aggregate(records),
+@pytest.mark.parametrize("thin_ms,failures", [(900.0, 19), (100.0, 18)])
+def test_thin_level_cannot_pass_or_fail_latency_slo(thin_ms, failures):
+    records = [RequestRecord(session_id=f"1-{i}", concurrency=1, started_at=0,
+                             total_ms=100, ok=True) for i in range(20)]
+    records += [RequestRecord(session_id=f"2-{i}", concurrency=2, started_at=0,
+                              total_ms=thin_ms, ok=True)
+                for i in range(20 - failures)]
+    records += [RequestRecord(session_id=f"2-f{i}", concurrency=2, started_at=0,
+                              total_ms=5, ok=False) for i in range(failures)]
+    result = evaluate_run_slo(SloConfig(p95_total_ms=500), stats=aggregate(records),
                               quality=None, cost=None).results[0]
-    assert result.status == expected
-    assert result.measured == p95
-    if expected == "unknown":
-        assert "1/2 observed levels" in result.reason
+    assert result.status == "unknown"
+    assert result.measured == 100
+    assert "c=2" in result.reason
+
+
+def test_eligible_healthy_and_breaching_levels_keep_their_verdicts():
+    stats = aggregate([RequestRecord(session_id=f"{c}-{i}", concurrency=c,
+                                     started_at=0, total_ms=ms, ok=True)
+                       for c, ms in [(1, 100), (2, 600)] for i in range(20)])
+    def result(limit):
+        return evaluate_run_slo(SloConfig(p95_total_ms=limit), stats=stats,
+                                quality=None, cost=None).results[0]
+    assert result(700).status == "pass"
+    assert result(500).status == "fail"
+
+
+def test_opt_in_thin_breach_reports_worst_applicable_p95(monkeypatch):
+    monkeypatch.setattr(slo_analysis, "THIN_LEVEL_LATENCY_BREACH_IS_CONCLUSIVE", True)
+    records = [RequestRecord(session_id=f"1-{i}", concurrency=1, started_at=0,
+                             total_ms=1000, ok=True) for i in range(20)]
+    records.append(RequestRecord(session_id="2-0", concurrency=2, started_at=0,
+                                 total_ms=600, ok=True))
+    result = evaluate_run_slo(SloConfig(p95_total_ms=500), stats=aggregate(records),
+                              quality=None, cost=None).results[0]
+    assert result.status == "fail" and result.measured == 1000
 
 
 def test_threshold_provenance_is_distinct_from_disabled_checks():
@@ -113,6 +140,7 @@ def test_mocked_cli_and_report_share_states_and_reasons(tmp_path, completions, c
     if case == "missing-usage":
         completions[1]["input_tokens"] = None
     result = invoke(tmp_path, "--scenario", str(path), "--turns", "1..1",
+                    "--min-samples", "1",
                     *(["--max-spend", "0"] if case == "zero-cap" else []))
     expected = 3 if case == "zero-cap" else 0 if case in ("pass", "disabled") else 1
     assert result.exit_code == expected, result.output
@@ -139,9 +167,18 @@ def test_mocked_cli_and_report_share_states_and_reasons(tmp_path, completions, c
         assert "No confirmed resolved sessions" in rerender.slo.results[-1].reason
 
 
+def test_cli_thin_latency_is_unknown_and_nonpassing(tmp_path, completions):
+    path = scenario(tmp_path, thresholds={"p95_total_ms": 2})
+    result = invoke(tmp_path, "--scenario", str(path), "--turns", "1..1")
+    assert result.exit_code == 1, result.output
+    assert "SLO unknown - p95_total_ms" in result.output
+    assert "c=1" in result.output
+
+
 def test_old_metadata_empty_declaration_and_price_override(tmp_path, completions):
     path = scenario(tmp_path)
-    assert invoke(tmp_path, "--scenario", str(path), "--turns", "1..1").exit_code == 0
+    assert invoke(tmp_path, "--scenario", str(path), "--turns", "1..1",
+                  "--min-samples", "1").exit_code == 0
     _, records, _ = saved(tmp_path)
     meta_path = records.with_name(records.stem + "-meta.json")
     metadata = json.loads(meta_path.read_text())

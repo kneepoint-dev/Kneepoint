@@ -239,6 +239,6 @@ def render_from_files(
         slo=evaluate_run_slo(
             meta.slo if meta else None, stats=stats,
             quality=resolution_summary(sessions) if sessions_path.exists() else None,
-            cost=cost, cost_note=cost_note,
+            cost=cost, cost_note=cost_note, min_samples=min_samples,
         ),
     )

@@ -187,7 +187,7 @@ def write_report(
     html = _env().get_template("report.html.j2").render(
         slo=evaluate_run_slo(
             run_meta.slo if run_meta else None, stats=stats, quality=quality_summary,
-            cost=cost, cost_note=cost_note,
+            cost=cost, cost_note=cost_note, min_samples=min_samples,
         ),
         slo_scope=SLO_SCOPE,
         meta=meta, knee=knee, knee_div=knee_div, quality_div=quality_div,

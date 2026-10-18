@@ -117,12 +117,13 @@ The report is one HTML file with everything embedded, meant to be read by
 someone who has never used Kneepoint. Top to bottom:
 
 - **Verdict** — the knee as a range with a confidence label, and what each of
-  the two detection methods concluded. Plan for the low end of the range:
-  being under the knee costs headroom; being over it costs everyone's latency
-  at once. When the crossing lands on the last level of the ramp, the verdict
+  the two detection methods concluded. The low end of the range is a cautious
+  latency threshold estimate; inspect throughput and SLOs before choosing an
+  operating load, because saturation can occur earlier. When the crossing
+  lands on the last level of the ramp, the verdict
   says *N or beyond* and tells you to widen the ramp rather than reporting a
-  knee it cannot see. When nothing crossed, it says so instead of inventing
-  one.
+  knee it cannot see. A near miss within 15% of doubling is inconclusive and
+  names its levels; a clear non-crossing does not invent a knee.
 - **The knee curve** — p50/p95/p99 latency against concurrency, knee marked.
 - **TTFT vs. TPOT** and **inter-token latency** — whether the target is slow
   to *start* (queueing) or slow to *continue* (decode contention), when it
@@ -189,6 +190,11 @@ Kneepoint is a test: it exits non-zero when your agent regresses.
 Each configured SLO is **pass**, **fail** (a measured SLO breach), or
 **unknown** (insufficient evidence), with its threshold, measurement and reason
 in the CLI and report. No configured SLO means no fabricated pass.
+The latency check uses levels with at least `--min-samples` successful requests.
+By default, any recorded level below that minimum makes latency **unknown**,
+even if another level passes or fails. The policy constant in
+`kneepoint/analyze/slo.py` can allow a measured thin-level breach to fail;
+a thin level can never establish a pass.
 Exit codes: `0` completed with no failed or unknown configured checks · `1` any
 failed or unknown SLO · `2` usage error · `3` budget control stop (takes precedence
 over SLO results). Checks describe observed records; they do not certify completion

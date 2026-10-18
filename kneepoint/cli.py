@@ -199,7 +199,7 @@ REPORT_PRICE_OUT_OPTION = typer.Option(
 )
 REPORT_MIN_SAMPLES_OPTION = typer.Option(
     None, "--min-samples",
-    help="Override the stored min successful requests per level for knee math.",
+    help="Override the stored min successful requests per level for knee and latency SLOs.",
 )
 
 
@@ -314,7 +314,7 @@ def run(
         False, "--force", help="Compatibility flag; never bypasses runtime spend control."
     ),
     min_samples: int = typer.Option(
-        10, "--min-samples", help="Min successful requests per level for knee math."
+        10, "--min-samples", help="Min successful requests per level for knee and latency SLOs."
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
     no_trace: bool = typer.Option(False, "--no-trace", help="Omit W3C trace headers."),
@@ -617,6 +617,7 @@ def run(
     typer.echo(f"Report:      {report_path}")
     slo_evaluation = evaluate_run_slo(
         run_meta.slo, stats=stats, quality=quality_summary, cost=cost, cost_note=cost_note,
+        min_samples=min_samples,
     )
     for line in slo_evaluation.lines():
         typer.echo(line)

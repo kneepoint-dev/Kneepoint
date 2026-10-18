@@ -66,6 +66,7 @@ def test_support_bot_scenario_runs_against_mock(mock_agent_url, tmp_path):
             "run", "--scenario", str(SCENARIOS[0]),
             "--target", mock_agent_url,
             "--ramp", "1..2", "--step", "1", "--hold-seconds", "0.5",
+            "--min-samples", "1",
             "--chaos", "off",
             "--out", str(tmp_path),
         ],

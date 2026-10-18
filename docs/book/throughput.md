@@ -61,18 +61,40 @@ an **early warning**: it often rises a level or two before p95 visibly bends.
 
 The reason this tool exists.
 
-**Definition:** the concurrency level at which latency stops scaling
-gracefully and starts degrading sharply. Below the knee, adding load costs
-you a little latency. Above it, adding load costs you a lot.
+Kneepoint reports the first level where p95 latency doubles against its floor.
+That is a declared latency tolerance; the structural bend in a curve and the
+service's saturation point can occur at different levels.
 
-Every queueing system has one. It's where the queue starts growing faster
-than it drains.
+The latency knee and service saturation are separate observations. Saturation
+starts when throughput stops rising with concurrency; queue wait then grows as
+more sessions contend for the same service capacity. A p95-doubling threshold
+can be reached several levels later.
+
+In a closed loop with no think time, Little's law gives `N = X × R`. Once
+throughput `X` has flattened at capacity, mean response time `R` grows roughly
+with concurrency `N`; mean latency reaches twice its pre-saturation value near
+twice the saturation concurrency. p95 has its own distribution and need not
+double at exactly that point. In the
+LanternDesk search-pool run, throughput plateaued around 6.57 requests/s by
+c=4, while p95 first doubled at c=7:
+
+| Concurrent sessions | Steady throughput (requests/s) | Successful p95 (ms) |
+|---:|---:|---:|
+| 1 | 2.571 | 403.57 |
+| 4 | 6.571 | 610.29 |
+| 7 | 6.571 | 1,215.02 |
+| 10 | 6.571 | 1,522.98 |
+
+Source: `experiments/2026-10-17-demo-agent/README.md` in the project evidence
+workspace. The [public LanternDesk example](https://github.com/kneepoint-dev/Kneepoint/blob/codex/demo-agent/examples/multi-agent/README.md)
+documents the planted limit of two search workers at 300 ms each.
 
 ### How Kneepoint finds it — two methods
 
 **1. p95 doubling.** Walk up the levels; report the first level where
 p95(level) ≥ 2 × p95(baseline). Simple, explainable, and reproducible by
-hand from the raw data. Its weakness is that 2.0 is a hard cliff.
+hand from the raw data. It marks a latency-tolerance threshold, not the onset
+of queueing. Its weakness is that 2.0 is a hard cliff.
 
 **2. Kneedle.** A curve-shape algorithm that finds the point of maximum
 curvature — the "elbow". More principled in theory. Its weakness is that on a
@@ -119,10 +141,10 @@ coin flip and the knee comes back as a range:
 Knee point: 2-3 concurrent sessions, low confidence (plan for 2)
 ```
 
-**Plan for the low end.** When something has to pick one integer — an SLO gate,
-a capacity decision, the chart marker — take the bottom of the range. Being
-under the knee costs you some headroom. Being over it costs everyone's latency
-at the same time, which is the whole reason the knee is worth finding.
+**Use the low end as a cautious threshold estimate.** `find_knee()` and the
+chart marker use the bottom of the range when they need one integer. Choose an
+operating load from throughput, quality and your SLO; throughput may have
+flattened before p95 doubles.
 
 Two of Run D's five configurations still fail the three-repetition agreement
 gate under this detector: their ranges genuinely don't overlap, which is real
