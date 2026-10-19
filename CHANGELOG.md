@@ -3,6 +3,24 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [0.3.0rc3] - UNRELEASED
+
+**Local candidate; not a published release.**
+
+- Allow two completion counts of resolution before flagging a throughput bound
+  violation, so finite-window counting does not falsely flag healthy levels.
+- Measure each load level's event-loop lag, process CPU share of one core and
+  request rate. Save the additive evidence in run metadata and show it in CLI
+  and HTML. Flag `injector-limited` when lag p95 exceeds the larger of 5 ms or
+  2% of median response time, or process CPU exceeds 70% of one core.
+
+### Known limits
+
+- One Python event loop generates a run. Fast, synchronized targets can make
+  Kneepoint's own request processing inflate measured latency; the new flag
+  discloses measured lag or CPU pressure but is not a full correction for
+  synchronized completion bursts. See measurement integrity guidance.
+
 ## [0.3.0rc2] - UNRELEASED
 
 **Integration candidate; not a published release.**

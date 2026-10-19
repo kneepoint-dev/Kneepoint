@@ -136,6 +136,18 @@ class Environment(BaseModel):
     platform: str
 
 
+class InjectorLevel(BaseModel):
+    """Optional self-observation for one completed load level."""
+
+    lag_p50_ms: float | None = None
+    lag_p95_ms: float | None = None
+    lag_max_ms: float | None = None
+    cpu_core_share: float | None = None
+    request_rate_rps: float | None = None
+    samples: int = 0
+    injector_limited: bool = False
+
+
 class RunMetadata(VersionedRecord):
     """The `run-<id>-meta.json` sidecar: everything the report needs that is not
     on a request or session line (docs/output-format.md).
@@ -169,5 +181,6 @@ class RunMetadata(VersionedRecord):
     finished_monotonic_s: float | None = None
     level_starts_monotonic_s: dict[int, float] | None = None  # run-relative
     level_status: dict[int, str] | None = None  # terminal outcome per level
+    injector_levels: dict[int, InjectorLevel] | None = None
     think_time_min_ms: int | None = None
     think_time_max_ms: int | None = None

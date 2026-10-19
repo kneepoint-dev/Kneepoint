@@ -1,5 +1,30 @@
 # Measurement integrity
 
+## Known limits of the load generator
+
+One Python event loop generates each run. In observed HTTP streaming workloads,
+the client used about **1.3–2 ms of CPU per request**. If sessions finish together
+against a fast target, the loop handles their completions one by one. The last
+session in a burst can therefore have roughly **(N − 1) × that client cost**
+added to its measured response time at concurrency `N`.
+
+A 20 ms fixed stub reached only about **350 requests/s** at concurrency 16 on a
+cloud injector: the injector used about **73% of one core**, and p95 rose from
+about **22 to 57 ms**. At 100 ms fixed service, p50 grew from **102.6 to
+117.4 ms** between concurrency 1 and 16 even with only **25–35% of one core**
+used at the highest level. At concurrency 4, 8 and 12, **94–100%** of
+completions clustered in bursts with median size near the concurrency. This
+shows that synchronized sessions can inflate latency before CPU saturation.
+
+The CLI and report show **injector-limited** when the level's sampled event-loop
+lag p95 is above the larger of 5 ms or 2% of its median response time, or when
+the Kneepoint process uses more than 70% of one core. Read the flag beside the
+lag, CPU and request rate: at that level, client timing may be part of the
+measured latency. A level without the flag can still have a synchronized
+completion convoy, so compare fixed and variable load when fast-target accuracy
+matters. Agents taking seconds with variable response times usually spread
+completions apart; the same millisecond-scale client cost is then small.
+
 ## Clocks, steady windows and the closed-loop check
 
 Kneepoint records two clocks. `started_at` is wall time: it says when an

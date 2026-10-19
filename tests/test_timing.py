@@ -269,3 +269,24 @@ def test_impossible_rate_is_named_as_estimator_or_clock_problem(tmp_path):
     ), stats=stats, knee=None, quality=[], cost=None, res=None).read_text()
     assert "estimator or clock problem" in html
     assert "(k=70)" in html
+
+
+def test_bound_respects_two_completion_counts_but_flags_large_excess():
+    # A one-count finite-window excess is not evidence of a broken estimator.
+    base = [rec(1, f"base-{i}", i, i, 1) for i in range(180)]
+    near = [rec(2, f"near-{i}", i / 2.02, i / 2.02, 1)
+            for i in range(180)]
+    near.append(rec(2, "tail", 145, 145, 1))
+    near_stats = aggregate(base + near, hold_seconds=175,
+                           level_starts_monotonic_s={1: 0, 2: 0})
+    assert not near_stats[1].estimator_clock_problem
+    # The steady window is about 82 seconds wide. Exactly 200 completions give
+    # over 2.4/s, above the c=2 bound of 2/s and well beyond 2X/k.
+    impossible = [rec(2, f"fast-{i}", 60 + i * 0.4, 60 + i * 0.4, 0.1)
+                  for i in range(200)]
+    impossible.append(rec(2, "tail", 145, 145, 0.1))
+    stats = aggregate(base + impossible, hold_seconds=175,
+                      level_starts_monotonic_s={1: 0, 2: 0})
+    assert stats[1].steady_completions == 200
+    assert stats[1].steady_throughput_rps > stats[1].throughput_bound_rps * 1.2
+    assert stats[1].estimator_clock_problem

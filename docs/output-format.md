@@ -220,6 +220,7 @@ rates, whether chaos was on when no fault happened to fire).
   "finished_monotonic_s": null,
   "level_starts_monotonic_s": null,
   "level_status": null,
+  "injector_levels": null,
   "think_time_min_ms": null,
   "think_time_max_ms": null
 }
@@ -249,6 +250,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `finished_monotonic_s` | float \| null | optional monotonic reading at run end; the difference from the start is the run duration even if the wall clock changes |
 | `level_starts_monotonic_s` | object \| null | optional level start offsets in seconds since the run's monotonic origin; the generator starts each hold here |
 | `level_status` | object \| null | optional outcome per level (for example `completed`, `stopped`, `failed`, or `budget_exceeded`); steady measurements require a completed hold |
+| `injector_levels` | object \| null | optional per-level monitor measurements: lag p50/p95/max in ms, process CPU share of one core, request rate per second, sample count and `injector_limited` flag; absent on older runs |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
 
@@ -452,6 +454,8 @@ The CLI and HTML display k alongside every steady X. Counting gives a law-gap
 resolution of approximately `±(N/X)/k` seconds; a suspected stall requires
 `abs(N/X − R − Z) > max(0.050, 0.05*R, 2*(N/X)/k)`. The report shows both the
 resolution and threshold. Incomplete holds retain no steady rate or law verdict.
-A steady rate above `N/R_min`, using the mean response of the run's lowest level,
-is labeled **estimator or clock problem**. This bound is unavailable when that
-level has no steady mean. Raw throughput retains its whole-window meaning.
+A steady rate `X` is labeled **estimator or clock problem** only if
+`X − N/R_min > 2X/k`, where `R_min` is the mean response of the run's lowest
+level. Smaller excesses are within counting resolution. This bound is
+unavailable when that level has no steady mean. Raw throughput retains its
+whole-window meaning.

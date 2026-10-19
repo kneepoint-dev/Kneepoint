@@ -8,7 +8,7 @@ import asyncio
 import time
 from dataclasses import asdict, dataclass, field
 
-from kneepoint.collect.schemas import RequestRecord, SessionRecord
+from kneepoint.collect.schemas import InjectorLevel, RequestRecord, SessionRecord
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,7 @@ class RunEvidence:
     session_status: dict[str, str] = field(default_factory=dict)
     level_status: dict[int, str] = field(default_factory=dict)
     level_starts_monotonic_s: dict[int, float] = field(default_factory=dict)
+    injector_levels: dict[int, InjectorLevel] = field(default_factory=dict)
     status: str = "running"
 
     def start(self, event: AttemptStart) -> None:

@@ -19,6 +19,7 @@ class LevelTiming:
     little_resolution_s: float | None = None
     stall_threshold_s: float | None = None
     throughput_bound_rps: float | None = None
+    bound_counting_resolution_rps: float | None = None
     estimator_clock_problem: bool = False
     suspected_stall: bool = False
     clock_anomaly: bool = False
@@ -175,9 +176,15 @@ def analyze_timing(
         if floor is not None and floor > 0:
             for level in levels.values():
                 level.throughput_bound_rps = level.concurrency / floor
+                if level.steady_throughput_rps is not None and level.steady_completions:
+                    level.bound_counting_resolution_rps = (
+                        2 * level.steady_throughput_rps / level.steady_completions
+                    )
                 level.estimator_clock_problem = (
                     level.steady_throughput_rps is not None
-                    and level.steady_throughput_rps > level.throughput_bound_rps
+                    and level.bound_counting_resolution_rps is not None
+                    and level.steady_throughput_rps - level.throughput_bound_rps
+                    > level.bound_counting_resolution_rps
                 )
     return levels
 

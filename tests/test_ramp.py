@@ -34,3 +34,24 @@ async def test_run_ramp_covers_all_levels(mock_agent_url):
     assert seen == [1, 2]
     assert all(s.ok for s in sessions)
     assert exceeded is False
+
+
+async def test_injector_monitor_is_saved_per_level_and_can_be_disabled(mock_agent_url):
+    from kneepoint.generator.corpus import CorpusSampler
+    from kneepoint.generator.lifecycle import RunEvidence
+    from kneepoint.generator.session import SessionSpec
+
+    spec = RampSpec(start=1, stop=1, hold_seconds=0.2)
+    evidence = RunEvidence()
+    await run_ramp(mock_agent_url, "mock", spec, CorpusSampler(["hi"]),
+                   SessionSpec(), evidence=evidence)
+    measured = evidence.injector_levels[1]
+    assert measured.samples >= 1
+    assert measured.lag_p95_ms is not None
+    assert measured.lag_max_ms >= measured.lag_p95_ms
+    assert measured.cpu_core_share >= 0
+    assert measured.request_rate_rps > 0
+    disabled = RunEvidence()
+    await run_ramp(mock_agent_url, "mock", spec, CorpusSampler(["hi"]),
+                   SessionSpec(), evidence=disabled, monitor_injector=False)
+    assert disabled.injector_levels == {}

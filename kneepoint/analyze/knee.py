@@ -24,7 +24,7 @@ from kneed import KneeLocator
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from kneepoint.analyze.timing import analyze_timing, timing_from_metadata
-from kneepoint.collect.schemas import RequestRecord, RunMetadata
+from kneepoint.collect.schemas import InjectorLevel, RequestRecord, RunMetadata
 
 # the p95-doubling heuristic (docs/metrics.md): the knee is the first level
 # whose p95 reaches this multiple of the curve's floor
@@ -60,8 +60,10 @@ class LevelStats(BaseModel):
     little_resolution_s: float | None = None
     stall_threshold_s: float | None = None
     throughput_bound_rps: float | None = None
+    bound_counting_resolution_rps: float | None = None
     estimator_clock_problem: bool = False
     suspected_stall: bool = False
+    injector: InjectorLevel | None = None
     # Retain references, never serialize records into stats. Legacy external
     # callers can keep aggregate(records) -> write_report(..., run_meta=meta).
     _timing_records: list[RequestRecord] = PrivateAttr(default_factory=list)
@@ -268,7 +270,9 @@ def aggregate(
                 little_resolution_s=clock.little_resolution_s,
                 stall_threshold_s=clock.stall_threshold_s,
                 throughput_bound_rps=clock.throughput_bound_rps,
+                bound_counting_resolution_rps=clock.bound_counting_resolution_rps,
                 estimator_clock_problem=clock.estimator_clock_problem,
+                injector=(run_meta.injector_levels or {}).get(level) if run_meta else None,
                 ttft_p50_ms=pct(ttfts, 50),
                 ttft_p95_ms=pct(ttfts, 95),
                 tpot_p50_ms=pct(tpots, 50),
@@ -303,11 +307,15 @@ def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[L
         updates = {name: getattr(t, name) for name in (
             "throughput_rps", "steady_throughput_rps", "steady_completions",
             "steady_mean_response_s", "little_gap_s", "little_resolution_s",
-            "stall_threshold_s", "throughput_bound_rps", "estimator_clock_problem",
+            "stall_threshold_s", "throughput_bound_rps", "bound_counting_resolution_rps",
+            "estimator_clock_problem",
             "suspected_stall", "clock_anomaly", "exact_clock_step", "continuity_gap",
             "max_continuity_gap_s",
         )}
-        updates.update(timing_source=t.source, contaminated=contaminated)
+        updates.update(
+            timing_source=t.source, contaminated=contaminated,
+            injector=(meta.injector_levels or {}).get(s.concurrency),
+        )
         copied = s.model_copy(update=updates)
         copied._timing_meta = meta.model_dump()
         result.append(copied)

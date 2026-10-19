@@ -61,6 +61,7 @@ async def run_ramp(
     on_attempt_complete=None,
     stop: asyncio.Event | None = None,
     evidence: RunEvidence | None = None,
+    monitor_injector: bool = True,
 ) -> tuple[list[SessionRecord], list[RequestRecord], bool]:
     """Return (sessions, records, budget_exceeded), retaining partial evidence.
 
@@ -85,6 +86,7 @@ async def run_ramp(
                 headers=headers, on_record=on_record,
                 on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                 stop=stop, evidence=evidence,
+                monitor_injector=monitor_injector,
             )
             if on_level is not None:
                 on_level(level, sessions, records)

@@ -204,6 +204,7 @@ def run_demo(
             finished_monotonic_s=finished_monotonic_s,
             level_starts_monotonic_s=evidence.level_starts_monotonic_s,
             level_status=evidence.level_status,
+            injector_levels=evidence.injector_levels,
             think_time_min_ms=session_spec.think_time.min_ms,
             think_time_max_ms=session_spec.think_time.max_ms,
             environment=current_environment(),

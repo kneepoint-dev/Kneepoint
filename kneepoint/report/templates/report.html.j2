@@ -120,11 +120,14 @@ level start + 4×hold/5); warm-up and the drain tail are excluded. Raw throughpu
 uses the whole observed window. A wall-clock fallback means the record predates
 monotonic starts, so a clock step can distort its rates. Counting resolution is
 ±(N/X)/k seconds; the stall threshold is max(50 ms, 5% of R, twice that resolution).
-The throughput bound is N/R_min, using the lowest level’s mean response.</p>
+The throughput bound is N/R_min, using the lowest level’s mean response. An excess
+is flagged only when it exceeds twice the rate's counting resolution (2X/k).</p>
 <table>
   <tr><th>c (N)</th><th>Clock</th><th>Raw X /s</th><th>Steady X /s</th>
       <th>Completions k</th><th>Mean R s</th><th>N/X − R − Z</th>
-      <th>Resolution ±s</th><th>Stall threshold s</th><th>Bound X /s</th><th>Check</th></tr>
+      <th>Resolution ±s</th><th>Stall threshold s</th><th>Bound X /s</th><th>Check</th>
+      <th>Injector lag p50/p95/max ms</th><th>Injector CPU / one core</th>
+      <th>Injector rate /s</th><th>Injector check</th></tr>
   {% for s in stats %}
   <tr><td>{{ s.concurrency }}</td><td>{{ s.timing_source }}</td>
       <td>{{ "%.3f"|format(s.throughput_rps) if s.throughput_rps is not none else "n/a" }}</td>
@@ -135,7 +138,11 @@ The throughput bound is N/R_min, using the lowest level’s mean response.</p>
       <td>{{ "%.3f"|format(s.little_resolution_s) if s.little_resolution_s is not none else "n/a" }}</td>
       <td>{{ "%.3f"|format(s.stall_threshold_s) if s.stall_threshold_s is not none else "n/a" }}</td>
       <td>{{ "%.3f"|format(s.throughput_bound_rps) if s.throughput_bound_rps is not none else "n/a" }}</td>
-      <td>{% if s.estimator_clock_problem %}<strong>estimator or clock problem</strong> {% endif %}{% if s.suspected_stall %}<strong>suspected client or instrument stall</strong>{% else %}—{% endif %}</td></tr>
+      <td>{% if s.estimator_clock_problem %}<strong>estimator or clock problem</strong>{% elif s.bound_counting_resolution_rps is not none and s.steady_throughput_rps > s.throughput_bound_rps %}within counting resolution{% endif %} {% if s.suspected_stall %}<strong>suspected client or instrument stall</strong>{% endif %}</td>
+      <td>{% if s.injector and s.injector.lag_p95_ms is not none %}{{ "%.2f"|format(s.injector.lag_p50_ms) }} / {{ "%.2f"|format(s.injector.lag_p95_ms) }} / {{ "%.2f"|format(s.injector.lag_max_ms) }}{% else %}n/a{% endif %}</td>
+      <td>{% if s.injector and s.injector.cpu_core_share is not none %}{{ "%.1f"|format(s.injector.cpu_core_share * 100) }}%{% else %}n/a{% endif %}</td>
+      <td>{% if s.injector and s.injector.request_rate_rps is not none %}{{ "%.2f"|format(s.injector.request_rate_rps) }}{% else %}n/a{% endif %}</td>
+      <td>{% if s.injector %}{% if s.injector.injector_limited %}<strong>injector-limited</strong>{% else %}headroom measured{% endif %}{% else %}not measured{% endif %}</td></tr>
   {% endfor %}
 </table>
 {% endif %}

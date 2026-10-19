@@ -262,6 +262,18 @@ def _print_timing(stats, echo=typer.echo) -> None:
         warning = " - suspected client or instrument stall" if s.suspected_stall else ""
         if s.estimator_clock_problem:
             warning += " - estimator or clock problem"
+        elif (s.bound_counting_resolution_rps is not None
+              and s.steady_throughput_rps > s.throughput_bound_rps):
+            warning += " - within counting resolution"
+        if s.injector is not None:
+            m = s.injector
+            lag = "n/a" if m.lag_p95_ms is None else f"{m.lag_p95_ms:.2f} ms"
+            cpu = "n/a" if m.cpu_core_share is None else f"{m.cpu_core_share:.1%}"
+            rate = "n/a" if m.request_rate_rps is None else f"{m.request_rate_rps:.2f}/s"
+            warning += (f" - injector lag p95={lag}, CPU={cpu} of one core, "
+                        f"rate={rate}")
+            if m.injector_limited:
+                warning += " - injector-limited"
         resolution = (f", resolution=±{s.little_resolution_s * 1000:.1f} ms"
                       if s.little_resolution_s is not None else "")
         threshold = (f", stall threshold={s.stall_threshold_s * 1000:.1f} ms"
@@ -604,6 +616,7 @@ def run(
         finished_monotonic_s=finished_monotonic_s,
         level_starts_monotonic_s=evidence.level_starts_monotonic_s,
         level_status=evidence.level_status,
+        injector_levels=evidence.injector_levels,
         think_time_min_ms=session_spec.think_time.min_ms,
         think_time_max_ms=session_spec.think_time.max_ms,
         environment=current_environment(),
