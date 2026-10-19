@@ -5,6 +5,8 @@ repo_url: https://github.com/kneepoint-dev/kneepoint
 repo_name: kneepoint-dev/kneepoint
 theme:
   name: material
+  favicon: assets/brand/kneepoint-favicon.svg
+  logo: assets/brand/kneepoint-mark-on-graphite.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

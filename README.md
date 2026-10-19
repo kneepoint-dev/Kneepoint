@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kneepoint-dev/kneepoint/v0.3.0/docs/assets/brand/kneepoint-lockup-on-graphite.svg">
+  <img src="https://raw.githubusercontent.com/kneepoint-dev/kneepoint/v0.3.0/docs/assets/brand/kneepoint-lockup-on-chalk.svg" alt="Kneepoint" width="280">
+</picture>
+
 # Kneepoint
 
 > **Find where your AI agent breaks.** Load testing, cost per resolved task, and chaos engineering for AI agents — one command, one self-contained report.
