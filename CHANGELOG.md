@@ -13,6 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Separate event-loop CPU from whole-process CPU. The injector flag now uses
   loop CPU; reports label both values.
 - Add Documentation, Changelog and Issues links to the package metadata.
+- Add a responsive README brand lockup with an HTML image fallback for the
+  PyPI long description, using tag-pinned public image URLs at release.
 
 ## [0.3.0rc3] - UNRELEASED
 
