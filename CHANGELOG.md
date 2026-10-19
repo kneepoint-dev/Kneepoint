@@ -3,6 +3,62 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [0.3.0] - 2026-10-19
+
+This release adds explicit run-lifecycle and SLO evidence, trace-aware agent
+examples, and checks that state when a short or disrupted run cannot support a
+capacity claim. Existing request and session schemas remain readable; see the
+migration notes below for new nullable and unknown values.
+
+### Added
+
+- Cooperative run stopping, attempt callbacks, retained partial evidence and an
+  atomic lifecycle checkpoint. Observed-spend admission reports known spend,
+  unknown usage and possible overshoot without promising a billing ceiling.
+- `SloConfig` and tri-state `SloResult` APIs distinguish pass, fail and unknown.
+  CLI and HTML reports use the same saved thresholds and can regenerate results.
+- W3C trace context and attempt trace/span IDs, plus the LanternDesk multi-agent
+  example with queue/service step timing and planted bottlenecks.
+- Monotonic run windows, steady completion count, counting resolution, law gap,
+  event-loop lag and separate loop/process CPU evidence in metadata, CLI and
+  reports. Project metadata now links to documentation, changelog and issues.
+- A responsive README lockup with a PyPI-compatible image fallback.
+
+### Changed and fixed
+
+- Latency SLOs and knee evidence account for successful sample counts, thin
+  levels, near-threshold results and incomplete runs. Missing evidence is
+  reported as unknown; an observed breach still fails.
+- Timing and throughput checks use consistent record and metadata windows,
+  detect clock or continuity gaps, and abstain when fewer than two steady
+  completions per active session make the closed-loop law unjudgeable. Five
+  shifted windows estimate count resolution for synchronized completions.
+- The injector flag uses measured loop-thread CPU and event-loop lag. Reports
+  also show whole-process CPU, so background threads remain visible.
+- Task outcomes and transport failures remain distinct; unjudged sessions and
+  unknown spend are not silently counted as successes or zeroes.
+
+### Migration notes
+
+- Request JSONL is in attempt-completion order across sessions. Use session ID,
+  turn index and attempt number when session order matters.
+- Consumers must handle nullable latency percentiles, unknown successful
+  sample counts and unjudged resolution levels. Do not derive counts from
+  rounded throughput or treat missing evidence as zero.
+- Capped runs require both prices, stop admission on a reached cap or unknown
+  usage, and may exceed the cap while already admitted work drains. Inspect the
+  controller's `stop_reason` rather than the legacy ramp flag.
+
+### Known limits
+
+- One Python event loop generates a run. Fast, synchronized targets can make
+  client processing inflate measured latency; lag and CPU flags disclose
+  observed pressure but do not correct every completion convoy. See the
+  measurement integrity guide before interpreting high-rate results.
+- A thin steady window is labeled too short to judge; increase its hold time
+  for a capacity conclusion. Local run evidence does not establish an observer
+  overhead bound for Plus.
+
 ## [0.3.0rc4] - UNRELEASED
 
 **Local candidate; not a published release.**
