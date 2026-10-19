@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from kneepoint.collect.schemas import RequestRecord
+from kneepoint.collect.schemas import RequestRecord, RunMetadata
 
 CLOCK_GAP_S = 1.0
 
@@ -16,6 +16,10 @@ class LevelTiming:
     steady_completions: int = 0
     steady_mean_response_s: float | None = None
     little_gap_s: float | None = None
+    little_resolution_s: float | None = None
+    stall_threshold_s: float | None = None
+    throughput_bound_rps: float | None = None
+    estimator_clock_problem: bool = False
     suspected_stall: bool = False
     clock_anomaly: bool = False
     exact_clock_step: bool = False
@@ -151,6 +155,10 @@ def analyze_timing(
         if level.steady_completions:
             mean_r = response_total / level.steady_completions
             level.steady_mean_response_s = mean_r
+            level.little_resolution_s = (
+                level.concurrency / level.steady_throughput_rps / level.steady_completions
+            )
+            level.stall_threshold_s = max(0.050, 0.05 * mean_r, 2 * level.little_resolution_s)
             if think_s is None:
                 continue  # old metadata did not record Z; never invent a law gap
             # Only successful turns followed by another turn sleep. A worker
@@ -159,5 +167,30 @@ def analyze_timing(
             level.little_gap_s = (
                 level.concurrency / level.steady_throughput_rps - mean_r - effective_think_s
             )
-            level.suspected_stall = abs(level.little_gap_s) > max(0.050, 0.05 * mean_r)
+            level.suspected_stall = abs(level.little_gap_s) > level.stall_threshold_s
+    # The lowest measured load supplies the run's response floor. No record
+    # rescans: all bounds use the already accumulated per-level means.
+    if levels:
+        floor = levels[min(levels)].steady_mean_response_s
+        if floor is not None and floor > 0:
+            for level in levels.values():
+                level.throughput_bound_rps = level.concurrency / floor
+                level.estimator_clock_problem = (
+                    level.steady_throughput_rps is not None
+                    and level.steady_throughput_rps > level.throughput_bound_rps
+                )
     return levels
+
+
+def timing_from_metadata(
+    records: list[RequestRecord], meta: RunMetadata | None,
+) -> dict[int, LevelTiming]:
+    """Canonical timing derivation for CLI, re-render and external reports."""
+    return analyze_timing(
+        records, hold_seconds=meta.hold_seconds if meta else None,
+        think_time_ms=(meta.think_time_min_ms, meta.think_time_max_ms)
+        if meta and meta.think_time_min_ms is not None
+        and meta.think_time_max_ms is not None else None,
+        level_starts_monotonic_s=meta.level_starts_monotonic_s if meta else None,
+        level_status=meta.level_status if meta else None,
+    )

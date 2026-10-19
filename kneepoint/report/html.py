@@ -8,7 +8,14 @@ from pydantic import BaseModel
 
 from kneepoint.analyze.cost import CostSummary
 from kneepoint.analyze.errors import ErrorLevel, first_error_level
-from kneepoint.analyze.knee import KneeReport, KneeResult, LevelStats
+from kneepoint.analyze.knee import (
+    KneeReport,
+    KneeResult,
+    LevelStats,
+    find_knee,
+    knee_report,
+    with_run_timing,
+)
 from kneepoint.analyze.resilience import ResilienceSummary
 from kneepoint.analyze.resolution import LevelResolution, ResolutionSummary
 from kneepoint.analyze.retry import RetryLevel, worst_amplification
@@ -148,6 +155,13 @@ def write_report(
     `run_meta` is the sidecar model as written (or read back) — the metadata
     block renders it field by field. None renders the block as *not recorded*,
     with `meta_note` saying why when the caller knows."""
+    timed_stats = with_run_timing(stats, run_meta)
+    if timed_stats is not stats and knee_summary is not None:
+        # Timing can clear legacy false contamination when metadata supplies Z,
+        # or identify a new clock problem. Keep the headline/charts consistent.
+        knee_summary = knee_report(timed_stats, min_samples=min_samples)
+        knee = find_knee(timed_stats, min_samples=min_samples)
+    stats = timed_stats
     # Fixed div ids: Plotly would otherwise mint a fresh UUID per figure, and the
     # same run rendered twice would differ for no reason anyone can read.
     knee_div = knee_figure(stats, knee, min_samples=min_samples).to_html(

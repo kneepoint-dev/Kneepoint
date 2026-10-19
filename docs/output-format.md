@@ -436,3 +436,22 @@ available. A legacy `BudgetExceeded` still returns the ramp's budget flag, with
 completed records and partial sessions from its interrupted level retained. That
 flag does not describe cooperative controller stops: inspect the accounting
 snapshot's `stop_reason` (`cap_reached` or `unknown_usage`) instead.
+
+
+### Timing for external report callers
+
+`aggregate(records, run_meta=metadata)` and `write_report(..., run_meta=metadata)`
+use the same `timing_from_metadata(records, metadata)` derivation as the CLI.
+For compatibility, `aggregate(records)` retains private references to its input
+records, so existing callers such as Plus can supply metadata at report time.
+These references are not included in `LevelStats.model_dump()` or JSON. Timing
+is reused when the aggregate was computed with the same metadata.
+
+Steady X counts k completions in `[level_start + hold/3, level_start + 4*hold/5)`.
+The CLI and HTML display k alongside every steady X. Counting gives a law-gap
+resolution of approximately `±(N/X)/k` seconds; a suspected stall requires
+`abs(N/X − R − Z) > max(0.050, 0.05*R, 2*(N/X)/k)`. The report shows both the
+resolution and threshold. Incomplete holds retain no steady rate or law verdict.
+A steady rate above `N/R_min`, using the mean response of the run's lowest level,
+is labeled **estimator or clock problem**. This bound is unavailable when that
+level has no steady mean. Raw throughput retains its whole-window meaning.

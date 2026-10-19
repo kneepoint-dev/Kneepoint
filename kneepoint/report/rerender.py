@@ -216,15 +216,13 @@ def render_from_files(
         if not sessions_path.exists() else None
     )
 
-    stats = aggregate(
-        records,
-        hold_seconds=meta.hold_seconds if meta else None,
-        think_time_ms=(meta.think_time_min_ms, meta.think_time_max_ms)
-        if meta and meta.think_time_min_ms is not None
-        and meta.think_time_max_ms is not None else None,
-        level_starts_monotonic_s=meta.level_starts_monotonic_s if meta else None,
-        level_status=(meta.level_status if meta and meta.level_status is not None else
-                      _level_status_from_lifecycle(records_path)),
+    timing_meta = meta
+    if meta is not None and meta.level_status is None:
+        timing_meta = meta.model_copy(update={
+            "level_status": _level_status_from_lifecycle(records_path),
+        })
+    stats = aggregate(records, run_meta=timing_meta) if timing_meta else aggregate(
+        records, think_time_ms=None, level_status=_level_status_from_lifecycle(records_path),
     )
     knee_summary = knee_report(stats, min_samples=min_samples)
     knee = find_knee(stats, min_samples=min_samples)
@@ -251,7 +249,7 @@ def render_from_files(
         cost=cost, res=res,
         retry_levels=retry_by_level(records, sessions), min_samples=min_samples,
         quality_note=quality_note, cost_note=cost_note, res_note=res_note,
-        error_levels=errors_by_level(records), run_meta=meta,
+        error_levels=errors_by_level(records), run_meta=timing_meta,
         meta_note=(
             None if meta is not None else
             f"Run metadata not recorded: the sidecar {meta_path.name} was not found "

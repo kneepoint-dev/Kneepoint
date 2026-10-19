@@ -21,10 +21,10 @@ import statistics
 import warnings
 
 from kneed import KneeLocator
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from kneepoint.analyze.timing import analyze_timing
-from kneepoint.collect.schemas import RequestRecord
+from kneepoint.analyze.timing import analyze_timing, timing_from_metadata
+from kneepoint.collect.schemas import RequestRecord, RunMetadata
 
 # the p95-doubling heuristic (docs/metrics.md): the knee is the first level
 # whose p95 reaches this multiple of the curve's floor
@@ -57,7 +57,15 @@ class LevelStats(BaseModel):
     steady_completions: int = 0
     steady_mean_response_s: float | None = None
     little_gap_s: float | None = None
+    little_resolution_s: float | None = None
+    stall_threshold_s: float | None = None
+    throughput_bound_rps: float | None = None
+    estimator_clock_problem: bool = False
     suspected_stall: bool = False
+    # Retain references, never serialize records into stats. Legacy external
+    # callers can keep aggregate(records) -> write_report(..., run_meta=meta).
+    _timing_records: list[RequestRecord] = PrivateAttr(default_factory=list)
+    _timing_meta: dict | None = PrivateAttr(default=None)
     # Latency breakdown. Every one is None rather than 0 when the underlying
     # field was never reported — no provider usage means no TPOT, a single
     # content chunk means no ITL. See docs/output-format.md.
@@ -199,6 +207,7 @@ def aggregate(
     think_time_ms: tuple[int, int] | None = (0, 0),
     level_starts_monotonic_s: dict[int, float] | None = None,
     level_status: dict[int, str] | None = None,
+    run_meta: RunMetadata | None = None,
 ) -> list[LevelStats]:
     """Group records by ramp level; percentiles use successful requests only.
     Levels where every request failed retain their counts and null percentiles.
@@ -211,7 +220,7 @@ def aggregate(
     by_level: dict[int, list[RequestRecord]] = {}
     for record in records:
         by_level.setdefault(record.concurrency, []).append(record)
-    timing = analyze_timing(
+    timing = timing_from_metadata(records, run_meta) if run_meta else analyze_timing(
         records, hold_seconds=hold_seconds, think_time_ms=think_time_ms,
         level_starts_monotonic_s=level_starts_monotonic_s,
         level_status=level_status,
@@ -256,6 +265,10 @@ def aggregate(
                 steady_mean_response_s=clock.steady_mean_response_s,
                 little_gap_s=clock.little_gap_s,
                 suspected_stall=clock.suspected_stall,
+                little_resolution_s=clock.little_resolution_s,
+                stall_threshold_s=clock.stall_threshold_s,
+                throughput_bound_rps=clock.throughput_bound_rps,
+                estimator_clock_problem=clock.estimator_clock_problem,
                 ttft_p50_ms=pct(ttfts, 50),
                 ttft_p95_ms=pct(ttfts, 95),
                 tpot_p50_ms=pct(tpots, 50),
@@ -265,7 +278,40 @@ def aggregate(
                 itl_p99_ms=pct(itl_tails, 99),
             )
         )
+        stats[-1]._timing_records = recs
+        stats[-1]._timing_meta = run_meta.model_dump() if run_meta else None
     return stats
+
+
+def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[LevelStats]:
+    """Derive report timing from aggregate's records and the supplied metadata.
+
+    Reuse an identical derivation on the CLI path. Return copies when enriching
+    external stats, so rendering cannot mutate the caller's analysis.
+    """
+    if meta is None or not stats or all(s._timing_meta == meta.model_dump() for s in stats):
+        return stats
+    records = [r for s in stats for r in s._timing_records]
+    if not records:
+        return stats  # legacy manually constructed summary: no raw evidence
+    timings = timing_from_metadata(records, meta)
+    result = []
+    contaminated = False
+    for s in sorted(stats, key=lambda s: s.concurrency):
+        t = timings[s.concurrency]
+        contaminated |= bool(s.abandoned or t.clock_anomaly)
+        updates = {name: getattr(t, name) for name in (
+            "throughput_rps", "steady_throughput_rps", "steady_completions",
+            "steady_mean_response_s", "little_gap_s", "little_resolution_s",
+            "stall_threshold_s", "throughput_bound_rps", "estimator_clock_problem",
+            "suspected_stall", "clock_anomaly", "exact_clock_step", "continuity_gap",
+            "max_continuity_gap_s",
+        )}
+        updates.update(timing_source=t.source, contaminated=contaminated)
+        copied = s.model_copy(update=updates)
+        copied._timing_meta = meta.model_dump()
+        result.append(copied)
+    return result
 
 
 def _kneedle(usable: list[LevelStats]) -> MethodVerdict:

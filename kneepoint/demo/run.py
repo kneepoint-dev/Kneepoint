@@ -178,18 +178,6 @@ def run_demo(
         cost_note = incomplete_cost_note(records, DEMO_PRICES)
         cost = summarize_cost(records, all_sessions, DEMO_PRICES) if cost_note is None else None
         res = resilience(all_sessions, min_group=DEMO_MIN_GROUP)
-        stats = aggregate(
-            records, hold_seconds=spec.hold_seconds,
-            think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
-            level_starts_monotonic_s=evidence.level_starts_monotonic_s,
-            level_status=evidence.level_status,
-        )
-        knee_summary = knee_report(stats, min_samples=DEMO_MIN_SAMPLES)
-        knee = find_knee(stats, min_samples=DEMO_MIN_SAMPLES)
-        if any(s.contaminated for s in stats):
-            echo("Note: contaminated levels include abandoned work or a clock step, "
-                 "host sleep or client stall (see the report banner).")
-
         jsonl_path = out_dir / f"demo-{run_id}.jsonl"
         sessions_path = out_dir / f"demo-{run_id}-sessions.jsonl"
         meta_path = out_dir / f"demo-{run_id}-meta.json"
@@ -221,6 +209,12 @@ def run_demo(
             environment=current_environment(),
         ))
         run_meta = read_run_meta(meta_path)   # the stamped file, same as `report` reads
+        stats = aggregate(records, run_meta=run_meta)
+        knee_summary = knee_report(stats, min_samples=DEMO_MIN_SAMPLES)
+        knee = find_knee(stats, min_samples=DEMO_MIN_SAMPLES)
+        if any(s.contaminated for s in stats):
+            echo("Note: contaminated levels include abandoned work or a clock step, "
+                 "host sleep or client stall (see the report banner).")
         report = write_report(
             out_dir / f"demo-{run_id}-report.html",
             meta=RunMeta(
@@ -238,12 +232,9 @@ def run_demo(
 
         for line in knee_summary.lines():
             echo(line)
-        for s in stats:
-            if s.steady_throughput_rps is not None:
-                gap = "n/a" if s.little_gap_s is None else f"{s.little_gap_s * 1000:+.1f} ms"
-                warning = " - suspected client or instrument stall" if s.suspected_stall else ""
-                echo(f"  c={s.concurrency}: steady X={s.steady_throughput_rps:.3f}/s, "
-                     f"law gap={gap}{warning}")
+        # Import at call time: cli imports the demo entry point.
+        from kneepoint.cli import _print_timing
+        _print_timing(stats, echo=echo)
         if knee is None:
             echo("  (a longer demo helps - try --hold-seconds 10)")
         for line in quality_summary.lines():

@@ -3,6 +3,24 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [0.3.0rc2] - UNRELEASED
+
+**Integration candidate; not a published release.**
+
+- Propagate W3C trace context and per-attempt trace/span IDs without changing
+  schema 1; tracing can be disabled.
+- Report near-threshold p95 knees as inconclusive. Thin levels make latency SLOs
+  unknown unless an eligible level establishes a breach, which remains a fail.
+- Use monotonic clocks for run windows and durations, with labeled legacy wall
+  fallback and clock/continuity checks. Show steady completion count k, law gap,
+  counting resolution and the resolution-aware stall threshold; flag throughput
+  above the lowest-level response bound as an estimator or clock problem.
+- Derive report timing consistently from records and run metadata for CLI and
+  external callers, including Plus, with byte-identical regeneration.
+- Add the LanternDesk LangGraph example with trace propagation, queue/service
+  step attributes and four planted bottlenecks. Fetch throttling is 25 starts/s
+  so saturation occurs inside the ramp.
+
 ## [0.3.0rc1] - UNRELEASED
 
 **Local release candidate for review; not a published release.** This proposed

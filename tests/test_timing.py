@@ -156,7 +156,7 @@ def test_little_law_passes_closed_loop_and_flags_injected_stall():
     assert level.steady_completions == 14
     assert level.little_gap_s == pytest.approx(0)
     assert not level.suspected_stall
-    stalled = [r for r in healthy if r.started_monotonic_s not in (7, 8)]
+    stalled = [r for r in healthy if r.started_monotonic_s not in (6, 7, 8)]
     level = timing.analyze_timing(
         stalled, hold_seconds=15, level_starts_monotonic_s={2: 0},
     )[2]
@@ -237,3 +237,35 @@ def test_production_size_has_one_record_visit_and_linear_growth(monkeypatch):
     timing.analyze_timing(rows * 10, hold_seconds=15)
     large = time.perf_counter() - t0
     assert large < small * 25  # ample runner noise margin; rules out quadratic growth
+
+
+@pytest.mark.parametrize("hold", [0.5, 1.0, 2.0, 3.0])
+def test_short_healthy_closed_loop_respects_counting_resolution(hold):
+    # A 301 ms service, one fully occupied worker, and a short nonintegral window.
+    rows = [rec(1, f"w-{i}", 1000 + i * .301, i * .301, .301)
+            for i in range(20)]
+    t = timing.analyze_timing(rows, hold_seconds=hold,
+                              level_starts_monotonic_s={1: 0})[1]
+    assert t.steady_completions > 0
+    assert abs(t.little_gap_s) > .050 or hold > .5
+    assert t.stall_threshold_s == max(.050, .05 * .301, 2 * t.little_resolution_s)
+    assert not t.suspected_stall
+
+
+def test_impossible_rate_is_named_as_estimator_or_clock_problem(tmp_path):
+    rows = [rec(1, str(i), i, i, 1) for i in range(16)]
+    rows += [rec(2, f"fast-{i}", 1000 + i / 10, i / 10, .1) for i in range(160)]
+    stats = aggregate(rows, hold_seconds=15, level_starts_monotonic_s={1: 0, 2: 0})
+    assert stats[1].throughput_bound_rps == pytest.approx(2)
+    assert stats[1].estimator_clock_problem
+    lines = []
+    _print_timing(stats, echo=lines.append)
+    assert "k=70" in lines[1]
+    assert "estimator or clock problem" in lines[1]
+    from kneepoint.report.html import RunMeta, write_report
+    html = write_report(tmp_path / "bounds.html", meta=RunMeta(
+        target="x", model="m", started="now", ramp="1..2", chaos="off",
+        total_requests=len(rows), total_sessions=0,
+    ), stats=stats, knee=None, quality=[], cost=None, res=None).read_text()
+    assert "estimator or clock problem" in html
+    assert "(k=70)" in html

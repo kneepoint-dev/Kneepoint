@@ -1,0 +1,1402 @@
+[
+  {
+    "id": "kb-1",
+    "module": "mod001",
+    "title": "LanternDesk mod001 support note",
+    "body": "For mod001, set recovery code LD-001 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-001 to enabled"
+  },
+  {
+    "id": "kb-2",
+    "module": "mod002",
+    "title": "LanternDesk mod002 support note",
+    "body": "For mod002, set recovery code LD-002 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-002 to enabled"
+  },
+  {
+    "id": "kb-3",
+    "module": "mod003",
+    "title": "LanternDesk mod003 support note",
+    "body": "For mod003, set recovery code LD-003 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-003 to enabled"
+  },
+  {
+    "id": "kb-4",
+    "module": "mod004",
+    "title": "LanternDesk mod004 support note",
+    "body": "For mod004, set recovery code LD-004 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-004 to enabled"
+  },
+  {
+    "id": "kb-5",
+    "module": "mod005",
+    "title": "LanternDesk mod005 support note",
+    "body": "For mod005, set recovery code LD-005 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-005 to enabled"
+  },
+  {
+    "id": "kb-6",
+    "module": "mod006",
+    "title": "LanternDesk mod006 support note",
+    "body": "For mod006, set recovery code LD-006 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-006 to enabled"
+  },
+  {
+    "id": "kb-7",
+    "module": "mod007",
+    "title": "LanternDesk mod007 support note",
+    "body": "For mod007, set recovery code LD-007 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-007 to enabled"
+  },
+  {
+    "id": "kb-8",
+    "module": "mod008",
+    "title": "LanternDesk mod008 support note",
+    "body": "For mod008, set recovery code LD-008 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-008 to enabled"
+  },
+  {
+    "id": "kb-9",
+    "module": "mod009",
+    "title": "LanternDesk mod009 support note",
+    "body": "For mod009, set recovery code LD-009 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-009 to enabled"
+  },
+  {
+    "id": "kb-10",
+    "module": "mod010",
+    "title": "LanternDesk mod010 support note",
+    "body": "For mod010, set recovery code LD-010 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-010 to enabled"
+  },
+  {
+    "id": "kb-11",
+    "module": "mod011",
+    "title": "LanternDesk mod011 support note",
+    "body": "For mod011, set recovery code LD-011 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-011 to enabled"
+  },
+  {
+    "id": "kb-12",
+    "module": "mod012",
+    "title": "LanternDesk mod012 support note",
+    "body": "For mod012, set recovery code LD-012 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-012 to enabled"
+  },
+  {
+    "id": "kb-13",
+    "module": "mod013",
+    "title": "LanternDesk mod013 support note",
+    "body": "For mod013, set recovery code LD-013 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-013 to enabled"
+  },
+  {
+    "id": "kb-14",
+    "module": "mod014",
+    "title": "LanternDesk mod014 support note",
+    "body": "For mod014, set recovery code LD-014 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-014 to enabled"
+  },
+  {
+    "id": "kb-15",
+    "module": "mod015",
+    "title": "LanternDesk mod015 support note",
+    "body": "For mod015, set recovery code LD-015 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-015 to enabled"
+  },
+  {
+    "id": "kb-16",
+    "module": "mod016",
+    "title": "LanternDesk mod016 support note",
+    "body": "For mod016, set recovery code LD-016 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-016 to enabled"
+  },
+  {
+    "id": "kb-17",
+    "module": "mod017",
+    "title": "LanternDesk mod017 support note",
+    "body": "For mod017, set recovery code LD-017 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-017 to enabled"
+  },
+  {
+    "id": "kb-18",
+    "module": "mod018",
+    "title": "LanternDesk mod018 support note",
+    "body": "For mod018, set recovery code LD-018 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-018 to enabled"
+  },
+  {
+    "id": "kb-19",
+    "module": "mod019",
+    "title": "LanternDesk mod019 support note",
+    "body": "For mod019, set recovery code LD-019 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-019 to enabled"
+  },
+  {
+    "id": "kb-20",
+    "module": "mod020",
+    "title": "LanternDesk mod020 support note",
+    "body": "For mod020, set recovery code LD-020 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-020 to enabled"
+  },
+  {
+    "id": "kb-21",
+    "module": "mod021",
+    "title": "LanternDesk mod021 support note",
+    "body": "For mod021, set recovery code LD-021 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-021 to enabled"
+  },
+  {
+    "id": "kb-22",
+    "module": "mod022",
+    "title": "LanternDesk mod022 support note",
+    "body": "For mod022, set recovery code LD-022 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-022 to enabled"
+  },
+  {
+    "id": "kb-23",
+    "module": "mod023",
+    "title": "LanternDesk mod023 support note",
+    "body": "For mod023, set recovery code LD-023 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-023 to enabled"
+  },
+  {
+    "id": "kb-24",
+    "module": "mod024",
+    "title": "LanternDesk mod024 support note",
+    "body": "For mod024, set recovery code LD-024 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-024 to enabled"
+  },
+  {
+    "id": "kb-25",
+    "module": "mod025",
+    "title": "LanternDesk mod025 support note",
+    "body": "For mod025, set recovery code LD-025 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-025 to enabled"
+  },
+  {
+    "id": "kb-26",
+    "module": "mod026",
+    "title": "LanternDesk mod026 support note",
+    "body": "For mod026, set recovery code LD-026 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-026 to enabled"
+  },
+  {
+    "id": "kb-27",
+    "module": "mod027",
+    "title": "LanternDesk mod027 support note",
+    "body": "For mod027, set recovery code LD-027 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-027 to enabled"
+  },
+  {
+    "id": "kb-28",
+    "module": "mod028",
+    "title": "LanternDesk mod028 support note",
+    "body": "For mod028, set recovery code LD-028 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-028 to enabled"
+  },
+  {
+    "id": "kb-29",
+    "module": "mod029",
+    "title": "LanternDesk mod029 support note",
+    "body": "For mod029, set recovery code LD-029 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-029 to enabled"
+  },
+  {
+    "id": "kb-30",
+    "module": "mod030",
+    "title": "LanternDesk mod030 support note",
+    "body": "For mod030, set recovery code LD-030 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-030 to enabled"
+  },
+  {
+    "id": "kb-31",
+    "module": "mod031",
+    "title": "LanternDesk mod031 support note",
+    "body": "For mod031, set recovery code LD-031 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-031 to enabled"
+  },
+  {
+    "id": "kb-32",
+    "module": "mod032",
+    "title": "LanternDesk mod032 support note",
+    "body": "For mod032, set recovery code LD-032 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-032 to enabled"
+  },
+  {
+    "id": "kb-33",
+    "module": "mod033",
+    "title": "LanternDesk mod033 support note",
+    "body": "For mod033, set recovery code LD-033 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-033 to enabled"
+  },
+  {
+    "id": "kb-34",
+    "module": "mod034",
+    "title": "LanternDesk mod034 support note",
+    "body": "For mod034, set recovery code LD-034 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-034 to enabled"
+  },
+  {
+    "id": "kb-35",
+    "module": "mod035",
+    "title": "LanternDesk mod035 support note",
+    "body": "For mod035, set recovery code LD-035 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-035 to enabled"
+  },
+  {
+    "id": "kb-36",
+    "module": "mod036",
+    "title": "LanternDesk mod036 support note",
+    "body": "For mod036, set recovery code LD-036 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-036 to enabled"
+  },
+  {
+    "id": "kb-37",
+    "module": "mod037",
+    "title": "LanternDesk mod037 support note",
+    "body": "For mod037, set recovery code LD-037 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-037 to enabled"
+  },
+  {
+    "id": "kb-38",
+    "module": "mod038",
+    "title": "LanternDesk mod038 support note",
+    "body": "For mod038, set recovery code LD-038 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-038 to enabled"
+  },
+  {
+    "id": "kb-39",
+    "module": "mod039",
+    "title": "LanternDesk mod039 support note",
+    "body": "For mod039, set recovery code LD-039 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-039 to enabled"
+  },
+  {
+    "id": "kb-40",
+    "module": "mod040",
+    "title": "LanternDesk mod040 support note",
+    "body": "For mod040, set recovery code LD-040 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-040 to enabled"
+  },
+  {
+    "id": "kb-41",
+    "module": "mod041",
+    "title": "LanternDesk mod041 support note",
+    "body": "For mod041, set recovery code LD-041 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-041 to enabled"
+  },
+  {
+    "id": "kb-42",
+    "module": "mod042",
+    "title": "LanternDesk mod042 support note",
+    "body": "For mod042, set recovery code LD-042 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-042 to enabled"
+  },
+  {
+    "id": "kb-43",
+    "module": "mod043",
+    "title": "LanternDesk mod043 support note",
+    "body": "For mod043, set recovery code LD-043 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-043 to enabled"
+  },
+  {
+    "id": "kb-44",
+    "module": "mod044",
+    "title": "LanternDesk mod044 support note",
+    "body": "For mod044, set recovery code LD-044 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-044 to enabled"
+  },
+  {
+    "id": "kb-45",
+    "module": "mod045",
+    "title": "LanternDesk mod045 support note",
+    "body": "For mod045, set recovery code LD-045 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-045 to enabled"
+  },
+  {
+    "id": "kb-46",
+    "module": "mod046",
+    "title": "LanternDesk mod046 support note",
+    "body": "For mod046, set recovery code LD-046 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-046 to enabled"
+  },
+  {
+    "id": "kb-47",
+    "module": "mod047",
+    "title": "LanternDesk mod047 support note",
+    "body": "For mod047, set recovery code LD-047 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-047 to enabled"
+  },
+  {
+    "id": "kb-48",
+    "module": "mod048",
+    "title": "LanternDesk mod048 support note",
+    "body": "For mod048, set recovery code LD-048 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-048 to enabled"
+  },
+  {
+    "id": "kb-49",
+    "module": "mod049",
+    "title": "LanternDesk mod049 support note",
+    "body": "For mod049, set recovery code LD-049 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-049 to enabled"
+  },
+  {
+    "id": "kb-50",
+    "module": "mod050",
+    "title": "LanternDesk mod050 support note",
+    "body": "For mod050, set recovery code LD-050 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-050 to enabled"
+  },
+  {
+    "id": "kb-51",
+    "module": "mod051",
+    "title": "LanternDesk mod051 support note",
+    "body": "For mod051, set recovery code LD-051 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-051 to enabled"
+  },
+  {
+    "id": "kb-52",
+    "module": "mod052",
+    "title": "LanternDesk mod052 support note",
+    "body": "For mod052, set recovery code LD-052 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-052 to enabled"
+  },
+  {
+    "id": "kb-53",
+    "module": "mod053",
+    "title": "LanternDesk mod053 support note",
+    "body": "For mod053, set recovery code LD-053 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-053 to enabled"
+  },
+  {
+    "id": "kb-54",
+    "module": "mod054",
+    "title": "LanternDesk mod054 support note",
+    "body": "For mod054, set recovery code LD-054 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-054 to enabled"
+  },
+  {
+    "id": "kb-55",
+    "module": "mod055",
+    "title": "LanternDesk mod055 support note",
+    "body": "For mod055, set recovery code LD-055 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-055 to enabled"
+  },
+  {
+    "id": "kb-56",
+    "module": "mod056",
+    "title": "LanternDesk mod056 support note",
+    "body": "For mod056, set recovery code LD-056 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-056 to enabled"
+  },
+  {
+    "id": "kb-57",
+    "module": "mod057",
+    "title": "LanternDesk mod057 support note",
+    "body": "For mod057, set recovery code LD-057 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-057 to enabled"
+  },
+  {
+    "id": "kb-58",
+    "module": "mod058",
+    "title": "LanternDesk mod058 support note",
+    "body": "For mod058, set recovery code LD-058 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-058 to enabled"
+  },
+  {
+    "id": "kb-59",
+    "module": "mod059",
+    "title": "LanternDesk mod059 support note",
+    "body": "For mod059, set recovery code LD-059 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-059 to enabled"
+  },
+  {
+    "id": "kb-60",
+    "module": "mod060",
+    "title": "LanternDesk mod060 support note",
+    "body": "For mod060, set recovery code LD-060 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-060 to enabled"
+  },
+  {
+    "id": "kb-61",
+    "module": "mod061",
+    "title": "LanternDesk mod061 support note",
+    "body": "For mod061, set recovery code LD-061 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-061 to enabled"
+  },
+  {
+    "id": "kb-62",
+    "module": "mod062",
+    "title": "LanternDesk mod062 support note",
+    "body": "For mod062, set recovery code LD-062 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-062 to enabled"
+  },
+  {
+    "id": "kb-63",
+    "module": "mod063",
+    "title": "LanternDesk mod063 support note",
+    "body": "For mod063, set recovery code LD-063 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-063 to enabled"
+  },
+  {
+    "id": "kb-64",
+    "module": "mod064",
+    "title": "LanternDesk mod064 support note",
+    "body": "For mod064, set recovery code LD-064 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-064 to enabled"
+  },
+  {
+    "id": "kb-65",
+    "module": "mod065",
+    "title": "LanternDesk mod065 support note",
+    "body": "For mod065, set recovery code LD-065 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-065 to enabled"
+  },
+  {
+    "id": "kb-66",
+    "module": "mod066",
+    "title": "LanternDesk mod066 support note",
+    "body": "For mod066, set recovery code LD-066 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-066 to enabled"
+  },
+  {
+    "id": "kb-67",
+    "module": "mod067",
+    "title": "LanternDesk mod067 support note",
+    "body": "For mod067, set recovery code LD-067 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-067 to enabled"
+  },
+  {
+    "id": "kb-68",
+    "module": "mod068",
+    "title": "LanternDesk mod068 support note",
+    "body": "For mod068, set recovery code LD-068 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-068 to enabled"
+  },
+  {
+    "id": "kb-69",
+    "module": "mod069",
+    "title": "LanternDesk mod069 support note",
+    "body": "For mod069, set recovery code LD-069 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-069 to enabled"
+  },
+  {
+    "id": "kb-70",
+    "module": "mod070",
+    "title": "LanternDesk mod070 support note",
+    "body": "For mod070, set recovery code LD-070 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-070 to enabled"
+  },
+  {
+    "id": "kb-71",
+    "module": "mod071",
+    "title": "LanternDesk mod071 support note",
+    "body": "For mod071, set recovery code LD-071 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-071 to enabled"
+  },
+  {
+    "id": "kb-72",
+    "module": "mod072",
+    "title": "LanternDesk mod072 support note",
+    "body": "For mod072, set recovery code LD-072 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-072 to enabled"
+  },
+  {
+    "id": "kb-73",
+    "module": "mod073",
+    "title": "LanternDesk mod073 support note",
+    "body": "For mod073, set recovery code LD-073 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-073 to enabled"
+  },
+  {
+    "id": "kb-74",
+    "module": "mod074",
+    "title": "LanternDesk mod074 support note",
+    "body": "For mod074, set recovery code LD-074 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-074 to enabled"
+  },
+  {
+    "id": "kb-75",
+    "module": "mod075",
+    "title": "LanternDesk mod075 support note",
+    "body": "For mod075, set recovery code LD-075 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-075 to enabled"
+  },
+  {
+    "id": "kb-76",
+    "module": "mod076",
+    "title": "LanternDesk mod076 support note",
+    "body": "For mod076, set recovery code LD-076 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-076 to enabled"
+  },
+  {
+    "id": "kb-77",
+    "module": "mod077",
+    "title": "LanternDesk mod077 support note",
+    "body": "For mod077, set recovery code LD-077 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-077 to enabled"
+  },
+  {
+    "id": "kb-78",
+    "module": "mod078",
+    "title": "LanternDesk mod078 support note",
+    "body": "For mod078, set recovery code LD-078 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-078 to enabled"
+  },
+  {
+    "id": "kb-79",
+    "module": "mod079",
+    "title": "LanternDesk mod079 support note",
+    "body": "For mod079, set recovery code LD-079 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-079 to enabled"
+  },
+  {
+    "id": "kb-80",
+    "module": "mod080",
+    "title": "LanternDesk mod080 support note",
+    "body": "For mod080, set recovery code LD-080 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-080 to enabled"
+  },
+  {
+    "id": "kb-81",
+    "module": "mod081",
+    "title": "LanternDesk mod081 support note",
+    "body": "For mod081, set recovery code LD-081 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-081 to enabled"
+  },
+  {
+    "id": "kb-82",
+    "module": "mod082",
+    "title": "LanternDesk mod082 support note",
+    "body": "For mod082, set recovery code LD-082 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-082 to enabled"
+  },
+  {
+    "id": "kb-83",
+    "module": "mod083",
+    "title": "LanternDesk mod083 support note",
+    "body": "For mod083, set recovery code LD-083 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-083 to enabled"
+  },
+  {
+    "id": "kb-84",
+    "module": "mod084",
+    "title": "LanternDesk mod084 support note",
+    "body": "For mod084, set recovery code LD-084 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-084 to enabled"
+  },
+  {
+    "id": "kb-85",
+    "module": "mod085",
+    "title": "LanternDesk mod085 support note",
+    "body": "For mod085, set recovery code LD-085 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-085 to enabled"
+  },
+  {
+    "id": "kb-86",
+    "module": "mod086",
+    "title": "LanternDesk mod086 support note",
+    "body": "For mod086, set recovery code LD-086 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-086 to enabled"
+  },
+  {
+    "id": "kb-87",
+    "module": "mod087",
+    "title": "LanternDesk mod087 support note",
+    "body": "For mod087, set recovery code LD-087 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-087 to enabled"
+  },
+  {
+    "id": "kb-88",
+    "module": "mod088",
+    "title": "LanternDesk mod088 support note",
+    "body": "For mod088, set recovery code LD-088 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-088 to enabled"
+  },
+  {
+    "id": "kb-89",
+    "module": "mod089",
+    "title": "LanternDesk mod089 support note",
+    "body": "For mod089, set recovery code LD-089 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-089 to enabled"
+  },
+  {
+    "id": "kb-90",
+    "module": "mod090",
+    "title": "LanternDesk mod090 support note",
+    "body": "For mod090, set recovery code LD-090 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-090 to enabled"
+  },
+  {
+    "id": "kb-91",
+    "module": "mod091",
+    "title": "LanternDesk mod091 support note",
+    "body": "For mod091, set recovery code LD-091 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-091 to enabled"
+  },
+  {
+    "id": "kb-92",
+    "module": "mod092",
+    "title": "LanternDesk mod092 support note",
+    "body": "For mod092, set recovery code LD-092 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-092 to enabled"
+  },
+  {
+    "id": "kb-93",
+    "module": "mod093",
+    "title": "LanternDesk mod093 support note",
+    "body": "For mod093, set recovery code LD-093 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-093 to enabled"
+  },
+  {
+    "id": "kb-94",
+    "module": "mod094",
+    "title": "LanternDesk mod094 support note",
+    "body": "For mod094, set recovery code LD-094 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-094 to enabled"
+  },
+  {
+    "id": "kb-95",
+    "module": "mod095",
+    "title": "LanternDesk mod095 support note",
+    "body": "For mod095, set recovery code LD-095 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-095 to enabled"
+  },
+  {
+    "id": "kb-96",
+    "module": "mod096",
+    "title": "LanternDesk mod096 support note",
+    "body": "For mod096, set recovery code LD-096 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-096 to enabled"
+  },
+  {
+    "id": "kb-97",
+    "module": "mod097",
+    "title": "LanternDesk mod097 support note",
+    "body": "For mod097, set recovery code LD-097 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-097 to enabled"
+  },
+  {
+    "id": "kb-98",
+    "module": "mod098",
+    "title": "LanternDesk mod098 support note",
+    "body": "For mod098, set recovery code LD-098 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-098 to enabled"
+  },
+  {
+    "id": "kb-99",
+    "module": "mod099",
+    "title": "LanternDesk mod099 support note",
+    "body": "For mod099, set recovery code LD-099 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-099 to enabled"
+  },
+  {
+    "id": "kb-100",
+    "module": "mod100",
+    "title": "LanternDesk mod100 support note",
+    "body": "For mod100, set recovery code LD-100 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-100 to enabled"
+  },
+  {
+    "id": "kb-101",
+    "module": "mod101",
+    "title": "LanternDesk mod101 support note",
+    "body": "For mod101, set recovery code LD-101 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-101 to enabled"
+  },
+  {
+    "id": "kb-102",
+    "module": "mod102",
+    "title": "LanternDesk mod102 support note",
+    "body": "For mod102, set recovery code LD-102 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-102 to enabled"
+  },
+  {
+    "id": "kb-103",
+    "module": "mod103",
+    "title": "LanternDesk mod103 support note",
+    "body": "For mod103, set recovery code LD-103 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-103 to enabled"
+  },
+  {
+    "id": "kb-104",
+    "module": "mod104",
+    "title": "LanternDesk mod104 support note",
+    "body": "For mod104, set recovery code LD-104 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-104 to enabled"
+  },
+  {
+    "id": "kb-105",
+    "module": "mod105",
+    "title": "LanternDesk mod105 support note",
+    "body": "For mod105, set recovery code LD-105 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-105 to enabled"
+  },
+  {
+    "id": "kb-106",
+    "module": "mod106",
+    "title": "LanternDesk mod106 support note",
+    "body": "For mod106, set recovery code LD-106 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-106 to enabled"
+  },
+  {
+    "id": "kb-107",
+    "module": "mod107",
+    "title": "LanternDesk mod107 support note",
+    "body": "For mod107, set recovery code LD-107 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-107 to enabled"
+  },
+  {
+    "id": "kb-108",
+    "module": "mod108",
+    "title": "LanternDesk mod108 support note",
+    "body": "For mod108, set recovery code LD-108 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-108 to enabled"
+  },
+  {
+    "id": "kb-109",
+    "module": "mod109",
+    "title": "LanternDesk mod109 support note",
+    "body": "For mod109, set recovery code LD-109 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-109 to enabled"
+  },
+  {
+    "id": "kb-110",
+    "module": "mod110",
+    "title": "LanternDesk mod110 support note",
+    "body": "For mod110, set recovery code LD-110 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-110 to enabled"
+  },
+  {
+    "id": "kb-111",
+    "module": "mod111",
+    "title": "LanternDesk mod111 support note",
+    "body": "For mod111, set recovery code LD-111 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-111 to enabled"
+  },
+  {
+    "id": "kb-112",
+    "module": "mod112",
+    "title": "LanternDesk mod112 support note",
+    "body": "For mod112, set recovery code LD-112 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-112 to enabled"
+  },
+  {
+    "id": "kb-113",
+    "module": "mod113",
+    "title": "LanternDesk mod113 support note",
+    "body": "For mod113, set recovery code LD-113 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-113 to enabled"
+  },
+  {
+    "id": "kb-114",
+    "module": "mod114",
+    "title": "LanternDesk mod114 support note",
+    "body": "For mod114, set recovery code LD-114 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-114 to enabled"
+  },
+  {
+    "id": "kb-115",
+    "module": "mod115",
+    "title": "LanternDesk mod115 support note",
+    "body": "For mod115, set recovery code LD-115 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-115 to enabled"
+  },
+  {
+    "id": "kb-116",
+    "module": "mod116",
+    "title": "LanternDesk mod116 support note",
+    "body": "For mod116, set recovery code LD-116 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-116 to enabled"
+  },
+  {
+    "id": "kb-117",
+    "module": "mod117",
+    "title": "LanternDesk mod117 support note",
+    "body": "For mod117, set recovery code LD-117 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-117 to enabled"
+  },
+  {
+    "id": "kb-118",
+    "module": "mod118",
+    "title": "LanternDesk mod118 support note",
+    "body": "For mod118, set recovery code LD-118 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-118 to enabled"
+  },
+  {
+    "id": "kb-119",
+    "module": "mod119",
+    "title": "LanternDesk mod119 support note",
+    "body": "For mod119, set recovery code LD-119 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-119 to enabled"
+  },
+  {
+    "id": "kb-120",
+    "module": "mod120",
+    "title": "LanternDesk mod120 support note",
+    "body": "For mod120, set recovery code LD-120 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-120 to enabled"
+  },
+  {
+    "id": "kb-121",
+    "module": "mod121",
+    "title": "LanternDesk mod121 support note",
+    "body": "For mod121, set recovery code LD-121 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-121 to enabled"
+  },
+  {
+    "id": "kb-122",
+    "module": "mod122",
+    "title": "LanternDesk mod122 support note",
+    "body": "For mod122, set recovery code LD-122 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-122 to enabled"
+  },
+  {
+    "id": "kb-123",
+    "module": "mod123",
+    "title": "LanternDesk mod123 support note",
+    "body": "For mod123, set recovery code LD-123 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-123 to enabled"
+  },
+  {
+    "id": "kb-124",
+    "module": "mod124",
+    "title": "LanternDesk mod124 support note",
+    "body": "For mod124, set recovery code LD-124 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-124 to enabled"
+  },
+  {
+    "id": "kb-125",
+    "module": "mod125",
+    "title": "LanternDesk mod125 support note",
+    "body": "For mod125, set recovery code LD-125 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-125 to enabled"
+  },
+  {
+    "id": "kb-126",
+    "module": "mod126",
+    "title": "LanternDesk mod126 support note",
+    "body": "For mod126, set recovery code LD-126 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-126 to enabled"
+  },
+  {
+    "id": "kb-127",
+    "module": "mod127",
+    "title": "LanternDesk mod127 support note",
+    "body": "For mod127, set recovery code LD-127 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-127 to enabled"
+  },
+  {
+    "id": "kb-128",
+    "module": "mod128",
+    "title": "LanternDesk mod128 support note",
+    "body": "For mod128, set recovery code LD-128 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-128 to enabled"
+  },
+  {
+    "id": "kb-129",
+    "module": "mod129",
+    "title": "LanternDesk mod129 support note",
+    "body": "For mod129, set recovery code LD-129 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-129 to enabled"
+  },
+  {
+    "id": "kb-130",
+    "module": "mod130",
+    "title": "LanternDesk mod130 support note",
+    "body": "For mod130, set recovery code LD-130 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-130 to enabled"
+  },
+  {
+    "id": "kb-131",
+    "module": "mod131",
+    "title": "LanternDesk mod131 support note",
+    "body": "For mod131, set recovery code LD-131 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-131 to enabled"
+  },
+  {
+    "id": "kb-132",
+    "module": "mod132",
+    "title": "LanternDesk mod132 support note",
+    "body": "For mod132, set recovery code LD-132 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-132 to enabled"
+  },
+  {
+    "id": "kb-133",
+    "module": "mod133",
+    "title": "LanternDesk mod133 support note",
+    "body": "For mod133, set recovery code LD-133 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-133 to enabled"
+  },
+  {
+    "id": "kb-134",
+    "module": "mod134",
+    "title": "LanternDesk mod134 support note",
+    "body": "For mod134, set recovery code LD-134 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-134 to enabled"
+  },
+  {
+    "id": "kb-135",
+    "module": "mod135",
+    "title": "LanternDesk mod135 support note",
+    "body": "For mod135, set recovery code LD-135 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-135 to enabled"
+  },
+  {
+    "id": "kb-136",
+    "module": "mod136",
+    "title": "LanternDesk mod136 support note",
+    "body": "For mod136, set recovery code LD-136 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-136 to enabled"
+  },
+  {
+    "id": "kb-137",
+    "module": "mod137",
+    "title": "LanternDesk mod137 support note",
+    "body": "For mod137, set recovery code LD-137 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-137 to enabled"
+  },
+  {
+    "id": "kb-138",
+    "module": "mod138",
+    "title": "LanternDesk mod138 support note",
+    "body": "For mod138, set recovery code LD-138 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-138 to enabled"
+  },
+  {
+    "id": "kb-139",
+    "module": "mod139",
+    "title": "LanternDesk mod139 support note",
+    "body": "For mod139, set recovery code LD-139 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-139 to enabled"
+  },
+  {
+    "id": "kb-140",
+    "module": "mod140",
+    "title": "LanternDesk mod140 support note",
+    "body": "For mod140, set recovery code LD-140 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-140 to enabled"
+  },
+  {
+    "id": "kb-141",
+    "module": "mod141",
+    "title": "LanternDesk mod141 support note",
+    "body": "For mod141, set recovery code LD-141 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-141 to enabled"
+  },
+  {
+    "id": "kb-142",
+    "module": "mod142",
+    "title": "LanternDesk mod142 support note",
+    "body": "For mod142, set recovery code LD-142 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-142 to enabled"
+  },
+  {
+    "id": "kb-143",
+    "module": "mod143",
+    "title": "LanternDesk mod143 support note",
+    "body": "For mod143, set recovery code LD-143 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-143 to enabled"
+  },
+  {
+    "id": "kb-144",
+    "module": "mod144",
+    "title": "LanternDesk mod144 support note",
+    "body": "For mod144, set recovery code LD-144 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-144 to enabled"
+  },
+  {
+    "id": "kb-145",
+    "module": "mod145",
+    "title": "LanternDesk mod145 support note",
+    "body": "For mod145, set recovery code LD-145 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-145 to enabled"
+  },
+  {
+    "id": "kb-146",
+    "module": "mod146",
+    "title": "LanternDesk mod146 support note",
+    "body": "For mod146, set recovery code LD-146 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-146 to enabled"
+  },
+  {
+    "id": "kb-147",
+    "module": "mod147",
+    "title": "LanternDesk mod147 support note",
+    "body": "For mod147, set recovery code LD-147 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-147 to enabled"
+  },
+  {
+    "id": "kb-148",
+    "module": "mod148",
+    "title": "LanternDesk mod148 support note",
+    "body": "For mod148, set recovery code LD-148 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-148 to enabled"
+  },
+  {
+    "id": "kb-149",
+    "module": "mod149",
+    "title": "LanternDesk mod149 support note",
+    "body": "For mod149, set recovery code LD-149 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-149 to enabled"
+  },
+  {
+    "id": "kb-150",
+    "module": "mod150",
+    "title": "LanternDesk mod150 support note",
+    "body": "For mod150, set recovery code LD-150 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-150 to enabled"
+  },
+  {
+    "id": "kb-151",
+    "module": "mod151",
+    "title": "LanternDesk mod151 support note",
+    "body": "For mod151, set recovery code LD-151 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-151 to enabled"
+  },
+  {
+    "id": "kb-152",
+    "module": "mod152",
+    "title": "LanternDesk mod152 support note",
+    "body": "For mod152, set recovery code LD-152 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-152 to enabled"
+  },
+  {
+    "id": "kb-153",
+    "module": "mod153",
+    "title": "LanternDesk mod153 support note",
+    "body": "For mod153, set recovery code LD-153 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-153 to enabled"
+  },
+  {
+    "id": "kb-154",
+    "module": "mod154",
+    "title": "LanternDesk mod154 support note",
+    "body": "For mod154, set recovery code LD-154 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-154 to enabled"
+  },
+  {
+    "id": "kb-155",
+    "module": "mod155",
+    "title": "LanternDesk mod155 support note",
+    "body": "For mod155, set recovery code LD-155 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-155 to enabled"
+  },
+  {
+    "id": "kb-156",
+    "module": "mod156",
+    "title": "LanternDesk mod156 support note",
+    "body": "For mod156, set recovery code LD-156 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-156 to enabled"
+  },
+  {
+    "id": "kb-157",
+    "module": "mod157",
+    "title": "LanternDesk mod157 support note",
+    "body": "For mod157, set recovery code LD-157 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-157 to enabled"
+  },
+  {
+    "id": "kb-158",
+    "module": "mod158",
+    "title": "LanternDesk mod158 support note",
+    "body": "For mod158, set recovery code LD-158 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-158 to enabled"
+  },
+  {
+    "id": "kb-159",
+    "module": "mod159",
+    "title": "LanternDesk mod159 support note",
+    "body": "For mod159, set recovery code LD-159 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-159 to enabled"
+  },
+  {
+    "id": "kb-160",
+    "module": "mod160",
+    "title": "LanternDesk mod160 support note",
+    "body": "For mod160, set recovery code LD-160 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-160 to enabled"
+  },
+  {
+    "id": "kb-161",
+    "module": "mod161",
+    "title": "LanternDesk mod161 support note",
+    "body": "For mod161, set recovery code LD-161 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-161 to enabled"
+  },
+  {
+    "id": "kb-162",
+    "module": "mod162",
+    "title": "LanternDesk mod162 support note",
+    "body": "For mod162, set recovery code LD-162 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-162 to enabled"
+  },
+  {
+    "id": "kb-163",
+    "module": "mod163",
+    "title": "LanternDesk mod163 support note",
+    "body": "For mod163, set recovery code LD-163 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-163 to enabled"
+  },
+  {
+    "id": "kb-164",
+    "module": "mod164",
+    "title": "LanternDesk mod164 support note",
+    "body": "For mod164, set recovery code LD-164 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-164 to enabled"
+  },
+  {
+    "id": "kb-165",
+    "module": "mod165",
+    "title": "LanternDesk mod165 support note",
+    "body": "For mod165, set recovery code LD-165 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-165 to enabled"
+  },
+  {
+    "id": "kb-166",
+    "module": "mod166",
+    "title": "LanternDesk mod166 support note",
+    "body": "For mod166, set recovery code LD-166 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-166 to enabled"
+  },
+  {
+    "id": "kb-167",
+    "module": "mod167",
+    "title": "LanternDesk mod167 support note",
+    "body": "For mod167, set recovery code LD-167 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-167 to enabled"
+  },
+  {
+    "id": "kb-168",
+    "module": "mod168",
+    "title": "LanternDesk mod168 support note",
+    "body": "For mod168, set recovery code LD-168 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-168 to enabled"
+  },
+  {
+    "id": "kb-169",
+    "module": "mod169",
+    "title": "LanternDesk mod169 support note",
+    "body": "For mod169, set recovery code LD-169 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-169 to enabled"
+  },
+  {
+    "id": "kb-170",
+    "module": "mod170",
+    "title": "LanternDesk mod170 support note",
+    "body": "For mod170, set recovery code LD-170 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-170 to enabled"
+  },
+  {
+    "id": "kb-171",
+    "module": "mod171",
+    "title": "LanternDesk mod171 support note",
+    "body": "For mod171, set recovery code LD-171 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-171 to enabled"
+  },
+  {
+    "id": "kb-172",
+    "module": "mod172",
+    "title": "LanternDesk mod172 support note",
+    "body": "For mod172, set recovery code LD-172 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-172 to enabled"
+  },
+  {
+    "id": "kb-173",
+    "module": "mod173",
+    "title": "LanternDesk mod173 support note",
+    "body": "For mod173, set recovery code LD-173 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-173 to enabled"
+  },
+  {
+    "id": "kb-174",
+    "module": "mod174",
+    "title": "LanternDesk mod174 support note",
+    "body": "For mod174, set recovery code LD-174 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-174 to enabled"
+  },
+  {
+    "id": "kb-175",
+    "module": "mod175",
+    "title": "LanternDesk mod175 support note",
+    "body": "For mod175, set recovery code LD-175 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-175 to enabled"
+  },
+  {
+    "id": "kb-176",
+    "module": "mod176",
+    "title": "LanternDesk mod176 support note",
+    "body": "For mod176, set recovery code LD-176 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-176 to enabled"
+  },
+  {
+    "id": "kb-177",
+    "module": "mod177",
+    "title": "LanternDesk mod177 support note",
+    "body": "For mod177, set recovery code LD-177 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-177 to enabled"
+  },
+  {
+    "id": "kb-178",
+    "module": "mod178",
+    "title": "LanternDesk mod178 support note",
+    "body": "For mod178, set recovery code LD-178 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-178 to enabled"
+  },
+  {
+    "id": "kb-179",
+    "module": "mod179",
+    "title": "LanternDesk mod179 support note",
+    "body": "For mod179, set recovery code LD-179 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-179 to enabled"
+  },
+  {
+    "id": "kb-180",
+    "module": "mod180",
+    "title": "LanternDesk mod180 support note",
+    "body": "For mod180, set recovery code LD-180 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-180 to enabled"
+  },
+  {
+    "id": "kb-181",
+    "module": "mod181",
+    "title": "LanternDesk mod181 support note",
+    "body": "For mod181, set recovery code LD-181 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-181 to enabled"
+  },
+  {
+    "id": "kb-182",
+    "module": "mod182",
+    "title": "LanternDesk mod182 support note",
+    "body": "For mod182, set recovery code LD-182 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-182 to enabled"
+  },
+  {
+    "id": "kb-183",
+    "module": "mod183",
+    "title": "LanternDesk mod183 support note",
+    "body": "For mod183, set recovery code LD-183 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-183 to enabled"
+  },
+  {
+    "id": "kb-184",
+    "module": "mod184",
+    "title": "LanternDesk mod184 support note",
+    "body": "For mod184, set recovery code LD-184 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-184 to enabled"
+  },
+  {
+    "id": "kb-185",
+    "module": "mod185",
+    "title": "LanternDesk mod185 support note",
+    "body": "For mod185, set recovery code LD-185 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-185 to enabled"
+  },
+  {
+    "id": "kb-186",
+    "module": "mod186",
+    "title": "LanternDesk mod186 support note",
+    "body": "For mod186, set recovery code LD-186 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-186 to enabled"
+  },
+  {
+    "id": "kb-187",
+    "module": "mod187",
+    "title": "LanternDesk mod187 support note",
+    "body": "For mod187, set recovery code LD-187 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-187 to enabled"
+  },
+  {
+    "id": "kb-188",
+    "module": "mod188",
+    "title": "LanternDesk mod188 support note",
+    "body": "For mod188, set recovery code LD-188 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-188 to enabled"
+  },
+  {
+    "id": "kb-189",
+    "module": "mod189",
+    "title": "LanternDesk mod189 support note",
+    "body": "For mod189, set recovery code LD-189 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-189 to enabled"
+  },
+  {
+    "id": "kb-190",
+    "module": "mod190",
+    "title": "LanternDesk mod190 support note",
+    "body": "For mod190, set recovery code LD-190 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-190 to enabled"
+  },
+  {
+    "id": "kb-191",
+    "module": "mod191",
+    "title": "LanternDesk mod191 support note",
+    "body": "For mod191, set recovery code LD-191 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-191 to enabled"
+  },
+  {
+    "id": "kb-192",
+    "module": "mod192",
+    "title": "LanternDesk mod192 support note",
+    "body": "For mod192, set recovery code LD-192 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-192 to enabled"
+  },
+  {
+    "id": "kb-193",
+    "module": "mod193",
+    "title": "LanternDesk mod193 support note",
+    "body": "For mod193, set recovery code LD-193 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-193 to enabled"
+  },
+  {
+    "id": "kb-194",
+    "module": "mod194",
+    "title": "LanternDesk mod194 support note",
+    "body": "For mod194, set recovery code LD-194 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-194 to enabled"
+  },
+  {
+    "id": "kb-195",
+    "module": "mod195",
+    "title": "LanternDesk mod195 support note",
+    "body": "For mod195, set recovery code LD-195 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-195 to enabled"
+  },
+  {
+    "id": "kb-196",
+    "module": "mod196",
+    "title": "LanternDesk mod196 support note",
+    "body": "For mod196, set recovery code LD-196 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-196 to enabled"
+  },
+  {
+    "id": "kb-197",
+    "module": "mod197",
+    "title": "LanternDesk mod197 support note",
+    "body": "For mod197, set recovery code LD-197 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-197 to enabled"
+  },
+  {
+    "id": "kb-198",
+    "module": "mod198",
+    "title": "LanternDesk mod198 support note",
+    "body": "For mod198, set recovery code LD-198 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-198 to enabled"
+  },
+  {
+    "id": "kb-199",
+    "module": "mod199",
+    "title": "LanternDesk mod199 support note",
+    "body": "For mod199, set recovery code LD-199 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-199 to enabled"
+  },
+  {
+    "id": "kb-200",
+    "module": "mod200",
+    "title": "LanternDesk mod200 support note",
+    "body": "For mod200, set recovery code LD-200 to enabled. This restores its status panel.",
+    "key_fact": "set recovery code LD-200 to enabled"
+  }
+]

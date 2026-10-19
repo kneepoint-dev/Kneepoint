@@ -118,18 +118,24 @@ below shades the ramp from the first contaminated level onward.
 <p class="muted">Steady completions finish inside [level start + hold/3,
 level start + 4×hold/5); warm-up and the drain tail are excluded. Raw throughput
 uses the whole observed window. A wall-clock fallback means the record predates
-monotonic starts, so a clock step can distort its rates.</p>
+monotonic starts, so a clock step can distort its rates. Counting resolution is
+±(N/X)/k seconds; the stall threshold is max(50 ms, 5% of R, twice that resolution).
+The throughput bound is N/R_min, using the lowest level’s mean response.</p>
 <table>
   <tr><th>c (N)</th><th>Clock</th><th>Raw X /s</th><th>Steady X /s</th>
-      <th>Completions</th><th>Mean R s</th><th>N/X − R − Z</th><th>Check</th></tr>
+      <th>Completions k</th><th>Mean R s</th><th>N/X − R − Z</th>
+      <th>Resolution ±s</th><th>Stall threshold s</th><th>Bound X /s</th><th>Check</th></tr>
   {% for s in stats %}
   <tr><td>{{ s.concurrency }}</td><td>{{ s.timing_source }}</td>
       <td>{{ "%.3f"|format(s.throughput_rps) if s.throughput_rps is not none else "n/a" }}</td>
-      <td>{{ "%.3f"|format(s.steady_throughput_rps) if s.steady_throughput_rps is not none else "n/a" }}</td>
+      <td>{{ "%.3f"|format(s.steady_throughput_rps) if s.steady_throughput_rps is not none else "n/a" }} (k={{ s.steady_completions }})</td>
       <td>{{ s.steady_completions }}</td>
       <td>{{ "%.3f"|format(s.steady_mean_response_s) if s.steady_mean_response_s is not none else "n/a" }}</td>
       <td>{{ "%+.3f"|format(s.little_gap_s) if s.little_gap_s is not none else "n/a" }}</td>
-      <td>{% if s.suspected_stall %}<strong>suspected client or instrument stall</strong>{% else %}—{% endif %}</td></tr>
+      <td>{{ "%.3f"|format(s.little_resolution_s) if s.little_resolution_s is not none else "n/a" }}</td>
+      <td>{{ "%.3f"|format(s.stall_threshold_s) if s.stall_threshold_s is not none else "n/a" }}</td>
+      <td>{{ "%.3f"|format(s.throughput_bound_rps) if s.throughput_bound_rps is not none else "n/a" }}</td>
+      <td>{% if s.estimator_clock_problem %}<strong>estimator or clock problem</strong> {% endif %}{% if s.suspected_stall %}<strong>suspected client or instrument stall</strong>{% else %}—{% endif %}</td></tr>
   {% endfor %}
 </table>
 {% endif %}

@@ -260,8 +260,14 @@ def _print_timing(stats, echo=typer.echo) -> None:
             continue
         gap = "n/a" if s.little_gap_s is None else f"{s.little_gap_s * 1000:+.1f} ms"
         warning = " - suspected client or instrument stall" if s.suspected_stall else ""
+        if s.estimator_clock_problem:
+            warning += " - estimator or clock problem"
+        resolution = (f", resolution=±{s.little_resolution_s * 1000:.1f} ms"
+                      if s.little_resolution_s is not None else "")
+        threshold = (f", stall threshold={s.stall_threshold_s * 1000:.1f} ms"
+                     if s.stall_threshold_s is not None else "")
         echo(f"  c={s.concurrency}: steady X={s.steady_throughput_rps:.3f}/s, "
-             f"completions={s.steady_completions}, law gap={gap} "
+             f"k={s.steady_completions} completions, law gap={gap}{resolution}{threshold} "
              f"({s.timing_source}){warning}")
 
 
@@ -607,12 +613,7 @@ def run(
     # `kneepoint report` will later read from the same file
     run_meta = read_run_meta(meta_path)
 
-    stats = aggregate(
-        records, hold_seconds=run_meta.hold_seconds,
-        think_time_ms=(session_spec.think_time.min_ms, session_spec.think_time.max_ms),
-        level_starts_monotonic_s=run_meta.level_starts_monotonic_s,
-        level_status=run_meta.level_status,
-    )
+    stats = aggregate(records, run_meta=run_meta)
     _warn_contamination(stats)
     _print_timing(stats)
     retry_levels = retry_by_level(records, all_sessions)
