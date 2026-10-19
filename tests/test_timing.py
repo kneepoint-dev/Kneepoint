@@ -1,6 +1,7 @@
 """Clock and closed-loop checks without a server or a load run."""
 
 import json
+import random
 import time
 
 import httpx
@@ -215,8 +216,8 @@ async def test_ramp_propagates_the_origin_and_records_level_start():
 
 def test_production_size_has_one_record_visit_and_linear_growth(monkeypatch):
     rows = [rec(level, f"s{session}", 1000 + i / 10, i / 10, 0.1)
-            for level in range(1, 21) for session in range(50)
-            for i in range(25)]
+            for level in range(1, 21) for session in range(5)
+            for i in range(250)]
     assert len(rows) == 25_000
     inspected = 0
     original = timing._inspect_record
@@ -229,6 +230,7 @@ def test_production_size_has_one_record_visit_and_linear_growth(monkeypatch):
     monkeypatch.setattr(timing, "_inspect_record", counted)
     timing.analyze_timing(rows, hold_seconds=15)
     assert inspected == len(rows)
+    assert timing.analyze_timing(rows, hold_seconds=15)[1].count_resolution_completions == 1
     monkeypatch.setattr(timing, "_inspect_record", original)
     t0 = time.perf_counter()
     timing.analyze_timing(rows, hold_seconds=15)
@@ -247,9 +249,59 @@ def test_short_healthy_closed_loop_respects_counting_resolution(hold):
     t = timing.analyze_timing(rows, hold_seconds=hold,
                               level_starts_monotonic_s={1: 0})[1]
     assert t.steady_completions > 0
-    assert abs(t.little_gap_s) > .050 or hold > .5
+    if t.steady_completions < 2:
+        assert not t.law_check_judged and t.little_gap_s is None
+    else:
+        assert t.law_check_judged
     assert t.stall_threshold_s == max(.050, .05 * .301, 2 * t.little_resolution_s)
     assert not t.suspected_stall
+
+
+def _seeded_closed_loop(seed, *, mean_r, cv, client_idle):
+    rng = random.Random(seed)
+    rows = []
+    for worker in range(16):
+        start = 0.0
+        while start < 18:
+            duration = max(0.02, rng.gauss(mean_r, mean_r * cv))
+            rows.append(rec(16, f"worker-{worker}", 1000 + start, start, duration))
+            start += duration + client_idle
+    rows.sort(key=lambda row: row.started_monotonic_s + row.total_ms / 1000)
+    return timing.analyze_timing(rows, hold_seconds=15,
+                                 level_starts_monotonic_s={16: 0})[16]
+
+
+def test_shift_resolution_rejects_phase_locked_false_stalls_with_fixed_seeds():
+    levels = [_seeded_closed_loop(seed, mean_r=2.4, cv=.1, client_idle=0)
+              for seed in range(100)]
+    assert all(level.law_check_judged for level in levels)
+    assert sum(level.suspected_stall for level in levels) <= 5
+
+
+def test_shift_resolution_catches_fast_client_idle_with_fixed_seeds():
+    levels = [_seeded_closed_loop(seed, mean_r=.1, cv=.3, client_idle=.06)
+              for seed in range(100)]
+    assert all(level.law_check_judged for level in levels)
+    assert sum(level.suspected_stall for level in levels) >= 95
+
+
+def test_short_level_is_too_short_to_judge_in_stats_cli_and_html(tmp_path):
+    rows = [rec(16, f"worker-{worker}", 1000, 0, 2.4) for worker in range(16)]
+    rows += [rec(16, f"worker-{worker}", 1002.4, 2.4, 2.4)
+             for worker in range(16)]
+    stats = aggregate(rows, hold_seconds=5, level_starts_monotonic_s={16: 0})
+    assert stats[0].steady_completions < 32
+    assert not stats[0].law_check_judged
+    assert not stats[0].suspected_stall and not stats[0].estimator_clock_problem
+    lines = []
+    _print_timing(stats, echo=lines.append)
+    assert "too short to judge (k < 2N)" in lines[0]
+    from kneepoint.report.html import RunMeta, write_report
+    html = write_report(tmp_path / "short.html", meta=RunMeta(
+        target="x", model="m", started="now", ramp="16", chaos="off",
+        total_requests=len(rows), total_sessions=0,
+    ), stats=stats, knee=None, quality=[], cost=None, res=None).read_text()
+    assert "too short to judge (k &lt; 2N)" in html
 
 
 def test_impossible_rate_is_named_as_estimator_or_clock_problem(tmp_path):

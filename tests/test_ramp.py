@@ -1,5 +1,9 @@
+import asyncio
+import threading
+
 import pytest
 
+from kneepoint.generator.monitor import InjectorMonitor
 from kneepoint.generator.ramp import RampSpec, parse_ramp, run_ramp
 
 
@@ -50,8 +54,30 @@ async def test_injector_monitor_is_saved_per_level_and_can_be_disabled(mock_agen
     assert measured.lag_p95_ms is not None
     assert measured.lag_max_ms >= measured.lag_p95_ms
     assert measured.cpu_core_share >= 0
+    assert measured.process_cpu_core_share >= 0
     assert measured.request_rate_rps > 0
     disabled = RunEvidence()
     await run_ramp(mock_agent_url, "mock", spec, CorpusSampler(["hi"]),
                    SessionSpec(), evidence=disabled, monitor_injector=False)
     assert disabled.injector_levels == {}
+
+
+async def test_background_cpu_thread_does_not_count_as_loop_cpu():
+    stop = threading.Event()
+
+    def spin():
+        value = 0
+        while not stop.is_set():
+            value += 1
+
+    monitor = InjectorMonitor()
+    worker = threading.Thread(target=spin)
+    worker.start()
+    try:
+        await asyncio.sleep(.5)
+    finally:
+        stop.set()
+        worker.join()
+    measured = await monitor.finish([])
+    assert measured.process_cpu_core_share > .5
+    assert measured.cpu_core_share < .2

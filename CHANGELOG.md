@@ -3,6 +3,17 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [0.3.0rc4] - UNRELEASED
+
+**Local candidate; not a published release.**
+
+- Judge the closed-loop law and throughput bound only with at least two steady
+  completions per active session. Estimate count resolution from five shifted
+  steady windows to avoid false stall readings in synchronized workloads.
+- Separate event-loop CPU from whole-process CPU. The injector flag now uses
+  loop CPU; reports label both values.
+- Add Documentation, Changelog and Issues links to the package metadata.
+
 ## [0.3.0rc3] - UNRELEASED
 
 **Local candidate; not a published release.**

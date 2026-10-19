@@ -14,6 +14,8 @@ class LevelTiming:
     throughput_rps: float | None = None  # whole observed window, legacy/raw name
     steady_throughput_rps: float | None = None
     steady_completions: int = 0
+    law_check_judged: bool = False
+    count_resolution_completions: float | None = None
     steady_mean_response_s: float | None = None
     little_gap_s: float | None = None
     little_resolution_s: float | None = None
@@ -156,11 +158,21 @@ def analyze_timing(
         if level.steady_completions:
             mean_r = response_total / level.steady_completions
             level.steady_mean_response_s = mean_r
+            level.law_check_judged = level.steady_completions >= 2 * level.concurrency
+            shift = min(mean_r / 2, hold_seconds / 5)
+            shifted = [0, 0, level.steady_completions, 0, 0]
+            for record in level._rows:
+                start = record.started_monotonic_s if monotonic else record.started_at
+                end = start + record.total_ms / 1000
+                for index, factor in ((0, -1), (1, -0.5), (3, 0.5), (4, 1)):
+                    shifted[index] += low + factor * shift <= end < high + factor * shift
+            level.count_resolution_completions = max(1.0, (max(shifted) - min(shifted)) / 2)
             level.little_resolution_s = (
                 level.concurrency / level.steady_throughput_rps / level.steady_completions
+                * level.count_resolution_completions
             )
             level.stall_threshold_s = max(0.050, 0.05 * mean_r, 2 * level.little_resolution_s)
-            if think_s is None:
+            if think_s is None or not level.law_check_judged:
                 continue  # old metadata did not record Z; never invent a law gap
             # Only successful turns followed by another turn sleep. A worker
             # starts its next session immediately after the final turn.
@@ -176,9 +188,10 @@ def analyze_timing(
         if floor is not None and floor > 0:
             for level in levels.values():
                 level.throughput_bound_rps = level.concurrency / floor
-                if level.steady_throughput_rps is not None and level.steady_completions:
+                if level.law_check_judged:
                     level.bound_counting_resolution_rps = (
-                        2 * level.steady_throughput_rps / level.steady_completions
+                        2 * level.steady_throughput_rps
+                        * level.count_resolution_completions / level.steady_completions
                     )
                 level.estimator_clock_problem = (
                     level.steady_throughput_rps is not None

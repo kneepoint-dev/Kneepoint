@@ -143,6 +143,7 @@ class InjectorLevel(BaseModel):
     lag_p95_ms: float | None = None
     lag_max_ms: float | None = None
     cpu_core_share: float | None = None
+    process_cpu_core_share: float | None = None
     request_rate_rps: float | None = None
     samples: int = 0
     injector_limited: bool = False

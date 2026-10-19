@@ -1,6 +1,6 @@
 [project]
 name = "kneepoint"
-version = "0.3.0rc3"
+version = "0.3.0rc4"
 description = "Find where your AI agent breaks: load, cost, and chaos testing for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
@@ -29,6 +29,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://kneepoint.dev"
 Repository = "https://github.com/kneepoint-dev/kneepoint"
+Documentation = "https://github.com/kneepoint-dev/kneepoint/tree/main/docs"
+Changelog = "https://github.com/kneepoint-dev/kneepoint/blob/main/CHANGELOG.md"
+Issues = "https://github.com/kneepoint-dev/kneepoint/issues"
 
 [project.optional-dependencies]
 docs = ["mkdocs-material"]

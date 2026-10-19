@@ -55,6 +55,8 @@ class LevelStats(BaseModel):
     throughput_rps: float | None = None
     steady_throughput_rps: float | None = None
     steady_completions: int = 0
+    law_check_judged: bool = False
+    count_resolution_completions: float | None = None
     steady_mean_response_s: float | None = None
     little_gap_s: float | None = None
     little_resolution_s: float | None = None
@@ -264,6 +266,8 @@ def aggregate(
                 throughput_rps=clock.throughput_rps,
                 steady_throughput_rps=clock.steady_throughput_rps,
                 steady_completions=clock.steady_completions,
+                law_check_judged=clock.law_check_judged,
+                count_resolution_completions=clock.count_resolution_completions,
                 steady_mean_response_s=clock.steady_mean_response_s,
                 little_gap_s=clock.little_gap_s,
                 suspected_stall=clock.suspected_stall,
@@ -306,6 +310,7 @@ def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[L
         contaminated |= bool(s.abandoned or t.clock_anomaly)
         updates = {name: getattr(t, name) for name in (
             "throughput_rps", "steady_throughput_rps", "steady_completions",
+            "law_check_judged", "count_resolution_completions",
             "steady_mean_response_s", "little_gap_s", "little_resolution_s",
             "stall_threshold_s", "throughput_bound_rps", "bound_counting_resolution_rps",
             "estimator_clock_problem",

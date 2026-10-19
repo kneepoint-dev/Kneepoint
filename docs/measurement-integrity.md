@@ -18,8 +18,10 @@ shows that synchronized sessions can inflate latency before CPU saturation.
 
 The CLI and report show **injector-limited** when the level's sampled event-loop
 lag p95 is above the larger of 5 ms or 2% of its median response time, or when
-the Kneepoint process uses more than 70% of one core. Read the flag beside the
-lag, CPU and request rate: at that level, client timing may be part of the
+the Kneepoint event loop uses more than 70% of one core. The table calls this
+**loop CPU** and separately shows **process CPU**, which includes any agent or
+worker threads in the same process. Read the flag beside the lag, both CPU
+shares and request rate: at that level, client timing may be part of the
 measured latency. A level without the flag can still have a synchronized
 completion convoy, so compare fixed and variable load when fast-target accuracy
 matters. Agents taking seconds with variable response times usually spread
@@ -55,8 +57,22 @@ where `Z` is the configured mean think time **per completed request**. The
 generator sleeps between turns of a session, then starts its next session
 without a pause. The analysis counts which completed turns were followed by
 another turn and applies the configured mean pause only to that fraction.
-The report shows `N/X − R − Z` for each level. A magnitude above the larger of
-50 ms or 5% of `R` is marked **suspected client or instrument stall**. This is a consistency
+The report shows `N/X − R − Z` only when the window has at least two completions
+per active session (`k ≥ 2N`). Shorter levels say **too short to judge (k < 2N)**;
+for example, a five-second demo hold can contain fewer than two waves of
+two-to-three-second responses. `law_check_judged` records this yes/no decision.
+
+Completion counts can change when the window moves slightly. Kneepoint shifts
+the window by `−d`, `−d/2`, `0`, `d/2` and `d`, with
+`d = min(mean response / 2, hold / 5)`. Half the spread of the five counts,
+with a minimum of one completion, is `count_resolution_completions`. A demo level
+with only one wave can therefore show a count resolution of several completions
+and still say **too short to judge**. The law-gap resolution is
+`(N/X) × count_resolution_completions / k`; the stall threshold is the largest
+of 50 ms, 5% of `R`, or twice that resolution. A gap above this threshold is
+marked **suspected client or instrument stall**. The `N/R_min` bound also
+allows `2 × X × count_resolution_completions / k`, and is judged only when
+`k ≥ 2N`. This is a consistency
 check, not a diagnosis: retries, variable think time and short holds can also
 affect it. A level without completions in the steady window has no gap value.
 Old metadata did not record `Z`, so re-rendering it shows the law gap as `n/a`

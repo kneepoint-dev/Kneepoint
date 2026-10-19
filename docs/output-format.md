@@ -250,7 +250,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `finished_monotonic_s` | float \| null | optional monotonic reading at run end; the difference from the start is the run duration even if the wall clock changes |
 | `level_starts_monotonic_s` | object \| null | optional level start offsets in seconds since the run's monotonic origin; the generator starts each hold here |
 | `level_status` | object \| null | optional outcome per level (for example `completed`, `stopped`, `failed`, or `budget_exceeded`); steady measurements require a completed hold |
-| `injector_levels` | object \| null | optional per-level monitor measurements: lag p50/p95/max in ms, process CPU share of one core, request rate per second, sample count and `injector_limited` flag; absent on older runs |
+| `injector_levels` | object \| null | optional per-level monitor measurements: lag p50/p95/max in ms, `cpu_core_share` (loop CPU as a share of one core), `process_cpu_core_share` (whole process, including threads), request rate per second, sample count and `injector_limited` flag; absent on older runs. The flag uses loop CPU |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
 
@@ -450,12 +450,20 @@ These references are not included in `LevelStats.model_dump()` or JSON. Timing
 is reused when the aggregate was computed with the same metadata.
 
 Steady X counts k completions in `[level_start + hold/3, level_start + 4*hold/5)`.
-The CLI and HTML display k alongside every steady X. Counting gives a law-gap
-resolution of approximately `±(N/X)/k` seconds; a suspected stall requires
-`abs(N/X − R − Z) > max(0.050, 0.05*R, 2*(N/X)/k)`. The report shows both the
-resolution and threshold. Incomplete holds retain no steady rate or law verdict.
+The CLI and HTML display k alongside every steady X. `law_check_judged` is true
+only when `k ≥ 2N`, meaning the window contains at least two completions per
+active session. A shorter level, such as a five-second demo hold whose responses
+take two to three seconds, reads **too short to judge (k < 2N)**, never a stall
+or bound problem. `count_resolution_completions` is the larger of one and half
+the spread of counts in the steady window shifted by `d × {−1, −½, 0, ½, 1}`,
+where `d = min(mean steady response / 2, hold / 5)`. The shifted counts use the
+same in-memory level records. The law-gap resolution is
+`±(N/X)*count_resolution_completions/k` seconds; a suspected stall requires
+`abs(N/X − R − Z) > max(0.050, 0.05*R, 2*(N/X)*count_resolution_completions/k)`.
+The report shows the count resolution, law resolution and threshold. Incomplete
+holds retain no steady rate or law verdict.
 A steady rate `X` is labeled **estimator or clock problem** only if
-`X − N/R_min > 2X/k`, where `R_min` is the mean response of the run's lowest
+`X − N/R_min > 2X*count_resolution_completions/k`, where `R_min` is the mean response of the run's lowest
 level. Smaller excesses are within counting resolution. This bound is
 unavailable when that level has no steady mean. Raw throughput retains its
 whole-window meaning.

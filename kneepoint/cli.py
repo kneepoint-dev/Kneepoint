@@ -260,7 +260,9 @@ def _print_timing(stats, echo=typer.echo) -> None:
             continue
         gap = "n/a" if s.little_gap_s is None else f"{s.little_gap_s * 1000:+.1f} ms"
         warning = " - suspected client or instrument stall" if s.suspected_stall else ""
-        if s.estimator_clock_problem:
+        if not s.law_check_judged:
+            warning += " - too short to judge (k < 2N)"
+        elif s.estimator_clock_problem:
             warning += " - estimator or clock problem"
         elif (s.bound_counting_resolution_rps is not None
               and s.steady_throughput_rps > s.throughput_bound_rps):
@@ -269,8 +271,11 @@ def _print_timing(stats, echo=typer.echo) -> None:
             m = s.injector
             lag = "n/a" if m.lag_p95_ms is None else f"{m.lag_p95_ms:.2f} ms"
             cpu = "n/a" if m.cpu_core_share is None else f"{m.cpu_core_share:.1%}"
+            process_cpu = ("n/a" if m.process_cpu_core_share is None
+                           else f"{m.process_cpu_core_share:.1%}")
             rate = "n/a" if m.request_rate_rps is None else f"{m.request_rate_rps:.2f}/s"
-            warning += (f" - injector lag p95={lag}, CPU={cpu} of one core, "
+            warning += (f" - injector lag p95={lag}, loop CPU={cpu}, "
+                        f"process CPU={process_cpu} of one core, "
                         f"rate={rate}")
             if m.injector_limited:
                 warning += " - injector-limited"
@@ -278,8 +283,11 @@ def _print_timing(stats, echo=typer.echo) -> None:
                       if s.little_resolution_s is not None else "")
         threshold = (f", stall threshold={s.stall_threshold_s * 1000:.1f} ms"
                      if s.stall_threshold_s is not None else "")
+        count_resolution = (f"±{s.count_resolution_completions:g}"
+                            if s.count_resolution_completions is not None else "n/a")
         echo(f"  c={s.concurrency}: steady X={s.steady_throughput_rps:.3f}/s, "
-             f"k={s.steady_completions} completions, law gap={gap}{resolution}{threshold} "
+             f"k={s.steady_completions} completions, count resolution={count_resolution} "
+             f"completions, law gap={gap}{resolution}{threshold} "
              f"({s.timing_source}){warning}")
 
 
