@@ -238,8 +238,7 @@ def test_near_threshold_without_crossing_is_inconclusive_and_names_levels():
 
 
 def test_r1_demo_agent_recorded_levels_remain_inconclusive():
-    # Aggregates from experiments/2026-10-16-cowork-review/outputs/
-    # r1-demo-agent-released-run.jsonl. The c=1 level has only six successes,
+    # Aggregates from a retained review run. The c=1 level has only six successes,
     # so the min_samples=10 floor comes from c=4.
     rows = [(1, 6, 1084.0), (4, 24, 1067.0), (7, 42, 1079.0),
             (10, 50, 2120.0), (13, 53, 2125.0), (16, 56, 2121.0)]
