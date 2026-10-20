@@ -171,7 +171,7 @@ def test_sibling_paths_are_derived_by_name(tmp_path):
 
 @pytest.mark.parametrize("legacy_metadata", [False, True, "think_time"])
 def test_external_write_report_matches_cli_with_metadata(finished_run, tmp_path, legacy_metadata):
-    """Plus passes aggregate(records) with metadata, without timing kwargs."""
+    """External callers pass aggregate(records) with metadata, without timing kwargs."""
     from kneepoint.analyze.cost import CostRates, incomplete_cost_note, summarize_cost
     from kneepoint.analyze.errors import errors_by_level
     from kneepoint.analyze.knee import aggregate, find_knee, knee_report

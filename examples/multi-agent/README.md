@@ -159,39 +159,9 @@ Each line in `/tmp/lanterndesk-spans.jsonl` is one decoded OTLP span. Join its
 `trace_id` to `trace_id` in the run's `run-*.jsonl`; the chat server span's
 `parent_span_id` equals the attempt's `span_id`. `baggage.kneepoint.level` on
 that server span supplies the concurrency level. The `.pb` file is an actual
-OTLP/HTTP request body suitable for later receiver tests. The private experiment's
-`analyze.py` reproduces join, fan-out and per-step queue/service results.
-Switch to `DEMO_TRACING=0` for the same ramp without exporter overhead.
+OTLP/HTTP request body suitable for later receiver tests. Switch to `DEMO_TRACING=0` for the same ramp without exporter overhead.
 
-## Try it yourself in Kneepoint Plus
-
-These commands assume the public and private repositories are sibling folders.
-Use separate terminals so the app remains up while Plus runs. In terminal A:
-
-```bash
-cd /path/to/kneepoint-public/examples/multi-agent
-DEMO_PROFILE=none .venv/bin/uvicorn app:create_app --factory \
-  --host 127.0.0.1 --port 8765
-```
-
-In terminal B, from the public repository root:
-
-```bash
-CORE_ROOT=$(pwd)
-cd ../kneepoint-plus
-.venv/bin/kneepoint-plus run "$CORE_ROOT/examples/multi-agent/kneepoint.yaml" \
-  --out reports/lantern-none
-```
-
-Watch the live run in the browser Plus opens. After it finishes, stop the Plus
-server and terminal A. Restart terminal A with `DEMO_PROFILE=search-pool` and
-run the same Plus command with `--out reports/lantern-search-pool`. Confirm
-each active setting at `/debug/config`. The search constraint should raise
-latency and flatten throughput at lower concurrency. Plus's current
-`kneepoint==0.2.0` pin does not include the new public trace headers, and Plus
-does not ingest spans yet; this exercise checks its load and dashboard path.
-
-### Tool-neutral step measurements
+## Tool-neutral step measurements
 
 The `chat` and `execute_tool` spans also emit an additive convention usable by
 any trace consumer: `kneepoint.step.queue_wait_ms` and

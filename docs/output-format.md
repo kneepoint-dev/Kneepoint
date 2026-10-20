@@ -445,7 +445,7 @@ snapshot's `stop_reason` (`cap_reached` or `unknown_usage`) instead.
 `aggregate(records, run_meta=metadata)` and `write_report(..., run_meta=metadata)`
 use the same `timing_from_metadata(records, metadata)` derivation as the CLI.
 For compatibility, `aggregate(records)` retains private references to its input
-records, so existing callers such as Plus can supply metadata at report time.
+records, so external callers can supply metadata at report time.
 These references are not included in `LevelStats.model_dump()` or JSON. Timing
 is reused when the aggregate was computed with the same metadata.
 
