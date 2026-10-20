@@ -57,7 +57,7 @@ migration notes below for new nullable and unknown values.
   measurement integrity guide before interpreting high-rate results.
 - A thin steady window is labeled too short to judge; increase its hold time
   for a capacity conclusion. Local run evidence does not establish an observer
-  overhead bound for Plus.
+  overhead bound for external callers.
 
 ## [0.3.0rc4] - UNRELEASED
 
@@ -103,7 +103,7 @@ migration notes below for new nullable and unknown values.
   counting resolution and the resolution-aware stall threshold; flag throughput
   above the lowest-level response bound as an estimator or clock problem.
 - Derive report timing consistently from records and run metadata for CLI and
-  external callers, including Plus, with byte-identical regeneration.
+  external callers, with byte-identical regeneration.
 - Add the LanternDesk LangGraph example with trace propagation, queue/service
   step attributes and four planted bottlenecks. Fetch throttling is 25 starts/s
   so saturation occurs inside the ramp.
