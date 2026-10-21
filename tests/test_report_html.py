@@ -397,7 +397,7 @@ def _contaminated_stats():
 
 
 def test_every_chart_carries_the_sample_count_on_its_axis_not_only_in_hover(tmp_path):
-    """docs/book/reading-charts.md: check the n on every point. A hover is not
+    """the published documentation: check the n on every point. A hover is not
     visible; the tick under each level is."""
     stats = _streamed_stats()
     html = _unescape(write_report(

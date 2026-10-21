@@ -29,12 +29,11 @@ dependencies = [
 [project.urls]
 Homepage = "https://kneepoint.dev"
 Repository = "https://github.com/kneepoint-dev/kneepoint"
-Documentation = "https://github.com/kneepoint-dev/kneepoint/tree/main/docs"
+Documentation = "https://docs.kneepoint.dev"
 Changelog = "https://github.com/kneepoint-dev/kneepoint/blob/main/CHANGELOG.md"
 Issues = "https://github.com/kneepoint-dev/kneepoint/issues"
 
 [project.optional-dependencies]
-docs = ["mkdocs-material"]
 dev = [
   "pytest",
   "pytest-asyncio",

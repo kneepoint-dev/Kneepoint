@@ -227,7 +227,7 @@ async def test_next_request_is_clean_when_the_server_honours_the_disconnect():
 
 async def test_a_server_that_ignores_the_disconnect_contaminates_the_next_request():
     """The honest other half: kneepoint cannot force cancellation. This is the
-    behaviour docs/measurement-integrity.md tells users to expect, and the reason
+    behaviour the published documentation tells users to expect, and the reason
     aggregate() flags the levels instead of pretending they are comparable."""
     with SlowTarget(abort_on_disconnect=False) as target:
         baseline_ms, after_ms = await _abandon_then_measure(target)

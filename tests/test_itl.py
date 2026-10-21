@@ -137,7 +137,7 @@ def test_tpot_is_decode_time_over_output_tokens():
 
 
 def test_tpot_matches_an_independent_implementation_guard_for_guard():
-    """`docs/output-format.md` publishes this expression as the one third-party
+    """`the published documentation` publishes this expression as the one third-party
     consumers should reimplement. Below is that reimplementation, written out
     separately: if the property ever drifts from the published formula — or the
     formula from the property — this fails."""
