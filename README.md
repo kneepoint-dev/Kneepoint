@@ -27,7 +27,7 @@ questions:
    limits, server errors, tool timeouts and malformed tool JSON.
 
 Everything runs on your machine. Results are plain JSONL under an open,
-versioned [output format](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/output-format.md)
+versioned [output format](https://docs.kneepoint.dev/reference/output-format/)
 you can build on without asking anyone.
 
 ## Install
@@ -99,20 +99,20 @@ explicitly (zero is allowed). The controller stops new work when observed spend
 reaches the threshold or usage is unknown, drains active calls, and reports
 partial results with exit code 3. Active calls may overshoot: this is not a
 billing guarantee. Capped runs skip calibration and reject configured LLM judging;
-`--force` never bypasses runtime control. See [cost control](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/cost.md).
+`--force` never bypasses runtime control. See [cost control](https://docs.kneepoint.dev/guide/cost-and-budgets/).
 
 LLM faults need no infrastructure: they are injected inside Kneepoint's own
 HTTP client. Tool faults have to sit between your agent and its tools, so
 `kneepoint proxy --upstream <your tool service> --fault-log faults.jsonl`
 runs a small reverse proxy, and `kneepoint run --fault-log faults.jsonl`
 carries what it served into the resilience grid. Details, and the standard
-fault profile, in [Chaos testing](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/chaos.md).
+fault profile, in [Chaos testing](https://docs.kneepoint.dev/guide/chaos/).
 
 Three copy-anywhere example scenarios ship in the repo —
 [support bot](https://github.com/kneepoint-dev/kneepoint/tree/main/examples/scenarios/support-bot),
 [RAG agent](https://github.com/kneepoint-dev/kneepoint/tree/main/examples/scenarios/rag-agent),
 [agent with MCP tools](https://github.com/kneepoint-dev/kneepoint/tree/main/examples/scenarios/mcp-tool-agent)
-— and [Local models](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/local-models.md)
+— and [Local models](https://docs.kneepoint.dev/guide/local-models/)
 covers measuring a local model *behind an agent*, which is not the same as
 ramping the model server on its own.
 
@@ -152,7 +152,7 @@ on the x-axis, a level below `--min-samples` stays on the axis marked *not
 plotted* rather than disappearing, y starts at zero, nothing is smoothed, and
 levels contaminated by an abandoned request are shaded on the chart itself.
 Every section ends with a short *How to read this* line, worded from the
-chapter of [the Kneepoint Book](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/index.md)
+chapter of [the Kneepoint Book](https://docs.kneepoint.dev/learn/)
 that owns the metric.
 
 ## What a run writes
@@ -175,7 +175,7 @@ kneepoint report reports/run-<id>.jsonl
 
 rebuilds it from the stored files — byte-identical to the run's own report
 when the sidecar is present. Every JSONL line carries `schema_version` and
-`kneepoint_version`, and [Output format](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/output-format.md)
+`kneepoint_version`, and [Output format](https://docs.kneepoint.dev/reference/output-format/)
 is the contract: every field, when it is null and why null never means zero,
 and what may change within a schema version (nothing is removed, renamed or
 redefined).
@@ -207,7 +207,7 @@ over SLO results). Checks describe observed records; they do not certify complet
 of the configured ramp. Pin `seed` so a red build reruns the same prompts and chaos.
 `kneepoint report` recomputes checks, including price overrides; its exit code
 reports rendering success, not an SLO gate.
-[Full CI docs →](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/ci.md)
+[Full CI docs →](https://docs.kneepoint.dev/guide/ci/)
 
 ## Measurement integrity
 
@@ -217,7 +217,7 @@ Kneepoint says what it cannot know. Percentiles are not computed below
 and when a request is abandoned at the client wall, every later level is
 flagged as *contaminated* — the server may still be generating, so those
 levels can be measuring the previous level's leftovers.
-[Measurement integrity](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/measurement-integrity.md)
+[Measurement integrity](https://docs.kneepoint.dev/reference/measurement-checks/)
 documents what is guaranteed and what is not.
 
 **If you have results from 0.1.0, re-run them.** Three defects in that
@@ -236,24 +236,26 @@ misbehaving. Use all three.
 
 ## Documentation
 
-[Quickstart](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/quickstart.md) ·
-[Scenario reference](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/scenarios.md) ·
-[The three metrics](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/metrics.md) ·
-[Chaos testing](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/chaos.md) ·
-[Output format](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/output-format.md) ·
-[CI gate](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/ci.md) ·
-[Roadmap](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/roadmap.md)
+[Documentation](https://docs.kneepoint.dev) and the [textbook](https://docs.kneepoint.dev/learn/). Documentation sources are maintained separately.
+
+[Quickstart](https://docs.kneepoint.dev/guide/quickstart/) ·
+[Scenario reference](https://docs.kneepoint.dev/reference/scenarios/) ·
+[The three metrics](https://docs.kneepoint.dev/reference/metrics/) ·
+[Chaos testing](https://docs.kneepoint.dev/guide/chaos/) ·
+[Output format](https://docs.kneepoint.dev/reference/output-format/) ·
+[CI gate](https://docs.kneepoint.dev/guide/ci/) ·
+[Roadmap](https://docs.kneepoint.dev/project/roadmap/)
 
 **The Kneepoint Book** —
-[foundations](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/foundations.md),
-[latency](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/latency.md),
-[throughput & capacity](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/throughput.md),
-[quality under load](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/quality.md),
-[stability & resilience](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/stability.md),
-[cost & tokens](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/cost.md),
-[reading charts](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/reading-charts.md),
-[diagnostic recipes](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/recipes.md),
-[glossary](https://github.com/kneepoint-dev/kneepoint/blob/main/docs/book/glossary.md)
+[foundations](https://docs.kneepoint.dev/learn/what-is-performance/),
+[latency](https://docs.kneepoint.dev/learn/latency/),
+[throughput & capacity](https://docs.kneepoint.dev/learn/throughput-and-load/),
+[quality under load](https://docs.kneepoint.dev/learn/quality-and-reliability/),
+[stability & resilience](https://docs.kneepoint.dev/learn/limits-and-retries/),
+[cost & tokens](https://docs.kneepoint.dev/guide/cost-and-budgets/),
+[reading charts](https://docs.kneepoint.dev/guide/reading-the-report/),
+[diagnostic recipes](https://docs.kneepoint.dev/guide/diagnostic-recipes/),
+[glossary](https://docs.kneepoint.dev/learn/glossary/)
 — the metric definitions the CLI implements and the report teaches from.
 
 ## Issues and contributions

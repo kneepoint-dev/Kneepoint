@@ -44,7 +44,7 @@ async def test_run_turn_returns_text_and_turn_fields(mock_agent_url):
 
 async def test_success_records_the_status_the_server_sent_not_a_literal_200():
     """A 2xx that is not 200 still streams. The record must carry what arrived —
-    `docs/output-format.md` promises `status_code` is the real status, and an
+    `the published documentation` promises `status_code` is the real status, and an
     assumed 200 would be a guessed value on a line that never guesses."""
     body = b'data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n'
     transport = httpx.MockTransport(lambda request: httpx.Response(201, content=body))

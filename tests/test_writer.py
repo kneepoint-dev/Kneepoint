@@ -67,7 +67,7 @@ def test_jsonl_roundtrip_session_records(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# the version stamp: the JSONL is a public contract (docs/output-format.md)
+# the version stamp: the JSONL is a public contract (the published documentation)
 # ---------------------------------------------------------------------------
 
 
@@ -106,7 +106,7 @@ def test_files_written_before_versioning_read_as_v0(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# the metadata sidecar: run-<id>-meta.json (docs/output-format.md)
+# the metadata sidecar: run-<id>-meta.json (the published documentation)
 # ---------------------------------------------------------------------------
 
 

@@ -1,6 +1,6 @@
 """The README is the first thing a stranger reads, and PyPI renders it as the long
 description — so its scenario must validate, its commands must exist, its exit
-codes must match the CI doc, and every link into this repository must resolve.
+codes must match the public CLI contract, and every link into this repository must resolve.
 """
 
 import re
@@ -44,13 +44,22 @@ def test_every_command_named_exists():
         assert must in named, f"the README never shows `kneepoint {must}`"
 
 
-def test_exit_codes_match_ci_doc():
-    ci = (ROOT / "docs/ci.md").read_text(encoding="utf-8")
-    readme_codes = set(re.findall(r"`([0-3])` ", README))
-    assert readme_codes == {"0", "1", "2", "3"}
-    for code in readme_codes:
-        assert re.search(rf"^\| {code} \|", ci, re.MULTILINE), f"exit code {code} not in the CI doc"
+def test_exit_codes_match_public_cli_contract():
+    assert set(re.findall(r"`([0-3])` ", README)) == {"0", "1", "2", "3"}
     assert "budget" in README and "SLO breach" in README
+
+
+def test_documentation_links_use_live_site_patterns():
+    targets = _LINK.findall(README)
+    docs_links = [url for url in targets if url.startswith("https://docs.kneepoint.dev")]
+    assert "https://docs.kneepoint.dev" in docs_links
+    assert "https://docs.kneepoint.dev/learn/" in docs_links
+    for url in docs_links:
+        assert re.fullmatch(
+            r"https://docs\.kneepoint\.dev(?:/|/(?:learn|guide|reference|project)/"
+            r"(?:[a-z0-9-]+/)?)?", url
+        ), url
+    assert not re.search(r"github\.com/[^ )]+/(?:blob|tree)/[^ )]+/docs/.*?\.md", README)
 
 
 def test_links_into_the_repo_resolve():

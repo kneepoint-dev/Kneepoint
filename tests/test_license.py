@@ -3,7 +3,7 @@
 Four things claim a licence and they can drift apart independently: the `LICENSE`
 text itself, `pyproject.toml` (what PyPI and installers read), the `NOTICE` file
 Apache 2.0 expects to travel with the code, and the prose — README badge and
-footer, the docs landing page. The CHANGELOG has one more duty: 0.1.0 and 0.0.1
+footer. The CHANGELOG has one more duty: 0.1.0 and 0.0.1
 went out under MIT, and that grant cannot be withdrawn, so the entry that records
 the switch has to say so.
 
@@ -65,7 +65,6 @@ def test_pyproject_declares_apache_2_and_ships_both_files():
     [
         ("README.md", "Apache 2.0 licensed"),
         ("README.md", "License-Apache_2.0"),  # the badge
-        ("docs/index.md", "Open source (Apache 2.0)"),
     ],
 )
 def test_user_facing_copy_says_apache_2(path, must_say):
