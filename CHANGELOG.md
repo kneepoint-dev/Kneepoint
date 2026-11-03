@@ -3,6 +3,17 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [Unreleased]
+
+### Added
+
+- HTML and companion JSON reports show scaling efficiency, observed peak
+  throughput and plateau levels, baseline median latency, saturation estimate,
+  per-level Little's law gaps, and saturation diagnostics.
+- Optional `kneepoint run --sample-resources` records Linux load-generator CPU
+  and runnable tasks by concurrency level. Saved samples replay in regenerated
+  reports.
+
 ## [0.3.0] - 2026-10-19
 
 This release adds explicit run-lifecycle and SLO evidence, trace-aware agent

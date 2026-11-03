@@ -113,6 +113,56 @@ below shades the ramp from the first contaminated level onward.
 </div>
 {% endif %}
 
+{% if scaling %}
+{% macro metric(value, pattern="%.3f") -%}
+  {{ pattern|format(value) if value is not none else "n/a" }}
+{%- endmacro %}
+<h3>Scaling and saturation</h3>
+<p>Observed peak X<sub>max</sub> {{ metric(scaling.x_max_rps) }} requests/s ·
+R<sub>0</sub> {{ metric(scaling.r0_s) }} s · N* {{ metric(scaling.n_star) }}.</p>
+<p>{% if scaling.plateau_levels %}Observed plateau at c={{ scaling.plateau_levels|join(", ") }}.
+{% else %}The measured levels do not establish a plateau.{% endif %}</p>
+{% if scaling.levels %}
+<p class="muted">Efficiency uses successful throughput. The Little’s law check
+uses all terminal attempts and their mean response time from the same window.
+A gap above 5% is flagged. Think time and retry delays can also cause a gap.</p>
+<table>
+  <tr><th>c</th><th>Window</th><th>Successful X /s</th><th>E(c)</th><th>X × mean R</th>
+      <th>Gap vs c</th><th>Little’s law</th><th>Diagnostic flags</th></tr>
+  {% for row in scaling.levels %}
+  <tr><td>{{ row.concurrency }}</td><td>{{ row.window or "n/a" }}</td>
+      <td>{{ metric(row.throughput_rps) }}</td><td>{{ metric(row.efficiency) }}</td>
+      <td>{{ metric(row.little_n) }}</td>
+      <td>{% if row.little_relative_error is not none %}{{ metric(row.little_relative_error * 100, "%.2f") }}%{% else %}n/a{% endif %}</td>
+      <td>{% if row.little_off_by_more_than_5_pct is none %}unavailable
+          {% elif row.little_off_by_more_than_5_pct %}<strong>off by more than 5%</strong>
+          {% else %}within 5%{% endif %}</td>
+      <td>{{ row.flags|join(", ") }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if scaling.local_resource_samples is not none %}
+<h3>Local load-generator resource samples</h3>
+<p class="muted">These samples describe the load-generator host only. A software-limit
+flag uses local CPU headroom and is a heuristic. Remote target resource use is unknown.</p>
+{% if scaling.local_resource_samples %}
+<table>
+  <tr><th>c</th><th>Elapsed s</th><th>CPU user %</th><th>CPU system %</th><th>CPU idle %</th>
+      <th>CPU steal %</th><th>Runnable tasks</th></tr>
+  {% for sample in scaling.local_resource_samples %}
+  <tr><td>{{ sample.concurrency }}</td><td>{{ metric(sample.elapsed_s, "%.1f") }}</td>
+      <td>{{ metric(sample.cpu_user_pct, "%.2f") }}</td>
+      <td>{{ metric(sample.cpu_system_pct, "%.2f") }}</td>
+      <td>{{ metric(sample.cpu_idle_pct, "%.2f") }}</td>
+      <td>{{ metric(sample.cpu_steal_pct, "%.2f") }}</td><td>{{ sample.run_queue }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No complete sampling interval was captured. Sampling requires readable Linux host counters.</p>
+{% endif %}
+{% endif %}
+{% endif %}
+
 {% if stats %}
 <h3>Throughput and closed-loop check</h3>
 <p class="muted">Steady completions finish inside [level start + hold/3,

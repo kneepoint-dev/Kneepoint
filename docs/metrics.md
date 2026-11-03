@@ -119,3 +119,15 @@ All-failed levels remain in the summary with null latency percentiles. Charts
 show successful and total attempt counts separately and leave gaps at excluded
 measured levels. An interior excluded level prevents a knee claim across that
 gap; excluded leading or trailing levels do not enter the fitted curve.
+
+
+## Scaling and saturation
+
+The report uses successful requests per second to show efficiency at each
+concurrency, the highest measured throughput, and the high-load levels that
+stay within 2% of that peak. Multiplying the peak by the baseline median
+response time estimates saturation concurrency. The report also compares
+configured concurrency with request occupancy estimated from terminal
+throughput and mean response time. See the [report output format](output-format.md#scaling-metrics-in-html-and-json)
+for window selection, missing values, and how optional local CPU samples inform
+the diagnostics.

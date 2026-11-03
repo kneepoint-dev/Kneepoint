@@ -199,7 +199,7 @@ REPORT_PRICE_OUT_OPTION = typer.Option(
 )
 REPORT_MIN_SAMPLES_OPTION = typer.Option(
     None, "--min-samples",
-    help="Override the stored min successful requests per level for knee and latency SLOs.",
+    help="Override the minimum successes per level for knee, scaling and latency SLOs.",
 )
 
 
@@ -211,7 +211,7 @@ def report(
     price_out: float = REPORT_PRICE_OUT_OPTION,
     min_samples: int = REPORT_MIN_SAMPLES_OPTION,
 ) -> None:
-    """Re-render the HTML report from a run's stored records.
+    """Re-render HTML and scaling JSON from a run's stored records.
 
     Reads run-<id>.jsonl, run-<id>-sessions.jsonl and run-<id>-meta.json and
     re-aggregates with the same functions the run used. Anything the sidecar
@@ -356,11 +356,15 @@ def run(
         False, "--force", help="Compatibility flag; never bypasses runtime spend control."
     ),
     min_samples: int = typer.Option(
-        10, "--min-samples", help="Min successful requests per level for knee and latency SLOs."
+        10, "--min-samples",
+        help="Minimum successes per level for knee, scaling and latency SLOs.",
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
     no_trace: bool = typer.Option(False, "--no-trace", help="Omit W3C trace headers."),
     out_dir: Path = OUT_DIR_OPTION,
+    sample_resources: bool = typer.Option(
+        False, "--sample-resources", help="Sample the Linux load generator's host every 5 seconds."
+    ),
 ) -> None:
     """Ramp concurrency against the target and find the knee point."""
     sc = None
@@ -523,7 +527,7 @@ def run(
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
                     stop=controller.stop, evidence=evidence,
                     run_id=run_id, trace=trace,
-                    run_origin_s=started_monotonic_s,
+                    run_origin_s=started_monotonic_s, sample_resources=sample_resources,
                 )
             )
         except BaseException:
@@ -625,6 +629,7 @@ def run(
         level_starts_monotonic_s=evidence.level_starts_monotonic_s,
         level_status=evidence.level_status,
         injector_levels=evidence.injector_levels,
+        local_resource_samples=evidence.local_resource_samples if sample_resources else None,
         think_time_min_ms=session_spec.think_time.min_ms,
         think_time_max_ms=session_spec.think_time.max_ms,
         environment=current_environment(),
@@ -652,6 +657,7 @@ def run(
         typer.echo(line)
     report_path = write_report(
         out_dir / f"run-{run_id}-report.html",
+        write_metrics=True,
         meta=RunMeta(
             target=target_url, model=model_name,
             started=format_started(started_at),  # the run's start, not this line's clock

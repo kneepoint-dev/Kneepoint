@@ -55,6 +55,10 @@ class LevelStats(BaseModel):
     throughput_rps: float | None = None
     steady_throughput_rps: float | None = None
     steady_completions: int = 0
+    scaling_window: str | None = None
+    scaling_successes: int = 0
+    scaling_throughput_rps: float | None = None
+    little_n: float | None = None
     law_check_judged: bool = False
     count_resolution_completions: float | None = None
     steady_mean_response_s: float | None = None
@@ -230,6 +234,7 @@ def aggregate(
         level_status=level_status,
     )
     stats: list[LevelStats] = []
+    timing_meta = run_meta.model_dump() if run_meta else None
     seen_contamination = False
     for level in sorted(by_level):
         recs = by_level[level]
@@ -266,6 +271,10 @@ def aggregate(
                 throughput_rps=clock.throughput_rps,
                 steady_throughput_rps=clock.steady_throughput_rps,
                 steady_completions=clock.steady_completions,
+                scaling_window=clock.scaling_window,
+                scaling_successes=clock.scaling_successes,
+                scaling_throughput_rps=clock.scaling_throughput_rps,
+                little_n=clock.little_n,
                 law_check_judged=clock.law_check_judged,
                 count_resolution_completions=clock.count_resolution_completions,
                 steady_mean_response_s=clock.steady_mean_response_s,
@@ -287,7 +296,7 @@ def aggregate(
             )
         )
         stats[-1]._timing_records = recs
-        stats[-1]._timing_meta = run_meta.model_dump() if run_meta else None
+        stats[-1]._timing_meta = timing_meta
     return stats
 
 
@@ -297,7 +306,10 @@ def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[L
     Reuse an identical derivation on the CLI path. Return copies when enriching
     external stats, so rendering cannot mutate the caller's analysis.
     """
-    if meta is None or not stats or all(s._timing_meta == meta.model_dump() for s in stats):
+    if meta is None or not stats:
+        return stats
+    timing_meta = meta.model_dump()
+    if all(s._timing_meta == timing_meta for s in stats):
         return stats
     records = [r for s in stats for r in s._timing_records]
     if not records:
@@ -310,6 +322,7 @@ def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[L
         contaminated |= bool(s.abandoned or t.clock_anomaly)
         updates = {name: getattr(t, name) for name in (
             "throughput_rps", "steady_throughput_rps", "steady_completions",
+            "scaling_window", "scaling_successes", "scaling_throughput_rps", "little_n",
             "law_check_judged", "count_resolution_completions",
             "steady_mean_response_s", "little_gap_s", "little_resolution_s",
             "stall_threshold_s", "throughput_bound_rps", "bound_counting_resolution_rps",
@@ -322,7 +335,7 @@ def with_run_timing(stats: list[LevelStats], meta: RunMetadata | None) -> list[L
             injector=(meta.injector_levels or {}).get(s.concurrency),
         )
         copied = s.model_copy(update=updates)
-        copied._timing_meta = meta.model_dump()
+        copied._timing_meta = timing_meta
         result.append(copied)
     return result
 

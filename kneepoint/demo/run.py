@@ -218,6 +218,7 @@ def run_demo(
                  "host sleep or client stall (see the report banner).")
         report = write_report(
             out_dir / f"demo-{run_id}-report.html",
+            write_metrics=True,
             meta=RunMeta(
                 target=f"{agent.url}/v1", model="demo",
                 started=format_started(started_at),

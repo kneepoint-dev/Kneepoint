@@ -243,6 +243,7 @@ def render_from_files(
         )
     report_path = write_report(
         out if out is not None else default_out,
+        write_metrics=True,
         meta=header, stats=stats, knee=knee, knee_summary=knee_summary,
         quality=quality,
         quality_summary=resolution_summary(sessions) if sessions_path.exists() else None,

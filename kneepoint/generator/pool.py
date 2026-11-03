@@ -10,6 +10,7 @@ from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.monitor import InjectorMonitor
+from kneepoint.generator.resources import sample_local_resources
 from kneepoint.generator.session import SessionSpec, run_session
 from kneepoint.targets.trace_context import new_run_id
 
@@ -36,6 +37,7 @@ async def run_level(
     stop: asyncio.Event | None = None,
     evidence: RunEvidence | None = None,
     monitor_injector: bool = True,
+    sample_resources: bool = False,
 ) -> tuple[list[SessionRecord], list[RequestRecord]]:
     """Run `concurrency` workers for `hold_seconds`; each worker loops full
     sessions and always completes at least one."""
@@ -55,6 +57,11 @@ async def run_level(
     limits = httpx.Limits(
         max_connections=concurrency + 10,
         max_keepalive_connections=concurrency + 10,
+    )
+    sampler_task = (
+        asyncio.create_task(sample_local_resources(
+            concurrency, level_origin, evidence.local_resource_samples,
+        )) if sample_resources else None
     )
     try:
         async with httpx.AsyncClient(
@@ -94,6 +101,9 @@ async def run_level(
         evidence.status = evidence.level_status[concurrency] = status
         raise
     finally:
+        if sampler_task is not None:
+            sampler_task.cancel()
+            await asyncio.gather(sampler_task, return_exceptions=True)
         if monitor is not None:
             evidence.injector_levels[concurrency] = await monitor.finish(
                 evidence.records[first_record:]
