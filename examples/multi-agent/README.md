@@ -205,3 +205,26 @@ fill missing values with zero. Step identity comes from `gen_ai.operation.name`
 and `gen_ai.tool.name` or `gen_ai.request.model`, not the demo attributes.
 For steady completion rate X and mean service seconds S, slot utilization is
 X × S / capacity; rate-limiter utilization is X / rate_per_s.
+
+### Local OpenAI-compatible model backend
+
+Use `LLM_BACKEND=openai`, `DEMO_MODEL_BASE_URL=http://127.0.0.1:8080/v1`
+(one base-URL variable), and `DEMO_MODEL_NAME=llama-3.1-8b-instruct`
+(one model-name variable) for a local llama.cpp server. Only the three model
+steps use this endpoint. Search remains SQLite with its configured delay and
+worker pool; fetch remains the local document route. All endpoints are local
+HTTP only. No additional client dependency is needed.
+
+Each model call sends non-streaming chat completions with `temperature=0`,
+`seed=0`, and `max_tokens=256`. This is a cap, not an exact output length:
+planner/researcher generally need just a module code; the writer has room to
+copy the support fact. Usage is summed from the three backend responses.
+The writer uses the same exact-fact grounding check as the Ollama backend.
+
+For the real-model experiment, retain `DEMO_PROFILE=search-pool` and the
+32 application model slots (so llama-server owns the measured slot queue).
+Set `DEMO_MODEL_TIMEOUT_S=300` to allow queued local inference to finish;
+use a longer client request timeout. Start llama-server separately and bind
+it to `127.0.0.1`. `-np 1`, then `2`, then `4` control actual inference slots.
+The application model span includes downstream server queue time at c>1;
+use c=1 calibration and server metrics to distinguish service from queuing.

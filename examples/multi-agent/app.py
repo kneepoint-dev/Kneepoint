@@ -55,6 +55,8 @@ class Config:
     llm_backend: str = "sim"
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:3b"
+    model_base_url: str = "http://127.0.0.1:8080/v1"
+    model_name: str = "llama-3.1-8b-instruct"
 
     def __post_init__(self) -> None:
         if self.model_slots < 1 or self.search_workers < 1:
@@ -69,10 +71,11 @@ class Config:
         for name in ("model_timeout_s", "search_timeout_s", "fetch_timeout_s"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")
-        if self.llm_backend not in {"sim", "ollama"}:
-            raise ValueError("LLM_BACKEND must be sim or ollama")
+        if self.llm_backend not in {"sim", "ollama", "openai"}:
+            raise ValueError("LLM_BACKEND must be sim, ollama or openai")
         _loopback(self.local_base_url)
         _loopback(self.ollama_url)
+        _loopback(self.model_base_url)
 
 
 def load_config(profile: str | None = None) -> Config:
@@ -193,6 +196,8 @@ class Runtime:
     ) -> ModelResult:
         self.stats["model_calls"] += 1
         model_name = "lantern-sim" if self.config.llm_backend == "sim" else self.config.ollama_model
+        if self.config.llm_backend == "openai":
+            model_name = self.config.model_name
         with self.telemetry.span(f"chat {model_name}", kind=trace.SpanKind.CLIENT,
                                  attributes={
                                      "gen_ai.operation.name": "chat",
@@ -231,7 +236,7 @@ class Runtime:
         span.set_attribute("kneepoint.step.queue_wait_ms", queue_ms)
         span.set_attribute("demo.pool.in_flight", self.model_in_flight)
         try:
-            if self.config.llm_backend == "ollama":
+            if self.config.llm_backend in {"ollama", "openai"}:
                 if self.client is None:
                     raise DemoError("HTTP client is not ready")
                 instructions = {
@@ -245,6 +250,29 @@ class Runtime:
                     ),
                 }
                 try:
+                    if self.config.llm_backend == "openai":
+                        response = await self.client.post(
+                            f"{self.config.model_base_url.rstrip('/')}/chat/completions",
+                            json={
+                                "model": self.config.model_name,
+                                "messages": [
+                                    {"role": "system", "content": instructions[role]},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                "stream": False, "temperature": 0,
+                                "seed": 0, "max_tokens": 256,
+                            },
+                            timeout=self.config.model_timeout_s,
+                        )
+                        response.raise_for_status()
+                        data = response.json()
+                        content = data["choices"][0]["message"]["content"]
+                        if not isinstance(content, str) or not content.strip():
+                            raise ValueError("model returned no text")
+                        return ModelResult(
+                            content, int(data["usage"]["prompt_tokens"]),
+                            int(data["usage"]["completion_tokens"]),
+                        )
                     response = await self.client.post(
                         f"{self.config.ollama_url}/api/generate",
                         json={"model": self.config.ollama_model,
@@ -257,8 +285,10 @@ class Runtime:
                         str(data["response"]), int(data["prompt_eval_count"]),
                         int(data["eval_count"]),
                     )
-                except (httpx.HTTPError, KeyError, ValueError) as exc:
-                    raise DemoError(f"ollama {role}: {type(exc).__name__}") from exc
+                except (httpx.HTTPError, KeyError, ValueError, TypeError, IndexError) as exc:
+                    raise DemoError(
+                        f"{self.config.llm_backend} {role}: {type(exc).__name__}"
+                    ) from exc
             if self._fails(self.config.model_error_rate, f"{key}:model:{role}"):
                 raise DemoError(f"simulated {role} model error")
             match = MODULE.search(prompt)
@@ -436,7 +466,7 @@ class Runtime:
             f"Support note: {article['body'] if article else 'none'}"
         )
         result = await self.model("writer", prompt, state["request_key"], article)
-        if self.config.llm_backend == "ollama":
+        if self.config.llm_backend in {"ollama", "openai"}:
             # Do not turn a fluent but ungrounded model answer into a resolution.
             answer = (
                 f"{result.text.strip()} [RESOLVED {article['id']}]"
