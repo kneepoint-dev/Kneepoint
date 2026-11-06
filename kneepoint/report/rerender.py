@@ -12,6 +12,7 @@ Files written before the sidecar existed re-render with every unstored field as
 """
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -126,10 +127,13 @@ def render_from_files(
     price_in: float | None = None,
     price_out: float | None = None,
     min_samples: int | None = None,
+    baseline_rps: list[float] | None = None,
 ) -> RerenderResult:
     """Re-aggregate and re-render one run. Overrides win over the sidecar; the
     sidecar wins over defaults; and where neither exists the report says *unknown*.
     """
+    if baseline_rps and any(not math.isfinite(x) or x <= 0 for x in baseline_rps):
+        raise ReportInputError("Comparison c=1 rates must be finite and positive")
     sessions_path, meta_path, default_out = sibling_paths(records_path)
     if not records_path.exists():
         raise ReportInputError(f"{records_path} does not exist.")
@@ -243,6 +247,7 @@ def render_from_files(
         )
     report_path = write_report(
         out if out is not None else default_out,
+        write_metrics=True, baseline_rps=baseline_rps,
         meta=header, stats=stats, knee=knee, knee_summary=knee_summary,
         quality=quality,
         quality_summary=resolution_summary(sessions) if sessions_path.exists() else None,

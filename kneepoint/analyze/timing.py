@@ -14,6 +14,10 @@ class LevelTiming:
     throughput_rps: float | None = None  # whole observed window, legacy/raw name
     steady_throughput_rps: float | None = None
     steady_completions: int = 0
+    scaling_window: str | None = None
+    scaling_successes: int = 0
+    scaling_throughput_rps: float | None = None
+    little_n: float | None = None
     law_check_judged: bool = False
     count_resolution_completions: float | None = None
     steady_mean_response_s: float | None = None
@@ -29,6 +33,8 @@ class LevelTiming:
     continuity_gap: bool = False
     max_continuity_gap_s: float = 0.0
     _rows: list[RequestRecord] = field(default_factory=list, repr=False)
+    _successful: int = 0
+    _response_total_s: float = 0.0
     _wall_min: float = float("inf")
     _wall_max: float = float("-inf")
     _mono_min: float = float("inf")
@@ -50,6 +56,8 @@ def _inspect_record(
 ) -> None:
     """The sole per-record timing visit; kept separate so scale tests count it."""
     duration = record.total_ms / 1000
+    level._successful += record.ok
+    level._response_total_s += duration
     wall_start = record.started_at
     wall_end = wall_start + duration
     level._wall_min = min(level._wall_min, wall_start)
@@ -127,9 +135,17 @@ def analyze_timing(
         last = level._mono_max if monotonic else level._wall_max
         if last > first:
             level.throughput_rps = len(level._rows) / (last - first)
-        if (hold_seconds is None or hold_seconds <= 0
-                or level_status is not None
-                and level_status.get(level.concurrency) != "completed"):
+        if level_status is not None and level_status.get(level.concurrency) != "completed":
+            continue
+        if hold_seconds is None:
+            if last > first:
+                level.scaling_window = "observed"
+                level.scaling_successes = level._successful
+                level.scaling_throughput_rps = level._successful / (last - first)
+                if len(level._rows) >= 2 * level.concurrency:
+                    level.little_n = level._response_total_s / (last - first)
+            continue
+        if hold_seconds <= 0:
             continue
         level_start = (
             level_starts_monotonic_s[level.concurrency]
@@ -144,17 +160,24 @@ def analyze_timing(
         if level_status is None and last < high:
             continue
         response_total = 0.0
+        successful = 0
         think_events = 0
         for record in level._rows:
             start = record.started_monotonic_s if monotonic else record.started_at
             duration = record.total_ms / 1000
             if low <= start + duration < high:
                 level.steady_completions += 1
+                successful += record.ok
                 response_total += duration
                 think_events += (record.ok and record.turn_index
                                  < level._session_last_turn[record.session_id])
         width = high - low
         level.steady_throughput_rps = level.steady_completions / width
+        level.scaling_window = "steady"
+        level.scaling_successes = successful
+        level.scaling_throughput_rps = successful / width
+        if level.steady_completions >= 2 * level.concurrency:
+            level.little_n = response_total / width
         if level.steady_completions:
             mean_r = response_total / level.steady_completions
             level.steady_mean_response_s = mean_r

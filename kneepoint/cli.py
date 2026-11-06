@@ -15,6 +15,7 @@ from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level, worst_amplification
+from kneepoint.analyze.scaling import scaling_report
 from kneepoint.analyze.slo import evaluate_run_slo
 from kneepoint.chaos.faults import STANDARD_PROFILE, TOOL_FAULTS
 from kneepoint.chaos.injector import ChaosInjector
@@ -199,7 +200,13 @@ REPORT_PRICE_OUT_OPTION = typer.Option(
 )
 REPORT_MIN_SAMPLES_OPTION = typer.Option(
     None, "--min-samples",
-    help="Override the stored min successful requests per level for knee and latency SLOs.",
+    help="Override the minimum successes per level for knee, scaling and latency SLOs.",
+)
+
+REPORT_BASELINE_RPS_OPTION = typer.Option(
+    None, "--baseline-rps",
+    help="Comparison run/arm c=1 successful requests/s; repeat for each baseline. "
+         "Uses (max-min)/min spread as a plateau sizing estimate.",
 )
 
 
@@ -210,8 +217,9 @@ def report(
     price_in: float = REPORT_PRICE_IN_OPTION,
     price_out: float = REPORT_PRICE_OUT_OPTION,
     min_samples: int = REPORT_MIN_SAMPLES_OPTION,
+    baseline_rps: list[float] | None = REPORT_BASELINE_RPS_OPTION,
 ) -> None:
-    """Re-render the HTML report from a run's stored records.
+    """Re-render HTML and scaling JSON from a run's stored records.
 
     Reads run-<id>.jsonl, run-<id>-sessions.jsonl and run-<id>-meta.json and
     re-aggregates with the same functions the run used. Anything the sidecar
@@ -221,6 +229,7 @@ def report(
     try:
         result = render_from_files(
             records, out=out, price_in=price_in, price_out=price_out, min_samples=min_samples,
+            baseline_rps=baseline_rps,
         )
     except ReportInputError as exc:
         typer.echo(str(exc))
@@ -229,6 +238,12 @@ def report(
         typer.echo(line)
     _warn_contamination(result.stats)
     _print_timing(result.stats)
+    for line in scaling_report(
+        result.stats, min_samples=result.min_samples, baseline_rps=baseline_rps,
+        resources=result.meta.local_resource_samples if result.meta else None,
+        target_url=result.meta.target if result.meta else None,
+    ).lines():
+        typer.echo(line)
     for line in result.slo.lines():
         typer.echo(line)
     for reason in result.unknown:
@@ -356,11 +371,15 @@ def run(
         False, "--force", help="Compatibility flag; never bypasses runtime spend control."
     ),
     min_samples: int = typer.Option(
-        10, "--min-samples", help="Min successful requests per level for knee and latency SLOs."
+        10, "--min-samples",
+        help="Minimum successes per level for knee, scaling and latency SLOs.",
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
     no_trace: bool = typer.Option(False, "--no-trace", help="Omit W3C trace headers."),
     out_dir: Path = OUT_DIR_OPTION,
+    sample_resources: bool = typer.Option(
+        False, "--sample-resources", help="Sample the Linux load generator's host every 5 seconds."
+    ),
 ) -> None:
     """Ramp concurrency against the target and find the knee point."""
     sc = None
@@ -523,7 +542,7 @@ def run(
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
                     stop=controller.stop, evidence=evidence,
                     run_id=run_id, trace=trace,
-                    run_origin_s=started_monotonic_s,
+                    run_origin_s=started_monotonic_s, sample_resources=sample_resources,
                 )
             )
         except BaseException:
@@ -625,6 +644,7 @@ def run(
         level_starts_monotonic_s=evidence.level_starts_monotonic_s,
         level_status=evidence.level_status,
         injector_levels=evidence.injector_levels,
+        local_resource_samples=evidence.local_resource_samples if sample_resources else None,
         think_time_min_ms=session_spec.think_time.min_ms,
         think_time_max_ms=session_spec.think_time.max_ms,
         environment=current_environment(),
@@ -637,6 +657,11 @@ def run(
     stats = aggregate(records, run_meta=run_meta)
     _warn_contamination(stats)
     _print_timing(stats)
+    for line in scaling_report(
+        stats, min_samples=min_samples, resources=run_meta.local_resource_samples,
+        target_url=target_url,
+    ).lines():
+        typer.echo(line)
     retry_levels = retry_by_level(records, all_sessions)
     worst = worst_amplification(retry_levels)
     if worst is not None:
@@ -652,6 +677,7 @@ def run(
         typer.echo(line)
     report_path = write_report(
         out_dir / f"run-{run_id}-report.html",
+        write_metrics=True,
         meta=RunMeta(
             target=target_url, model=model_name,
             started=format_started(started_at),  # the run's start, not this line's clock

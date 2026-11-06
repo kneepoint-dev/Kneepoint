@@ -6,20 +6,22 @@ asking anyone. This page is the contract that makes that safe.
 
 ## The files
 
-A run writes four files into `--out` (default `reports/`), all named from one
-run id, and prints all four paths when it finishes:
+A run writes the following files into `--out` (default `reports/`), all named
+from one run id.
 
 | File | One line per | Model |
 |---|---|---|
 | `run-<id>.jsonl` | request **attempt** | `RequestRecord` |
 | `run-<id>-sessions.jsonl` | simulated user **session** | `SessionRecord` |
 | `run-<id>-meta.json` | — (one JSON document: what the run *was*) | `RunMetadata` |
+| `run-<id>-lifecycle.json` | — | load-generation checkpoint for `kneepoint run` |
 | `run-<id>-report.html` | — | self-contained report |
+| `run-<id>-report-metrics.json` | — | scaling metrics and local resource samples |
 
 `kneepoint demo` writes the same shapes as `demo-<id>*`.
 
-The report is derived from the other three and can be rebuilt from them at any
-time — see [Re-rendering the report](#re-rendering-the-report).
+Both report files can be rebuilt from the saved run evidence. See
+[Re-rendering the report](#re-rendering-the-report).
 
 In the two JSONL files every line is one complete JSON object. There is **no
 header line** — the first line is a record like any other, so `tail -f`,
@@ -41,10 +43,9 @@ Every record carries its own version stamp:
 * **`kneepoint_version`** *(string, nullable)* — the release that produced the
   line. `null` when kneepoint ran from a source tree rather than an install.
 
-The metadata sidecar carries the same two fields at its top level; the three
-data files of one run always share one `schema_version`. (The HTML report is
-not a data file: it shows `kneepoint_version` in its metadata block and
-carries no `schema_version`.)
+The metadata sidecar carries the same two fields at its top level. The two
+JSONL streams and the metadata sidecar share one `schema_version`. The HTML
+report shows `kneepoint_version` in its metadata block.
 
 It is on every line rather than in a header because a JSONL consumer rarely sees
 the whole file: it tails it, splits it, or reads it while it is still being
@@ -221,6 +222,7 @@ rates, whether chaos was on when no fault happened to fire).
   "level_starts_monotonic_s": null,
   "level_status": null,
   "injector_levels": null,
+  "local_resource_samples": null,
   "think_time_min_ms": null,
   "think_time_max_ms": null
 }
@@ -251,6 +253,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `level_starts_monotonic_s` | object \| null | optional level start offsets in seconds since the run's monotonic origin; the generator starts each hold here |
 | `level_status` | object \| null | optional outcome per level (for example `completed`, `stopped`, `failed`, or `budget_exceeded`); steady measurements require a completed hold |
 | `injector_levels` | object \| null | optional per-level monitor measurements: lag p50/p95/max in ms, `cpu_core_share` (loop CPU as a share of one core), `process_cpu_core_share` (whole process, including threads), request rate per second, sample count and `injector_limited` flag; absent on older runs. The flag uses loop CPU |
+| `local_resource_samples` | object[] \| null | optional Linux load-generator CPU and runnable task samples by level. See [local resource samples](#local-resource-samples). |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
 
@@ -278,6 +281,99 @@ unknown configured checks (budget stops retain 3); `report` exits according to
 rendering success/failure. Checks cover observed records, not completion of the
 configured ramp. See [SLO semantics](scenarios.md#slo) for metric scopes and gaps.
 
+## Scaling metrics in HTML and JSON
+
+`kneepoint run`, `kneepoint demo`, and `kneepoint report` write
+`<report-stem>-metrics.json` beside the HTML. It contains the same scaling
+metrics and local samples as the HTML. For example, `run-<id>-report.html`
+produces `run-<id>-report-metrics.json`.
+
+- `max_observed_rps` is the highest eligible measured successful request rate;
+  `peak_concurrency` is its first concurrency level (lowest c on ties).
+  `plateau_status` has three states:
+  **reached**, **not reached**, and **declined after peak**.
+- **Reached** requires eligible rates at the actual last two tested levels
+  with `abs(X_last / X_previous - 1)` strictly less than `plateau_noise_band`.
+  `plateau_levels` lists the consecutive tail levels within that band of the
+  peak, with at least two qualifying levels. `x_max_rps` is the **median** X
+  over those plateau levels, and `estimate_basis` is `"plateau median"`.
+- **Declined after peak** applies when the last rate is below the previous
+  rate by more than the band, or both final rates are more than the band below
+  the peak. `decline_from_peak_pct = 100 * (X_last / peak X - 1)` is signed
+  (negative for a decline). `x_max_rps` is the observed peak X, and both X_max
+  and N* use `estimate_basis: "at observed peak (declining)"` in JSON, HTML
+  and text. This reports the observed peak, not sustained plateau capacity.
+- **Not reached** describes a rising tail that establishes neither plateau
+  nor decline; X_max and N* are null, and HTML/text say "not reached".
+  Insufficient or ineligible final measurements cannot establish any capacity
+  estimate: they also leave these estimates null and must not be read as
+  evidence of continued growth. Ineligible final levels are never skipped.
+- The band is `max(2%, (max baseline - min baseline) / min baseline)` across
+  supplied c=1 rates, including this run's eligible c=1. `baseline_rps` records
+  these rates; one run uses 2%. This is a **sizing estimate and a lower bound**
+  on noise: noise grows with contention. It is not a confidence interval.
+- `r0_s` is the median successful response time at c=1 in seconds.
+  `n_star = x_max_rps * r0_s` is the saturation concurrency estimate, using
+  either the plateau median or the declining curve's observed peak as above.
+  Missing baseline latency leaves N* null even when X_max is available.
+- When comparing arms or runs, supply every comparison arm's eligible c=1
+  rate using repeated `kneepoint report --baseline-rps RATE` options. Use the
+  same throughput window and workload for all rates. For example:
+  `kneepoint report run-a.jsonl --baseline-rps 2.48 --baseline-rps 2.54`.
+  These explicit inputs are recorded in the metrics JSON, not written into
+  the original run's metadata. Supply the same options to reproduce a report.
+- Each object in `levels` shows `concurrency`, `window`,
+  `throughput_rps` and `efficiency`. Efficiency is `X(c) / (c * X(1))`.
+  A `steady` window counts successes finishing in the interior hold window
+  described below. With no hold metadata, an `observed` window spans the
+  earliest attempt start through the last completion at that level.
+  Efficiency and peak throughput require `--min-samples` successful attempts
+  in the selected window. An absent concurrency-1 baseline leaves efficiency
+  and the saturation estimate unavailable.
+- `little_n` is all terminal attempts per second times their mean response
+  in the same window, including failed attempts. The check needs at least
+  two terminal attempts per configured concurrent session.
+  `little_relative_error` is the absolute difference from configured
+  concurrency divided by that concurrency.
+  `little_off_by_more_than_5_pct` flags a relative error strictly above 5%.
+  Think time, retry backoff, and other pauses between requests can cause a gap.
+  The separate resolution-aware timing check below accounts for recorded think time.
+- `flags` can include **software limit likely** for efficiency below 0.8,
+  mean sampled local CPU idle of at least 80% at that level, and no detected
+  injector limit, **only when the target URL host is loopback** (`127.0.0.1`,
+  `::1`, or `localhost`). `target_host_is_local` records this boolean. For
+  remote or unknown hosts, the same local headroom emits a per-level `notes`
+  entry: "local load generator not CPU-bound; target CPU not observed", with
+  no software-limit hypothesis. No DNS resolution or remote CPU inference is
+  performed. **Single-slot saturation likely** requires c=2 throughput
+  within 5% of c=1 and a c=2 median between 1.8 and 2.2 times the c=1 median.
+  Both read as hypotheses and include the level, E(c), sampled local CPU idle
+  (or unknown), and n (successful requests in the throughput window).
+  Busy cores are included when the sample records a vCPU count. These are
+  diagnostic heuristics, not proof of a particular target bottleneck.
+- Missing or unusable quantities are `null`. Known incomplete levels and
+  contaminated levels are excluded from throughput and occupancy estimates.
+
+### Local resource samples
+
+`kneepoint run --sample-resources` samples the load-generator host every five
+seconds per level on Linux using `/proc/stat`. Each object in
+`local_resource_samples` has the level (`concurrency`), `elapsed_s` since that
+level began, `cpu_user_pct`, `cpu_system_pct`, `cpu_idle_pct`, `cpu_steal_pct`,
+`run_queue` (the instantaneous count of runnable tasks), and nullable
+`vcpu_count` (the local host CPU count). Reports show busy cores as
+`(1 - cpu_idle_pct / 100) * vcpu_count`, using the mean of interval estimates
+for each level. Older samples without a vCPU count show busy cores as unknown. User includes
+nice time and system includes interrupt time. CPU percentages use all host
+CPU time over the interval, including I/O wait, which is outside the four
+reported percentages.
+
+The samples describe the local host only. A remote target's CPU use is
+unknown. The metadata sidecar stores the sample array for re-rendering.
+An empty array means sampling was requested but no full interval was captured,
+for example with a short hold or unavailable Linux counters. A missing or
+`null` field means there is no recorded sampling configuration.
+
 ## Re-rendering the report
 
 ```
@@ -286,7 +382,8 @@ kneepoint report reports/run-<id>.jsonl [--out FILE] [--price-in N --price-out N
 
 The records file is the handle; the sessions file and the metadata sidecar are
 found beside it by name, everything is re-aggregated with the same functions the
-run used, and the HTML is written to `run-<id>-report.html` (or `--out`). With
+run used, and the HTML is written to `run-<id>-report.html` (or `--out`).
+The companion metrics JSON follows the same output stem. With
 the sidecar present the result is **byte for byte** the report the run wrote —
 so a report that was deleted, or that failed to render, is not lost, and a run
 can be re-rendered after the report itself improves.

@@ -19,6 +19,7 @@ from kneepoint.analyze.knee import (
 from kneepoint.analyze.resilience import ResilienceSummary
 from kneepoint.analyze.resolution import LevelResolution, ResolutionSummary
 from kneepoint.analyze.retry import RetryLevel, worst_amplification
+from kneepoint.analyze.scaling import scaling_report
 from kneepoint.analyze.slo import SLO_SCOPE, evaluate_run_slo
 from kneepoint.collect.schemas import RunMetadata
 from kneepoint.report.chart import (
@@ -146,6 +147,8 @@ def write_report(
     error_levels: list[ErrorLevel] | None = None,
     run_meta: RunMetadata | None = None,
     meta_note: str | None = None,
+    write_metrics: bool = False,
+    baseline_rps: list[float] | None = None,
 ) -> Path:
     """Render the report. The three `*_note` strings replace a section's default
     "not measured" placeholder with the real reason it is empty — `kneepoint
@@ -162,6 +165,10 @@ def write_report(
         knee_summary = knee_report(timed_stats, min_samples=min_samples)
         knee = find_knee(timed_stats, min_samples=min_samples)
     stats = timed_stats
+    scaling = scaling_report(
+        stats, min_samples=min_samples, baseline_rps=baseline_rps, target_url=meta.target,
+        resources=run_meta.local_resource_samples if run_meta is not None else None,
+    )
     # Fixed div ids: Plotly would otherwise mint a fresh UUID per figure, and the
     # same run rendered twice would differ for no reason anyone can read.
     knee_div = knee_figure(stats, knee, min_samples=min_samples).to_html(
@@ -212,7 +219,7 @@ def write_report(
         slo_scope=SLO_SCOPE,
         meta=meta, knee=knee, knee_div=knee_div, quality_div=quality_div,
         drift_div=drift_div, ttft_div=ttft_div, itl_div=itl_div,
-        cost=cost, res=res, knee_summary=knee_summary,
+        cost=cost, res=res, knee_summary=knee_summary, scaling=scaling,
         contaminated=contaminated,
         abandoned_total=sum(s.abandoned for s in stats),
         clock_levels=[s.concurrency for s in stats if s.clock_anomaly],
@@ -230,4 +237,7 @@ def write_report(
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
+    if write_metrics:
+        metrics_path = path.with_name(f"{path.stem}-metrics.json")
+        metrics_path.write_text(scaling.model_dump_json(indent=2) + "\n", encoding="utf-8")
     return path

@@ -149,6 +149,19 @@ class InjectorLevel(BaseModel):
     injector_limited: bool = False
 
 
+class ResourceSample(BaseModel):
+    """Load-generator host CPU percentages over one interval and a queue snapshot."""
+
+    concurrency: int
+    elapsed_s: float  # relative to the start of this level
+    cpu_user_pct: float
+    cpu_system_pct: float
+    cpu_idle_pct: float
+    cpu_steal_pct: float
+    run_queue: int
+    vcpu_count: int | None = Field(default=None, gt=0)
+
+
 class RunMetadata(VersionedRecord):
     """The `run-<id>-meta.json` sidecar: everything the report needs that is not
     on a request or session line (docs/output-format.md).
@@ -183,5 +196,6 @@ class RunMetadata(VersionedRecord):
     level_starts_monotonic_s: dict[int, float] | None = None  # run-relative
     level_status: dict[int, str] | None = None  # terminal outcome per level
     injector_levels: dict[int, InjectorLevel] | None = None
+    local_resource_samples: list[ResourceSample] | None = None
     think_time_min_ms: int | None = None
     think_time_max_ms: int | None = None
