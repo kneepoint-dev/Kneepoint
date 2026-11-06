@@ -166,7 +166,7 @@ def write_report(
         knee = find_knee(timed_stats, min_samples=min_samples)
     stats = timed_stats
     scaling = scaling_report(
-        stats, min_samples=min_samples, baseline_rps=baseline_rps,
+        stats, min_samples=min_samples, baseline_rps=baseline_rps, target_url=meta.target,
         resources=run_meta.local_resource_samples if run_meta is not None else None,
     )
     # Fixed div ids: Plotly would otherwise mint a fresh UUID per figure, and the

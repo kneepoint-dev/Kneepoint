@@ -3,6 +3,7 @@
 import math
 import statistics
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
@@ -26,12 +27,17 @@ class ScalingLevel(BaseModel):
     busy_cores: float | None
     successes: int
     flags: list[str]
+    notes: list[str]
 
 
 class ScalingReport(BaseModel):
     max_observed_rps: float | None
     x_max_rps: float | None
-    plateau_status: Literal["reached", "not reached"]
+    plateau_status: Literal["reached", "not reached", "declined after peak"]
+    peak_concurrency: int | None
+    decline_from_peak_pct: float | None
+    estimate_basis: str
+    target_host_is_local: bool
     plateau_noise_band: float
     baseline_rps: list[float]
     plateau_levels: list[int]
@@ -48,12 +54,20 @@ class ScalingReport(BaseModel):
                  f"Plateau noise band: {self.plateau_noise_band:.2%} (sizing estimate)"]
         if self.plateau_levels:
             lines.append(f"Observed plateau at c={', '.join(map(str, self.plateau_levels))}; "
-                         f"X_max={metric(self.x_max_rps)} requests/s; N*={metric(self.n_star)}")
+                         f"X_max={metric(self.x_max_rps)} requests/s; N*={metric(self.n_star)} "
+                         f"({self.estimate_basis})")
+        elif self.plateau_status == "declined after peak":
+            lines.append(f"Declined after peak at c={self.peak_concurrency}: "
+                         f"peak X={metric(self.max_observed_rps)} requests/s; "
+                         f"change to last={self.decline_from_peak_pct:.2f}%; "
+                         f"X_max={metric(self.x_max_rps)} requests/s; N*={metric(self.n_star)} "
+                         f"({self.estimate_basis})")
         else:
             lines.append("Plateau not reached in the tested range; "
                          "X_max=not reached; N*=not reached")
         for row in self.levels:
             lines.extend(row.flags)
+            lines.extend(row.notes)
             if self.local_resource_samples is not None:
                 lines.append(f"  c={row.concurrency}: local CPU idle={metric(row.cpu_idle_pct)}%; "
                              f"busy cores={metric(row.busy_cores)}")
@@ -64,7 +78,14 @@ def scaling_report(
     stats: list[LevelStats], *, min_samples: int = 10,
     resources: list[ResourceSample] | None = None,
     baseline_rps: list[float] | None = None,
+    target_url: str | None = None,
 ) -> ScalingReport:
+    try:
+        target_host_is_local = urlsplit(target_url or "").hostname in {
+            "127.0.0.1", "::1", "localhost",
+        }
+    except ValueError:
+        target_host_is_local = False
     ordered = sorted(stats, key=lambda level: level.concurrency)
     measured = {
         s.concurrency: s.scaling_throughput_rps for s in ordered
@@ -90,19 +111,33 @@ def scaling_report(
     r0 = p50 / 1000 if p50 is not None and 0 < p50 < math.inf else None
 
     # Require the actual final two levels, not the last two surviving filters.
-    # A flat tail below a previous peak is a regression, not peak capacity.
     plateau = []
+    status = "not reached"
+    peak_c = max(usable, key=usable.get) if usable else None
+    decline_pct = None
     if len(ordered) >= 2:
         previous, last = (usable.get(s.concurrency) for s in ordered[-2:])
-        if previous and last and abs(last / previous - 1) < band and not math.isclose(
-            abs(last / previous - 1), band,
-        ):
-            for s in reversed(ordered):
-                if peak is None or usable.get(s.concurrency, 0) < (1 - band) * peak:
-                    break
-                plateau.append(s.concurrency)
+        if previous and last and peak:
+            tail_change = last / previous - 1
+            tail_below_peak = [1 - value / peak for value in (previous, last)]
+            if (tail_change < -band and not math.isclose(-tail_change, band)) or all(
+                drop > band and not math.isclose(drop, band) for drop in tail_below_peak
+            ):
+                status = "declined after peak"
+                decline_pct = 100 * (last / peak - 1)
+            elif abs(tail_change) < band and not math.isclose(abs(tail_change), band):
+                for s in reversed(ordered):
+                    if usable.get(s.concurrency, 0) < (1 - band) * peak:
+                        break
+                    plateau.append(s.concurrency)
     plateau = list(reversed(plateau)) if len(plateau) > 1 else []
-    x_max = peak if plateau else None
+    if plateau:
+        status = "reached"
+    x_max = statistics.median(usable[c] for c in plateau) if plateau else (
+        peak if status == "declined after peak" else None
+    )
+    basis = ("plateau median" if plateau else "at observed peak (declining)"
+             if status == "declined after peak" else "not reached")
 
     idle_by_level: dict[int, list[float]] = {}
     busy_by_level: dict[int, list[float]] = {}
@@ -120,6 +155,7 @@ def scaling_report(
         little_n = s.little_n if c in measured else None
         error = abs(little_n / c - 1) if little_n is not None else None
         flags = []
+        notes = []
         idle_samples = idle_by_level.get(c)
         idle = statistics.mean(idle_samples) if idle_samples else None
         busy_samples = busy_by_level.get(c)
@@ -131,7 +167,11 @@ def scaling_report(
             evidence += f", busy cores={busy:.3f}"
         if efficiency is not None and efficiency < 0.8 and idle is not None:
             if idle >= IDLE_THRESHOLD and not (s.injector and s.injector.injector_limited):
-                flags.append(f"Hypothesis: software limit likely ({evidence})")
+                if target_host_is_local:
+                    flags.append(f"Hypothesis: software limit likely ({evidence})")
+                else:
+                    notes.append("local load generator not CPU-bound; target CPU not observed "
+                                 f"({evidence})")
         if c == 2 and efficiency is not None and r0 and s.p50_ms is not None:
             ratio = s.p50_ms / (1000 * r0)
             if 0.95 <= 2 * efficiency <= 1.05 and 1.8 <= ratio <= 2.2:
@@ -145,11 +185,13 @@ def scaling_report(
                 error > LAW_TOLERANCE and not math.isclose(error, LAW_TOLERANCE)
                 if error is not None else None
             ),
-            cpu_idle_pct=idle, busy_cores=busy, successes=s.scaling_successes, flags=flags,
+            cpu_idle_pct=idle, busy_cores=busy, successes=s.scaling_successes,
+            flags=flags, notes=notes,
         ))
     return ScalingReport(
         max_observed_rps=peak, x_max_rps=x_max,
-        plateau_status="reached" if plateau else "not reached",
+        plateau_status=status, peak_concurrency=peak_c, decline_from_peak_pct=decline_pct,
+        estimate_basis=basis, target_host_is_local=target_host_is_local,
         plateau_noise_band=band, baseline_rps=baselines, plateau_levels=plateau,
         r0_s=r0, n_star=x_max * r0 if x_max is not None and r0 is not None else None,
         levels=rows, local_resource_samples=resources,

@@ -3,7 +3,7 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
-## [Unreleased] — 0.4.0
+## [0.4.0] - 2026-11-06
 
 ### Added
 
@@ -17,13 +17,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 ### Changed and fixed
 
 - Separate maximum observed throughput from plateau capacity. X_max and N*
-  remain unavailable until the final two eligible measured levels differ by
+  use a plateau median when the final two eligible measured levels differ by
   less than a sizing noise band: max(2%, supplied c=1 run/arm spread).
+  This band is a lower bound on noise because noise grows with contention.
   Rising tails now say "plateau not reached in the tested range" in HTML and
   text, and carry an explicit not-reached status with null estimates in JSON.
 - `report --baseline-rps` accepts repeated comparison c=1 rates and records
   them with the sizing band in the report metrics. Efficiency and Little's law
   keep their existing windows and calculations.
+- Distinguish a decline after the observed peak from a rising tail. Declining
+  curves report the peak concurrency, peak throughput and signed change to the
+  final level; their X_max and N* are labelled "at observed peak (declining)".
+  Reached plateaus use median throughput instead of the maximum sample.
+- Restrict the software-limit hypothesis to loopback target URLs. For remote
+  or unknown target hosts, local CPU headroom produces only a load-generator
+  note; target CPU is not observed.
 - Saturation flags read as hypotheses with the level, efficiency, local CPU
   idle and successful sample count as evidence. New local resource samples
   retain host vCPU count; reports and text show estimated busy cores when known.

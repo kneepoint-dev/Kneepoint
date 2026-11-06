@@ -233,7 +233,9 @@ def run_demo(
             error_levels=errors_by_level(records), run_meta=run_meta,
         )
 
-        for line in scaling_report(stats, min_samples=DEMO_MIN_SAMPLES).lines():
+        for line in scaling_report(
+            stats, min_samples=DEMO_MIN_SAMPLES, target_url=run_meta.target,
+        ).lines():
             echo(line)
         for line in knee_summary.lines():
             echo(line)

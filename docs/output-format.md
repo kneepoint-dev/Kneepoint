@@ -288,24 +288,34 @@ configured ramp. See [SLO semantics](scenarios.md#slo) for metric scopes and gap
 metrics and local samples as the HTML. For example, `run-<id>-report.html`
 produces `run-<id>-report-metrics.json`.
 
-- `max_observed_rps` is the highest eligible measured successful request rate.
-  It does not establish capacity. `plateau_status` is `"reached"` or `"not reached"`.
-  A plateau requires the actual last two tested levels to have eligible rates
-  whose relative change `abs(X_last / X_previous - 1)` is strictly less than
-  `plateau_noise_band`. The band is the larger of 2% and the c=1 spread
-  `(max baseline - min baseline) / min baseline` across supplied runs/arms,
-  including this run's eligible c=1 rate. This is a **sizing estimate**, not a
-  statistical confidence interval. The consecutive tail must also stay within
-  that band of the measured peak; a flat tail below an earlier peak does not
-  establish peak capacity. Ineligible final levels cannot be skipped.
-  `plateau_levels` lists that consecutive tail when at least two levels qualify.
-  `baseline_rps` records the rates used for the band. A single run uses 2%.
-- `x_max_rps` and `n_star` are computed only when a plateau holds. Otherwise
-  both are `null`, with `plateau_status: "not reached"`; HTML and text say
-  **plateau not reached in the tested range** and mark X_max and N* as
-  **not reached**. `r0_s` is the median successful response time at c=1 in
-  seconds; `n_star = x_max_rps * r0_s` is a saturation concurrency estimate.
-  Missing baseline latency leaves `n_star` null even if a plateau holds.
+- `max_observed_rps` is the highest eligible measured successful request rate;
+  `peak_concurrency` is its first concurrency level (lowest c on ties).
+  `plateau_status` has three states:
+  **reached**, **not reached**, and **declined after peak**.
+- **Reached** requires eligible rates at the actual last two tested levels
+  with `abs(X_last / X_previous - 1)` strictly less than `plateau_noise_band`.
+  `plateau_levels` lists the consecutive tail levels within that band of the
+  peak, with at least two qualifying levels. `x_max_rps` is the **median** X
+  over those plateau levels, and `estimate_basis` is `"plateau median"`.
+- **Declined after peak** applies when the last rate is below the previous
+  rate by more than the band, or both final rates are more than the band below
+  the peak. `decline_from_peak_pct = 100 * (X_last / peak X - 1)` is signed
+  (negative for a decline). `x_max_rps` is the observed peak X, and both X_max
+  and N* use `estimate_basis: "at observed peak (declining)"` in JSON, HTML
+  and text. This reports the observed peak, not sustained plateau capacity.
+- **Not reached** describes a rising tail that establishes neither plateau
+  nor decline; X_max and N* are null, and HTML/text say "not reached".
+  Insufficient or ineligible final measurements cannot establish any capacity
+  estimate: they also leave these estimates null and must not be read as
+  evidence of continued growth. Ineligible final levels are never skipped.
+- The band is `max(2%, (max baseline - min baseline) / min baseline)` across
+  supplied c=1 rates, including this run's eligible c=1. `baseline_rps` records
+  these rates; one run uses 2%. This is a **sizing estimate and a lower bound**
+  on noise: noise grows with contention. It is not a confidence interval.
+- `r0_s` is the median successful response time at c=1 in seconds.
+  `n_star = x_max_rps * r0_s` is the saturation concurrency estimate, using
+  either the plateau median or the declining curve's observed peak as above.
+  Missing baseline latency leaves N* null even when X_max is available.
 - When comparing arms or runs, supply every comparison arm's eligible c=1
   rate using repeated `kneepoint report --baseline-rps RATE` options. Use the
   same throughput window and workload for all rates. For example:
@@ -330,7 +340,12 @@ produces `run-<id>-report-metrics.json`.
   The separate resolution-aware timing check below accounts for recorded think time.
 - `flags` can include **software limit likely** for efficiency below 0.8,
   mean sampled local CPU idle of at least 80% at that level, and no detected
-  injector limit. **Single-slot saturation likely** requires c=2 throughput
+  injector limit, **only when the target URL host is loopback** (`127.0.0.1`,
+  `::1`, or `localhost`). `target_host_is_local` records this boolean. For
+  remote or unknown hosts, the same local headroom emits a per-level `notes`
+  entry: "local load generator not CPU-bound; target CPU not observed", with
+  no software-limit hypothesis. No DNS resolution or remote CPU inference is
+  performed. **Single-slot saturation likely** requires c=2 throughput
   within 5% of c=1 and a c=2 median between 1.8 and 2.2 times the c=1 median.
   Both read as hypotheses and include the level, E(c), sampled local CPU idle
   (or unknown), and n (successful requests in the throughput window).

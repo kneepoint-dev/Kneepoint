@@ -119,12 +119,17 @@ below shades the ramp from the first contaminated level onward.
 {%- endmacro %}
 <h3>Scaling and saturation</h3>
 <p>Max observed throughput {{ metric(scaling.max_observed_rps) }} requests/s ·
-X<sub>max</sub> {{ metric(scaling.x_max_rps) if scaling.plateau_levels else "not reached" }} ·
+X<sub>max</sub> {{ metric(scaling.x_max_rps) if scaling.x_max_rps is not none else "not reached" }} ·
 R<sub>0</sub> {{ metric(scaling.r0_s) }} s ·
-N* {{ metric(scaling.n_star) if scaling.plateau_levels else "not reached" }}.</p>
+N* {{ metric(scaling.n_star) if scaling.x_max_rps is not none else "not reached" }}
+({{ scaling.estimate_basis }}).</p>
 <p>Plateau noise band: {{ metric(scaling.plateau_noise_band * 100, "%.2f") }}%
-(sizing estimate; larger of 2% and c=1 spread across supplied runs/arms).</p>
+(sizing estimate; larger of 2% and c=1 spread across supplied runs/arms;
+a lower bound on noise because noise grows with contention).</p>
 <p>{% if scaling.plateau_levels %}Observed plateau at c={{ scaling.plateau_levels|join(", ") }}.
+{% elif scaling.plateau_status == "declined after peak" %}Declined after peak at
+c={{ scaling.peak_concurrency }}: peak X={{ metric(scaling.max_observed_rps) }} requests/s;
+change from peak to last {{ metric(scaling.decline_from_peak_pct, "%.2f") }}%.
 {% else %}Plateau not reached in the tested range.{% endif %}</p>
 {% if scaling.levels %}
 <p class="muted">Efficiency uses successful throughput. The Little’s law check
@@ -141,7 +146,7 @@ A gap above 5% is flagged. Think time and retry delays can also cause a gap.</p>
       <td>{% if row.little_off_by_more_than_5_pct is none %}unavailable
           {% elif row.little_off_by_more_than_5_pct %}<strong>off by more than 5%</strong>
           {% else %}within 5%{% endif %}</td>
-      <td>{{ row.flags|join(", ") }}</td></tr>
+      <td>{{ (row.flags + row.notes)|join(", ") }}</td></tr>
   {% endfor %}
 </table>
 {% endif %}

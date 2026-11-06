@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 from typer.testing import CliRunner
@@ -67,6 +68,7 @@ def test_run_flag_saves_samples_by_level_and_report_replays_them(
     assert all(sample.cpu_idle_pct == 99 and sample.run_queue == 1 for sample in samples)
     html, = tmp_path.glob("run-*-report.html")
     metrics, = tmp_path.glob("run-*-report-metrics.json")
+    assert json.loads(metrics.read_text())["target_host_is_local"] is True
     records = tmp_path / meta_path.name.replace("-meta.json", ".jsonl")
     result = CliRunner().invoke(app, ["report", str(records), "--out", str(tmp_path / "new.html")])
     assert result.exit_code == 0, result.output
@@ -79,3 +81,14 @@ def test_run_flag_saves_samples_by_level_and_report_replays_them(
     assert original.split(heading)[1].split("</table>")[0] == (
         replay.split(heading)[1].split("</table>")[0]
     )
+
+    # Re-rendering uses the recorded target host, without contacting that host.
+    data = json.loads(meta_path.read_text())
+    data["target"] = "https://remote.example/v1"
+    meta_path.write_text(json.dumps(data))
+    result = CliRunner().invoke(
+        app, ["report", str(records), "--out", str(tmp_path / "remote.html")],
+    )
+    assert result.exit_code == 0, result.output
+    remote_metrics = json.loads((tmp_path / "remote-metrics.json").read_text())
+    assert remote_metrics["target_host_is_local"] is False

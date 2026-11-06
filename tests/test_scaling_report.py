@@ -45,7 +45,7 @@ def _flag_names(row):
 def test_flags_require_matching_local_samples_and_a_valid_baseline():
     stats = [_level(1, 2.5, 400, 1), _level(2, 2.5, 800, 2), _level(3, 2.5, 1200, 3)]
     samples = [_sample(1, 99), _sample(2, 95), _sample(2, 85), _sample(3, 70)]
-    result = scaling_report(stats, resources=samples)
+    result = scaling_report(stats, resources=samples, target_url="http://localhost:8000/v1")
     assert _flag_names(result.levels[1]) == [
         "software limit likely", "single-slot saturation likely",
     ]
@@ -96,7 +96,8 @@ def test_report_golden_client_records(name, count, plateau, tmp_path):
     # records, the first observed start anchors the interior window.
     result = scaling_report(aggregate(records, hold_seconds=120))
     assert result.plateau_levels == plateau
-    assert result.x_max_rps == pytest.approx(6.635, abs=0.015)
+    assert result.max_observed_rps == pytest.approx(6.625)
+    assert result.x_max_rps == pytest.approx(6.607142857142857)
     assert 2.6 <= result.n_star <= 2.7
     assert result.levels[2].efficiency == pytest.approx(0.88, abs=0.005)
     assert all(row.little_off_by_more_than_5_pct is False for row in result.levels)
@@ -105,6 +106,7 @@ def test_report_golden_client_records(name, count, plateau, tmp_path):
     # local headroom. Only request records are imported from the experiment.
     with_samples = scaling_report(
         aggregate(records, hold_seconds=120), resources=[_sample(c, 99) for c in plateau],
+        target_url="http://127.0.0.1:8000/v1",
     )
     assert with_samples.levels[2].flags == []
     assert all(_flag_names(row) == ["software limit likely"] for row in with_samples.levels[3:])
@@ -114,7 +116,9 @@ def test_report_golden_client_records(name, count, plateau, tmp_path):
     report = render_from_files(records_path)
     companion = tmp_path / "run-golden-report-metrics.json"
     metrics = json.loads(companion.read_text())
-    assert metrics["x_max_rps"] == pytest.approx(6.61, abs=0.01)
+    expected = {"a": 6.593996563793167, "b": 6.597790050809684, "t4": 6.596464128624478}
+    assert metrics["x_max_rps"] == pytest.approx(expected[name])
+    assert metrics["estimate_basis"] == "plateau median"
     assert metrics["plateau_levels"] == plateau
     assert metrics["levels"][2]["window"] == "observed"
     assert metrics["local_resource_samples"] is None
@@ -129,8 +133,9 @@ def test_plateau_requires_strict_tail_noise_band(tail, reached):
     result = scaling_report([_level(1, 2.5, 400, 1), _level(4, 6, 600, 4),
                              _level(8, tail, 1200, 8)])
     assert bool(result.plateau_levels) is reached
-    assert (result.x_max_rps is not None) is reached
-    assert (result.n_star is not None) is reached
+    estimated = reached or tail == 5.8
+    assert (result.x_max_rps is not None) is estimated
+    assert (result.n_star is not None) is estimated
     assert result.max_observed_rps == max(6, tail)
 
 
@@ -190,3 +195,67 @@ def test_synthetic_rising_tail_json_html_and_text(tmp_path):
     result = CliRunner().invoke(app, ["report", str(records), "--baseline-rps", "nan"])
     assert result.exit_code == 1
     assert "finite and positive" in result.output
+
+
+@pytest.mark.parametrize(
+    ("rates", "concurrencies", "status", "peak_c", "expected_x"),
+    [([1.092, 1.483, 1.708, 1.633], [1, 2, 3, 4], "declined after peak", 3, 1.708),
+     ([3, 6, 10, 8, 8], [1, 2, 3, 4, 5], "declined after peak", 3, 10),
+     ([0.968, 1.938, 3.697, 4.804, 5.766, 6.759], [1, 2, 4, 6, 8, 12],
+      "not reached", 12, None),
+     ([2.5, 5.0, 6.643, 6.571, 6.571, 6.571, 6.571], [1, 2, 3, 4, 5, 6, 7],
+      "reached", 3, 6.571)],
+)
+def test_review_curves_in_json_html_and_text(
+    rates, concurrencies, status, peak_c, expected_x, tmp_path,
+):
+    from kneepoint.report.html import RunMeta, write_report
+
+    stats = [_level(c, x, 1000 * c / x, c) for c, x in zip(concurrencies, rates, strict=True)]
+    result = scaling_report(stats)
+    assert result.plateau_status == status
+    assert result.peak_concurrency == peak_c
+    if expected_x is None:
+        assert result.x_max_rps is None and result.n_star is None
+    else:
+        assert result.x_max_rps == pytest.approx(expected_x)
+        assert result.n_star == pytest.approx(expected_x / rates[0])
+    if status == "declined after peak":
+        assert result.decline_from_peak_pct == pytest.approx(100 * (rates[-1] / max(rates) - 1))
+        if rates[0] == 1.092:
+            assert result.decline_from_peak_pct == pytest.approx(-4.4, abs=0.02)
+        assert result.estimate_basis == "at observed peak (declining)"
+        assert "at observed peak (declining)" in " ".join(result.lines())
+        assert f"peak at c={peak_c}" in " ".join(result.lines())
+    path = tmp_path / "curve.html"
+    write_report(path, meta=RunMeta(target="http://localhost/v1", model="synthetic",
+                 started="synthetic", ramp="synthetic", chaos="off",
+                 total_requests=50 * len(stats), total_sessions=50),
+                 stats=stats, knee=None, quality=[], cost=None, res=None, write_metrics=True)
+    metrics = json.loads((tmp_path / "curve-metrics.json").read_text())
+    assert metrics["plateau_status"] == status
+    assert metrics["x_max_rps"] == result.x_max_rps
+    if status == "declined after peak":
+        assert "at observed peak (declining)" in path.read_text()
+        assert "Declined after peak" in path.read_text()
+        assert metrics["estimate_basis"] == "at observed peak (declining)"
+
+
+@pytest.mark.parametrize(("target", "local"), [
+    ("http://127.0.0.1:8000/v1", True), ("http://[::1]:8000/v1", True),
+    ("http://LOCALHOST:8000/v1", True), ("https://example.com/v1", False),
+    ("http://192.168.1.2/v1", False), ("http://localhost.example.com/v1", False),
+    ("http://localhost@remote.example/v1", False), ("http://[broken", False), (None, False),
+])
+def test_software_limit_hypothesis_requires_loopback_target(target, local):
+    stats = [_level(1, 2.5, 400, 1), _level(3, 2.5, 1200, 3)]
+    result = scaling_report(stats, resources=[_sample(3, 95)], target_url=target)
+    assert result.model_dump()["target_host_is_local"] is local
+    if local:
+        assert _flag_names(result.levels[-1]) == ["software limit likely"]
+        assert not result.levels[-1].notes
+    else:
+        assert not result.levels[-1].flags
+        note = "local load generator not CPU-bound; target CPU not observed"
+        assert note in result.levels[-1].notes[0]
+        assert note in " ".join(result.lines())

@@ -241,6 +241,7 @@ def report(
     for line in scaling_report(
         result.stats, min_samples=result.min_samples, baseline_rps=baseline_rps,
         resources=result.meta.local_resource_samples if result.meta else None,
+        target_url=result.meta.target if result.meta else None,
     ).lines():
         typer.echo(line)
     for line in result.slo.lines():
@@ -658,6 +659,7 @@ def run(
     _print_timing(stats)
     for line in scaling_report(
         stats, min_samples=min_samples, resources=run_meta.local_resource_samples,
+        target_url=target_url,
     ).lines():
         typer.echo(line)
     retry_levels = retry_by_level(records, all_sessions)
