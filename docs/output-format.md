@@ -288,11 +288,30 @@ configured ramp. See [SLO semantics](scenarios.md#slo) for metric scopes and gap
 metrics and local samples as the HTML. For example, `run-<id>-report.html`
 produces `run-<id>-report-metrics.json`.
 
-- `x_max_rps` is the highest eligible measured successful request rate.
-  `plateau_levels` lists the consecutive measured levels at the high end of
-  the ramp within 2% of that peak, when at least two such levels exist.
-  `r0_s` is the median successful response time at concurrency 1, in seconds.
-  `n_star` estimates saturation concurrency as `x_max_rps * r0_s`.
+- `max_observed_rps` is the highest eligible measured successful request rate.
+  It does not establish capacity. `plateau_status` is `"reached"` or `"not reached"`.
+  A plateau requires the actual last two tested levels to have eligible rates
+  whose relative change `abs(X_last / X_previous - 1)` is strictly less than
+  `plateau_noise_band`. The band is the larger of 2% and the c=1 spread
+  `(max baseline - min baseline) / min baseline` across supplied runs/arms,
+  including this run's eligible c=1 rate. This is a **sizing estimate**, not a
+  statistical confidence interval. The consecutive tail must also stay within
+  that band of the measured peak; a flat tail below an earlier peak does not
+  establish peak capacity. Ineligible final levels cannot be skipped.
+  `plateau_levels` lists that consecutive tail when at least two levels qualify.
+  `baseline_rps` records the rates used for the band. A single run uses 2%.
+- `x_max_rps` and `n_star` are computed only when a plateau holds. Otherwise
+  both are `null`, with `plateau_status: "not reached"`; HTML and text say
+  **plateau not reached in the tested range** and mark X_max and N* as
+  **not reached**. `r0_s` is the median successful response time at c=1 in
+  seconds; `n_star = x_max_rps * r0_s` is a saturation concurrency estimate.
+  Missing baseline latency leaves `n_star` null even if a plateau holds.
+- When comparing arms or runs, supply every comparison arm's eligible c=1
+  rate using repeated `kneepoint report --baseline-rps RATE` options. Use the
+  same throughput window and workload for all rates. For example:
+  `kneepoint report run-a.jsonl --baseline-rps 2.48 --baseline-rps 2.54`.
+  These explicit inputs are recorded in the metrics JSON, not written into
+  the original run's metadata. Supply the same options to reproduce a report.
 - Each object in `levels` shows `concurrency`, `window`,
   `throughput_rps` and `efficiency`. Efficiency is `X(c) / (c * X(1))`.
   A `steady` window counts successes finishing in the interior hold window
@@ -313,7 +332,10 @@ produces `run-<id>-report-metrics.json`.
   mean sampled local CPU idle of at least 80% at that level, and no detected
   injector limit. **Single-slot saturation likely** requires c=2 throughput
   within 5% of c=1 and a c=2 median between 1.8 and 2.2 times the c=1 median.
-  Both are diagnostic heuristics.
+  Both read as hypotheses and include the level, E(c), sampled local CPU idle
+  (or unknown), and n (successful requests in the throughput window).
+  Busy cores are included when the sample records a vCPU count. These are
+  diagnostic heuristics, not proof of a particular target bottleneck.
 - Missing or unusable quantities are `null`. Known incomplete levels and
   contaminated levels are excluded from throughput and occupancy estimates.
 
@@ -323,7 +345,10 @@ produces `run-<id>-report-metrics.json`.
 seconds per level on Linux using `/proc/stat`. Each object in
 `local_resource_samples` has the level (`concurrency`), `elapsed_s` since that
 level began, `cpu_user_pct`, `cpu_system_pct`, `cpu_idle_pct`, `cpu_steal_pct`,
-and `run_queue` (the instantaneous count of runnable tasks). User includes
+`run_queue` (the instantaneous count of runnable tasks), and nullable
+`vcpu_count` (the local host CPU count). Reports show busy cores as
+`(1 - cpu_idle_pct / 100) * vcpu_count`, using the mean of interval estimates
+for each level. Older samples without a vCPU count show busy cores as unknown. User includes
 nice time and system includes interrupt time. CPU percentages use all host
 CPU time over the interval, including I/O wait, which is outside the four
 reported percentages.

@@ -159,6 +159,7 @@ class ResourceSample(BaseModel):
     cpu_idle_pct: float
     cpu_steal_pct: float
     run_queue: int
+    vcpu_count: int | None = Field(default=None, gt=0)
 
 
 class RunMetadata(VersionedRecord):

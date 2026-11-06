@@ -22,6 +22,7 @@ from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level
+from kneepoint.analyze.scaling import scaling_report
 from kneepoint.chaos.faults import FaultSpec
 from kneepoint.chaos.injector import ChaosInjector
 from kneepoint.chaos.proxy import start_proxy
@@ -232,6 +233,8 @@ def run_demo(
             error_levels=errors_by_level(records), run_meta=run_meta,
         )
 
+        for line in scaling_report(stats, min_samples=DEMO_MIN_SAMPLES).lines():
+            echo(line)
         for line in knee_summary.lines():
             echo(line)
         # Import at call time: cli imports the demo entry point.

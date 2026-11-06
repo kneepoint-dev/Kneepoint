@@ -12,6 +12,7 @@ async def test_sampler_converts_host_counter_deltas_to_a_level_sample(tmp_path, 
     proc_stat = tmp_path / "stat"
     proc_stat.write_text("cpu  20 10 10 90 0 0 0 1 10 0\nprocs_running 2\n")
     monkeypatch.setattr(resources, "PROC_STAT", proc_stat)
+    monkeypatch.setattr(resources.os, "cpu_count", lambda: 8)
     sleeps = []
 
     async def advance(delay):
@@ -27,6 +28,7 @@ async def test_sampler_converts_host_counter_deltas_to_a_level_sample(tmp_path, 
         await resources.sample_local_resources(4, resources.time.perf_counter(), samples)
     sample, = samples
     assert sleeps == [5.0, 5.0]
+    assert sample.vcpu_count == 8
     assert sample.concurrency == 4 and sample.run_queue == 3
     assert (sample.cpu_user_pct, sample.cpu_system_pct, sample.cpu_idle_pct,
             sample.cpu_steal_pct) == (10, 18, 65, 2)
@@ -42,6 +44,7 @@ async def test_unavailable_counters_leave_no_samples(tmp_path, monkeypatch):
 def test_run_flag_saves_samples_by_level_and_report_replays_them(
     mock_agent_url, tmp_path, monkeypatch,
 ):
+    monkeypatch.setattr(resources.os, "cpu_count", lambda: 8)
     counter = 0
 
     def read_cpu():
@@ -56,6 +59,7 @@ def test_run_flag_saves_samples_by_level_and_report_replays_them(
         "--hold-seconds", "0.08", "--sample-resources", "--out", str(tmp_path),
     ])
     assert result.exit_code == 0, result.output
+    assert "busy cores=0.080" in result.output
     meta_path, = tmp_path.glob("run-*-meta.json")
     meta = read_run_meta(meta_path)
     samples = meta.local_resource_samples
@@ -66,6 +70,7 @@ def test_run_flag_saves_samples_by_level_and_report_replays_them(
     records = tmp_path / meta_path.name.replace("-meta.json", ".jsonl")
     result = CliRunner().invoke(app, ["report", str(records), "--out", str(tmp_path / "new.html")])
     assert result.exit_code == 0, result.output
+    assert "busy cores=0.080" in result.output
     assert (tmp_path / "new-metrics.json").read_bytes() == metrics.read_bytes()
     heading = "<h3>Local load-generator resource samples</h3>"
     original = html.read_text()

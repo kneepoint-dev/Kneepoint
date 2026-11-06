@@ -15,6 +15,7 @@ from kneepoint.analyze.knee import aggregate, find_knee, knee_report
 from kneepoint.analyze.resilience import resilience
 from kneepoint.analyze.resolution import resolution_by_level, resolution_summary
 from kneepoint.analyze.retry import retry_by_level, worst_amplification
+from kneepoint.analyze.scaling import scaling_report
 from kneepoint.analyze.slo import evaluate_run_slo
 from kneepoint.chaos.faults import STANDARD_PROFILE, TOOL_FAULTS
 from kneepoint.chaos.injector import ChaosInjector
@@ -202,6 +203,12 @@ REPORT_MIN_SAMPLES_OPTION = typer.Option(
     help="Override the minimum successes per level for knee, scaling and latency SLOs.",
 )
 
+REPORT_BASELINE_RPS_OPTION = typer.Option(
+    None, "--baseline-rps",
+    help="Comparison run/arm c=1 successful requests/s; repeat for each baseline. "
+         "Uses (max-min)/min spread as a plateau sizing estimate.",
+)
+
 
 @app.command()
 def report(
@@ -210,6 +217,7 @@ def report(
     price_in: float = REPORT_PRICE_IN_OPTION,
     price_out: float = REPORT_PRICE_OUT_OPTION,
     min_samples: int = REPORT_MIN_SAMPLES_OPTION,
+    baseline_rps: list[float] | None = REPORT_BASELINE_RPS_OPTION,
 ) -> None:
     """Re-render HTML and scaling JSON from a run's stored records.
 
@@ -221,6 +229,7 @@ def report(
     try:
         result = render_from_files(
             records, out=out, price_in=price_in, price_out=price_out, min_samples=min_samples,
+            baseline_rps=baseline_rps,
         )
     except ReportInputError as exc:
         typer.echo(str(exc))
@@ -229,6 +238,11 @@ def report(
         typer.echo(line)
     _warn_contamination(result.stats)
     _print_timing(result.stats)
+    for line in scaling_report(
+        result.stats, min_samples=result.min_samples, baseline_rps=baseline_rps,
+        resources=result.meta.local_resource_samples if result.meta else None,
+    ).lines():
+        typer.echo(line)
     for line in result.slo.lines():
         typer.echo(line)
     for reason in result.unknown:
@@ -642,6 +656,10 @@ def run(
     stats = aggregate(records, run_meta=run_meta)
     _warn_contamination(stats)
     _print_timing(stats)
+    for line in scaling_report(
+        stats, min_samples=min_samples, resources=run_meta.local_resource_samples,
+    ).lines():
+        typer.echo(line)
     retry_levels = retry_by_level(records, all_sessions)
     worst = worst_amplification(retry_levels)
     if worst is not None:

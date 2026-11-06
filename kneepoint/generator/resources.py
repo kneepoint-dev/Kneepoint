@@ -1,6 +1,7 @@
 """Best-effort Linux host sampling for the machine running the load generator."""
 
 import asyncio
+import os
 import time
 from pathlib import Path
 
@@ -46,7 +47,7 @@ async def sample_local_resources(
                 cpu_user_pct=100 * (user + nice) / total,
                 cpu_system_pct=100 * (system + irq + softirq) / total,
                 cpu_idle_pct=100 * idle / total, cpu_steal_pct=100 * steal / total,
-                run_queue=runnable,
+                run_queue=runnable, vcpu_count=os.cpu_count(),
             ))
     except (OSError, ValueError):
         # Missing or unreadable counters must never interrupt the load run.

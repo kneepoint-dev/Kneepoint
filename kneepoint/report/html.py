@@ -148,6 +148,7 @@ def write_report(
     run_meta: RunMetadata | None = None,
     meta_note: str | None = None,
     write_metrics: bool = False,
+    baseline_rps: list[float] | None = None,
 ) -> Path:
     """Render the report. The three `*_note` strings replace a section's default
     "not measured" placeholder with the real reason it is empty — `kneepoint
@@ -165,7 +166,7 @@ def write_report(
         knee = find_knee(timed_stats, min_samples=min_samples)
     stats = timed_stats
     scaling = scaling_report(
-        stats, min_samples=min_samples,
+        stats, min_samples=min_samples, baseline_rps=baseline_rps,
         resources=run_meta.local_resource_samples if run_meta is not None else None,
     )
     # Fixed div ids: Plotly would otherwise mint a fresh UUID per figure, and the

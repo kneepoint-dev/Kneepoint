@@ -3,7 +3,7 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
-## [Unreleased]
+## [Unreleased] — 0.4.0
 
 ### Added
 
@@ -13,6 +13,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Optional `kneepoint run --sample-resources` records Linux load-generator CPU
   and runnable tasks by concurrency level. Saved samples replay in regenerated
   reports.
+
+### Changed and fixed
+
+- Separate maximum observed throughput from plateau capacity. X_max and N*
+  remain unavailable until the final two eligible measured levels differ by
+  less than a sizing noise band: max(2%, supplied c=1 run/arm spread).
+  Rising tails now say "plateau not reached in the tested range" in HTML and
+  text, and carry an explicit not-reached status with null estimates in JSON.
+- `report --baseline-rps` accepts repeated comparison c=1 rates and records
+  them with the sizing band in the report metrics. Efficiency and Little's law
+  keep their existing windows and calculations.
+- Saturation flags read as hypotheses with the level, efficiency, local CPU
+  idle and successful sample count as evidence. New local resource samples
+  retain host vCPU count; reports and text show estimated busy cores when known.
 
 ## [0.3.0] - 2026-10-19
 
