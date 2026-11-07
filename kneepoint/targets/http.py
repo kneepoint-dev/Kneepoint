@@ -164,13 +164,24 @@ def _matches(selector: str | None, event: str) -> bool:
 
 
 def _agent_error(value, secrets: frozenset[str]) -> _AgentError:
-    if not isinstance(value, str):
-        return _AgentError(type(value).__name__)
-    preview = "".join(char if char.isprintable() else " " for char in value[:80])
+    kind = {
+        dict: "object", list: "array", str: "string", bool: "boolean",
+        int: "number", float: "number", type(None): "null",
+    }[type(value)]
+    label = kind
+    if isinstance(value, str):
+        label = value
+    elif isinstance(value, dict):
+        for key in ("type", "code", "message"):
+            if isinstance(value.get(key), str):
+                label = value[key]
+                break
+    limit = 80 if isinstance(value, str) else 120 - len("AgentError: ")
+    preview = "".join(char if char.isprintable() else " " for char in label[:limit])
     # Check before truncation as well, so a secret cut in half cannot leak.
-    if any(secret in value or secret in preview for secret in secrets):
-        return _AgentError("str")
-    return _AgentError(preview or "str")
+    if any(secret in label or secret in preview for secret in secrets):
+        return _AgentError(kind)
+    return _AgentError(preview)
 
 
 def _stream_error(data: str | None, path: str | None, secrets: frozenset[str]) -> _AgentError:
@@ -181,7 +192,7 @@ def _stream_error(data: str | None, path: str | None, secrets: frozenset[str]) -
     except (json.JSONDecodeError, _ResponseError):
         return _agent_error(data, secrets) if path is None else _AgentError("event")
     value = _select(payload, path) if path is not None else payload
-    return _agent_error(value, secrets) if value is not None else _AgentError("event")
+    return _agent_error(value, secrets)
 
 
 async def _read_sse(
@@ -303,7 +314,7 @@ class HttpTurn:
         except _ResponseError as exc:
             error = f"ValueError: {exc}"
         except _AgentError as exc:
-            error = f"AgentError: {exc}"
+            error = f"AgentError: {exc}"[:120]
         except (ValueError, TypeError) as exc:
             # Request encoding can fail on caller-supplied messages; their
             # content is not safe to include in a record.

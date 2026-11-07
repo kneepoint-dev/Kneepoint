@@ -123,9 +123,9 @@ async def test_omitted_body_and_explicit_json_null(body, expected):
 @pytest.mark.parametrize(("payload", "error"), [
     ({"reply": "ok"}, None),
     ({"reply": "ok", "error": None}, None),
-    ({"reply": "ok", "error": {"private": "must not appear"}}, "AgentError: dict"),
+    ({"reply": "ok", "error": {"private": "must not appear"}}, "AgentError: object"),
     ({"error": "bad" * 40}, "AgentError: " + ("bad" * 40)[:80]),
-    ({"reply": "ok", "error": False}, "AgentError: bool"),
+    ({"reply": "ok", "error": False}, "AgentError: boolean"),
     ({"other": "no reply"}, "ValueError: JSON reply path must select a string"),
     ({"reply": {"text": "wrong type"}}, "ValueError: JSON reply path must select a string"),
 ])
@@ -137,6 +137,75 @@ async def test_json_application_errors_and_missing_text(payload, error):
     assert outcome.record.error == error
 
 
+@pytest.mark.parametrize("mode", ["json", "sse"])
+@pytest.mark.parametrize(("value", "label"), [
+    ({"type": "AgentBusy", "code": "E_BUSY", "message": "later"}, "AgentBusy"),
+    ({"type": 123, "code": "E_BUSY", "message": "later"}, "E_BUSY"),
+    ({"type": None, "code": False, "message": "try later"}, "try later"),
+    ({"type": ""}, ""),
+    ({"type": 123, "code": False, "message": []}, "object"),
+    ({}, "object"),
+    ("a" * 200, "a" * 80),
+    ({"message": "a" * 200}, "a" * (120 - len("AgentError: "))),
+    ("line one\nline two", "line one line two"),
+    ("", ""),
+    ([], "array"),
+    (False, "boolean"),
+    (True, "boolean"),
+    (123, "number"),
+    (1.5, "number"),
+])
+async def test_application_error_labels_follow_json_and_sse_rules(mode, value, label):
+    if mode == "json":
+        runner = _runner({**JSON, "error_path": "/error"})
+        response = httpx.Response(200, json={"error": value})
+    else:
+        runner = _runner({**SSE, "error_event": "error"})
+        stream = _Fragments([
+            ("event: error\ndata: " + json.dumps(value) + "\n\n").encode(),
+            b"must not read past the error",
+        ])
+        response = httpx.Response(200, stream=stream)
+    outcome = await _mock(runner, lambda _: response)
+    assert outcome.record.error == f"AgentError: {label}"
+    assert len(outcome.record.error) <= 120
+    assert outcome.record.status_code == 200 and not outcome.record.ok
+    assert outcome.text == ""
+    if mode == "sse":
+        assert stream.closed and stream.read_chunks == 1
+
+
+async def test_null_sse_error_payload_uses_json_type_name():
+    outcome = await _mock(
+        _runner({**SSE, "error_event": "error"}),
+        lambda _: httpx.Response(200, content=b"event: error\ndata: null\n\n"),
+    )
+    assert outcome.record.error == "AgentError: null"
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+@pytest.mark.parametrize("structured", [False, True])
+async def test_error_label_redacts_secret_across_truncation(mode, structured, monkeypatch):
+    monkeypatch.setenv("ERROR_LABEL_SECRET", "secret-value")
+    # Both the 80-character string cutoff and the 120-character label cutoff
+    # would otherwise expose a partial secret.
+    prefix = "x" * (105 if structured else 76)
+    message = prefix + "secret-value"
+    value = {"message": message} if structured else message
+    config = _config(
+        {**JSON, "error_path": "/error"} if mode == "json"
+        else {**SSE, "error_event": "error", "error_path": "/error"},
+        headers={"Authorization": "Bearer ${ERROR_LABEL_SECRET}"},
+    )
+    runner = HttpTurn(config, config.resolve())
+    payload = {"error": value}
+    response = (httpx.Response(200, json=payload) if mode == "json" else httpx.Response(
+        200, content=("event: error\ndata: " + json.dumps(payload) + "\n\n").encode(),
+    ))
+    result = await _mock(runner, lambda _: response)
+    assert result.record.error == ("AgentError: object" if structured else "AgentError: string")
+
+
 async def test_application_error_has_priority_and_redacts_secrets(monkeypatch):
     monkeypatch.setenv("ADAPTER_KEY", "secret-value")
     runner = _runner({
@@ -146,7 +215,7 @@ async def test_application_error_has_priority_and_redacts_secrets(monkeypatch):
     result = await _mock(runner, lambda _: httpx.Response(
         200, json={"error": "auth failed for secret-value", "in": 0, "out": False},
     ))
-    assert result.record.error == "AgentError: str"
+    assert result.record.error == "AgentError: string"
     assert (result.record.status_code, result.record.input_tokens, result.record.output_tokens) == (
         200, 0, None,
     )

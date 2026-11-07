@@ -66,7 +66,11 @@ Set `error_path` in JSON mode to fail on a non-null application error.
 In SSE mode, `error_event` selects an event that fails and closes the stream,
 and `error_path` can select its diagnostic value. The original 2xx status
 is kept, so the existing retry policy treats this as a terminal turn failure.
-Diagnostics use the value type or a bounded preview of string values.
+For object errors, diagnostics use the first string field among `type`, `code`,
+and `message`, in that order. String errors use their first 80 characters.
+Other values use JSON type names such as `object`, `array`, or `boolean`.
+The complete `AgentError: ...` label is limited to 120 characters. Configured
+secrets are redacted.
 
 Use optional `response.usage.input_path` and `output_path` for token counts.
 For SSE, `response.usage.event` can select a separate usage event. Counts are
