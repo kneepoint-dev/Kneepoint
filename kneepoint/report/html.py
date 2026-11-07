@@ -67,6 +67,9 @@ def _duration(seconds: float) -> str:
     return f"{hours} h {minutes:02d} min"
 
 
+BUFFERED_JSON_TIMING_NOTE = "TTFT not observable: buffered JSON response"
+
+
 def metadata_rows(meta: RunMetadata) -> list[tuple[str, str]]:
     """The run-metadata block, one labelled line per sidecar field.
 
@@ -91,6 +94,8 @@ def metadata_rows(meta: RunMetadata) -> list[tuple[str, str]]:
     return [
         ("Run", f"{meta.run_id} (kneepoint {meta.command})"),
         ("Target", f"{meta.target} · model {meta.model}"),
+        ("Target type / response", f"{meta.target_type or UNKNOWN} / "
+                                   f"{meta.response_mode or UNKNOWN}"),
         ("Ramp", f"{meta.ramp.start}..{meta.ramp.stop} step {meta.ramp.step}, "
                 f"{meta.hold_seconds:g} s hold per level"),
         ("Sessions", f"{turns} turn(s) each, up to {meta.retry.max_attempts} attempt(s) "
@@ -225,6 +230,8 @@ def write_report(
         clock_levels=[s.concurrency for s in stats if s.clock_anomaly],
         stats=stats, min_samples=min_samples, quality=quality, quality_summary=quality_summary,
         latency_rows=[s for s in stats if s.ttft_p50_ms is not None],
+        buffered_json_note=(BUFFERED_JSON_TIMING_NOTE
+                            if run_meta and run_meta.response_mode == "json" else None),
         retry_levels=retry_levels,
         worst_retry=worst_amplification(retry_levels),
         error_levels=error_levels,

@@ -91,11 +91,11 @@ The fields, in the order they appear on the line:
 | `concurrency` | int | the ramp level this attempt ran at |
 | `started_at` | float | unix epoch seconds, wall clock |
 | `started_monotonic_s` | float \| null | optional attempt start in seconds since this run's monotonic origin. Older records have no value and remain valid schema-1 records |
-| `ttft_ms` | float \| null | time to first *content* chunk. `null` when no content chunk arrived before the request ended — an HTTP error, a failure during the silent prefill gap, or a stream that only ever carried usage. A request that failed *after* its first content chunk keeps its `ttft_ms` |
+| `ttft_ms` | float \| null | time to first streamed content chunk. `null` for buffered JSON or a stream with no content chunk. A request that failed after its first content chunk keeps its `ttft_ms` |
 | `total_ms` | float | full request duration, client-side — from just before the request was sent to the moment the record was made, whether the request succeeded, failed or was abandoned |
-| `input_tokens` | int \| null | from the provider's `usage` on a successful request. `null` when the provider didn't send one — kneepoint never estimates tokens — and always `null` when `ok` is false |
+| `input_tokens` | int \| null | reported input token count. `null` means unknown. HTTP targets can retain counts received before a later failure |
 | `output_tokens` | int \| null | as above |
-| `ok` | bool | true only when the response status was below 400 **and** the stream ran to its end (`[DONE]` or the body closing). A stream that broke off is `ok: false` |
+| `ok` | bool | true when the adapter accepts the status and completes reply parsing. For HTTP targets, the configured 2xx check, application error mapping, and any required end marker apply |
 | `error` | string \| null | free text, truncated to 200 chars. Shape is not contractual. `null` whenever `ok` is true |
 | `turn_index` | int | 0-based position within the session |
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
@@ -105,14 +105,12 @@ The fields, in the order they appear on the line:
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
-| `chunk_count` | int \| null | content-bearing SSE chunks. A usage-only chunk is not counted. `null` when `ok` is false, even if chunks had arrived |
+| `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
 
-Fields that exist only on a successful request (`input_tokens`,
-`output_tokens`, `chunk_count`, `itl_*`) are `null` on a failed one even when
-the provider had sent some of them. A partial answer's tokens are not spend
-that produced an answer, and a broken stream's chunk gaps would describe the
-break, not the server.
+Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve
+valid usage counts received before failure so those counts can contribute to
+observed spend. OpenAI-compatible targets leave usage null on failed attempts.
 
 Every traced attempt carries `traceparent: 00-<trace_id>-<span_id>-01` and W3C
 `baggage` entries `kneepoint.run_id`, `kneepoint.level` (the concurrency),
@@ -154,10 +152,9 @@ shipped one. `output_tps` is `1000 / tpot_ms`.
 
 ### Why so many nullables
 
-Because kneepoint refuses to invent numbers. `null` always means *not measured*,
-never *zero*. A `ttft_ms` of `null` is a request that never produced content; an
-`output_tokens` of `null` is a provider that didn't report usage. Treating either
-as 0 will silently corrupt any average you compute.
+`null` means the value is unavailable. A buffered JSON response or a stream
+without content has null `ttft_ms`. A null `output_tokens` means the count is
+unknown. Treating either as zero corrupts averages.
 
 ## `run-<id>-sessions.jsonl` — one line per session
 
@@ -224,7 +221,9 @@ rates, whether chaos was on when no fault happened to fire).
   "injector_levels": null,
   "local_resource_samples": null,
   "think_time_min_ms": null,
-  "think_time_max_ms": null
+  "think_time_max_ms": null,
+  "target_type": null,
+  "response_mode": null
 }
 ```
 
@@ -233,8 +232,8 @@ rates, whether chaos was on when no fault happened to fire).
 | `schema_version`, `kneepoint_version` | | as above |
 | `run_id` | string | the `<id>` in all four filenames |
 | `command` | string | `run` or `demo` |
-| `target` | string | base URL the requests went to |
-| `model` | string | model name sent to the target |
+| `target` | string | OpenAI-compatible base URL or configured HTTP endpoint with query values removed and env references intact |
+| `model` | string | model name sent to the target or `n/a (http target)` |
 | `ramp` | object | `start`, `stop`, `step` — the levels are `range(start, stop + 1, step)`, plus `stop` if the step skipped it |
 | `hold_seconds` | float | hold time per level |
 | `turns` | object | `min`, `max` turns per session |
@@ -256,6 +255,8 @@ rates, whether chaos was on when no fault happened to fire).
 | `local_resource_samples` | object[] \| null | optional Linux load-generator CPU and runnable task samples by level. See [local resource samples](#local-resource-samples). |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
+| `target_type` | string \| null | `openai-compatible` or `http`. Null or absent on older runs |
+| `response_mode` | string \| null | `json` or `sse`. Null or absent on older runs. Buffered JSON reports mark TTFT and ITL as unavailable |
 
 The wall timestamps are epoch floats for calendar display. Monotonic readings
 are seconds from a clock that does not follow wall-clock corrections. Old

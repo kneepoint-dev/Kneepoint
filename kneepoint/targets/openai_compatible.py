@@ -8,25 +8,13 @@ import uuid
 from contextlib import asynccontextmanager
 
 import httpx
-from pydantic import BaseModel
 
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.targets.trace_context import attempt_context, new_run_id
+from kneepoint.targets.turn import REQUEST_WALL_S as REQUEST_WALL_S
+from kneepoint.targets.turn import TurnOutcome as TurnOutcome
 
 _DATA_PREFIX = "data: "
-
-# Total wall for one request, measured from the first byte sent. httpx's own
-# timeout is a *gap* timeout — it only fires when no byte arrives for that long,
-# so a stream that trickles forever never trips it. This is the wall a request
-# is abandoned at; abandonment is recorded, never silently folded into latency.
-REQUEST_WALL_S = 120.0
-
-
-class TurnOutcome(BaseModel):
-    record: RequestRecord
-    text: str = ""
-    retry_after_s: float | None = None
-
 
 def _pct(values: list[float], p: int) -> float:
     """Same inclusive method the ramp analysis uses, so percentiles agree."""

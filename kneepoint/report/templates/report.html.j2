@@ -296,6 +296,11 @@ completed; it does not score factual accuracy, tone or safety — that is evals,
 a different discipline.{% endcall %}
 {% else %}<p class="placeholder">{{ quality_thin_note or quality_note or "Resolution not measured — configure a resolution check." }}</p>{% endif %}
 
+{% if buffered_json_note %}
+<h2>Latency breakdown</h2>
+<p class="placeholder">{{ buffered_json_note }}. Inter-token latency and time per
+output token require streamed content. End-to-end latency is measured above.</p>
+{% else %}
 <h2>Time to first token vs. time per output token</h2>
 {% if ttft_div %}{{ ttft_div | safe }}
 <p class="muted">Two different slow-downs on one chart. <strong>TTFT</strong> rising
@@ -361,6 +366,7 @@ against TPOT, the chart above. Total latency is the sum of these parts, and
 they fail for different reasons — telling them apart is most of
 diagnosis.{% endcall %}
 {% else %}<p class="placeholder">No TTFT recorded — the target produced no streamed content.</p>{% endif %}
+{% endif %}
 
 <h2>Errors</h2>
 {% if error_levels %}

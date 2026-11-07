@@ -199,3 +199,5 @@ class RunMetadata(VersionedRecord):
     local_resource_samples: list[ResourceSample] | None = None
     think_time_min_ms: int | None = None
     think_time_max_ms: int | None = None
+    target_type: str | None = None  # "openai-compatible" | "http"
+    response_mode: str | None = None  # "json" | "sse"

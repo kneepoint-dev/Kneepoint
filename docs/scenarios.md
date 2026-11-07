@@ -1,9 +1,8 @@
 # Scenario reference
 
 A scenario is one YAML file, validated strictly — unknown top-level keys are
-rejected, and `kneepoint validate my.yaml` checks a file without running
-anything. Every value below can be overridden by a CLI flag: **flag beats
-scenario beats default**.
+rejected, and `kneepoint validate my.yaml` checks a file offline. Where a
+corresponding flag exists, it takes precedence over the scenario and defaults.
 
 ## `trace`
 
@@ -14,12 +13,67 @@ null IDs. The CLI flag takes precedence over the scenario setting.
 
 ## `target`
 
+The default type is `openai-compatible`.
+
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `type` | `openai-compatible` | `openai-compatible` | the only target type in v0 |
+| `type` | `openai-compatible` | `openai-compatible` | select this adapter or use `http` below |
 | `url` | string | *(required)* | base URL of the endpoint, e.g. `http://127.0.0.1:8000/v1` |
 | `model` | string | `mock` | model name sent in the request body |
 | `auth_env` | string | — | name of an env var holding a bearer token (the token itself never lives in the file) |
+
+### HTTP targets
+
+Select `target.type: http` to load test an HTTP endpoint with its own JSON or
+SSE contract. See [Mapping common agent servers](http-targets.md) for complete
+scenarios.
+
+| Field | Meaning |
+|---|---|
+| `url` | Full HTTP(S) URL, including the route. `--target` overrides it. Userinfo and fragments are rejected. |
+| `method` | `POST` by default. Also accepts `GET`, `PUT`, `PATCH`, and `DELETE`. |
+| `headers` | Optional string values. HTTPX supplies host and body framing headers. |
+| `auth_env` | Optional env variable for Bearer authentication. Use either this or a configured Authorization header. |
+| `body` | Structured YAML value sent as JSON. Omit for no body. Explicit `null` sends JSON null. GET requires an omitted body. |
+| `response` | Reply mapping with `mode: json` or `mode: sse` and a required `text_path`. |
+| `success_status` | Optional list of accepted 2xx status codes. Defaults to all 2xx. Redirects are disabled. |
+
+URL and header values can reference environment variables. For example,
+`Authorization: "Bearer ${AGENT_API_KEY}"` reads the token at validation or
+run time. Missing or empty variables fail before dispatch. Use `$${` for a
+literal `${`. Expansion is single pass. URL values must be URL-encoded where
+needed. Saved target URLs retain configured env references and omit query
+strings. HTTP targets take no `model` field or `--model` flag.
+
+In `body`, `{prompt}` is the current input, `{session_id}` is stable across
+the session, and `{turn_index}` starts at zero. A standalone `{turn_index}`
+becomes an integer. A standalone `{history}` becomes a JSON array of
+`{role, content}` messages including the pending user turn. Placeholders
+apply only to values. Escape literal braces with `{{` and `}}`. For multiple
+turns, supply `{history}` or both `{prompt}` and `{session_id}` for server-side
+state. A server that mutates session state should deduplicate retries using
+the session ID and turn index.
+
+Response paths use JSON Pointer. `""` selects the whole payload,
+`/choices/0/text` traverses an array, and `~1` and `~0` escape slash and tilde
+in keys. JSON mode requires a string at `text_path` and reads up to 16 MiB of
+decoded body. In SSE mode, `event` optionally selects a named event and
+`text_path` selects string deltas in its JSON data. Events are limited to
+1 MiB. Use `end: {data: "[DONE]"}` or `end: {event: done}` to require an end
+marker. Otherwise a clean EOF ends the stream.
+
+Set `error_path` in JSON mode to fail on a non-null application error.
+In SSE mode, `error_event` selects an event that fails and closes the stream,
+and `error_path` can select its diagnostic value. The original 2xx status
+is kept, so the existing retry policy treats this as a terminal turn failure.
+Diagnostics use the value type or a bounded preview of string values.
+
+Use optional `response.usage.input_path` and `output_path` for token counts.
+For SSE, `response.usage.event` can select a separate usage event. Counts are
+nonnegative integers. Missing usage remains unknown, and SSE counts are
+cumulative snapshots. TTFT and inter-chunk timing require SSE. Both modes
+record end-to-end latency and use the same request wall and generator retry
+policy.
 
 ## `workload.ramp`
 

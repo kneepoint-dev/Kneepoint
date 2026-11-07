@@ -3,6 +3,18 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [Unreleased]
+
+Planned for 0.5.0.
+
+### Added
+
+- HTTP scenario targets map structured requests to custom JSON and SSE agent
+  endpoints. They support application errors, optional token usage, W3C attempt
+  tracing, and the existing retry and chaos controls.
+- Run metadata records the target type and response mode. JSON reports explain
+  why buffered replies cannot provide TTFT or inter-token latency.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added

@@ -1,0 +1,13 @@
+target:
+  type: http
+  url: http://127.0.0.1:8000/stream
+  method: POST
+  body:
+    input: "{prompt}"
+  response:
+    mode: sse
+    text_path: /delta
+    end: {data: "[DONE]"}
+    error_event: error
+workload:
+  ramp: {from: 1, to: 1, hold_seconds: 0}

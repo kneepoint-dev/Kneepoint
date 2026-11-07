@@ -1,0 +1,12 @@
+target:
+  type: http
+  url: http://127.0.0.1:8000/invoke
+  method: POST
+  body:
+    input: "{prompt}"
+  response:
+    mode: json
+    text_path: /output/text
+    error_path: /error
+workload:
+  ramp: {from: 1, to: 1, hold_seconds: 0}

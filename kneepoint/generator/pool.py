@@ -13,6 +13,7 @@ from kneepoint.generator.monitor import InjectorMonitor
 from kneepoint.generator.resources import sample_local_resources
 from kneepoint.generator.session import SessionSpec, run_session
 from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.turn import TurnRunner
 
 REQUEST_TIMEOUT_S = 120.0
 
@@ -38,6 +39,7 @@ async def run_level(
     evidence: RunEvidence | None = None,
     monitor_injector: bool = True,
     sample_resources: bool = False,
+    turn_runner: TurnRunner | None = None,
 ) -> tuple[list[SessionRecord], list[RequestRecord]]:
     """Run `concurrency` workers for `hold_seconds`; each worker loops full
     sessions and always completes at least one."""
@@ -78,7 +80,7 @@ async def run_level(
                         concurrency=concurrency, rng=rng, run_id=run_id, trace=trace,
                         run_origin_s=run_origin_s,
                         on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
-                        stop=stop, evidence=evidence,
+                        stop=stop, evidence=evidence, turn_runner=turn_runner,
                     )
                     if on_record is not None:
                         for rec in recs:

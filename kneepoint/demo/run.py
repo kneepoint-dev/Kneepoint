@@ -190,6 +190,7 @@ def run_demo(
         finished_monotonic_s = time.perf_counter()
         write_run_meta(meta_path, RunMetadata(
             run_id=run_id, command="demo", target=f"{agent.url}/v1", model="demo",
+            target_type="openai-compatible", response_mode="sse",
             ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
             hold_seconds=spec.hold_seconds,
             turns=TurnsShape(min=session_spec.turns.min, max=session_spec.turns.max),

@@ -43,9 +43,12 @@ from kneepoint.generator.ramp import RampSpec, parse_ramp, run_ramp
 from kneepoint.generator.session import SessionSpec
 from kneepoint.judge.deterministic import CheckConfig, apply_deterministic
 from kneepoint.judge.llm_judge import judge_sessions
-from kneepoint.report.html import RunMeta, format_started, write_report
+from kneepoint.report.html import BUFFERED_JSON_TIMING_NOTE, RunMeta, format_started, write_report
 from kneepoint.report.rerender import ReportInputError, render_from_files
+from kneepoint.targets.http import HttpTurn
+from kneepoint.targets.http_config import HttpTargetConfig
 from kneepoint.targets.openai_compatible import REQUEST_WALL_S, run_turn
+from kneepoint.targets.turn import TurnRunner
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -77,9 +80,10 @@ PROXY_FAULT_LOG_OPTION = typer.Option(
 async def _calibrate(
     target: str, model: str, sampler, transport, headers,
     run_id: str | None = None, trace: bool = True,
+    *, turn_runner: TurnRunner | None = None,
 ) -> RequestRecord:
     async with httpx.AsyncClient(timeout=120, transport=transport, headers=headers) as client:
-        outcome = await run_turn(
+        outcome = await (turn_runner or run_turn)(
             client, target, model,
             [{"role": "user", "content": sampler.sample()}],
             concurrency=1, session_id="calibration", run_id=run_id, trace=trace,
@@ -177,8 +181,10 @@ def proxy(
 def validate(path: Path = VALIDATE_PATH_ARGUMENT) -> None:
     """Validate a scenario file without running anything."""
     try:
-        load_scenario(path)
-    except ScenarioError as exc:
+        scenario = load_scenario(path)
+        if isinstance(scenario.target, HttpTargetConfig):
+            scenario.target.resolve()
+    except (ScenarioError, ValueError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
     typer.echo(f"{path} is valid.")
@@ -237,7 +243,7 @@ def report(
     for line in result.knee_summary.lines():
         typer.echo(line)
     _warn_contamination(result.stats)
-    _print_timing(result.stats)
+    _print_timing(result.stats, response_mode=result.meta.response_mode if result.meta else None)
     for line in scaling_report(
         result.stats, min_samples=result.min_samples, baseline_rps=baseline_rps,
         resources=result.meta.local_resource_samples if result.meta else None,
@@ -268,8 +274,10 @@ def _warn_contamination(stats, echo=typer.echo) -> None:
          "Do not publish latencies or a knee from them.")
 
 
-def _print_timing(stats, echo=typer.echo) -> None:
+def _print_timing(stats, echo=typer.echo, *, response_mode: str | None = None) -> None:
     """Show the steady window and Little's-law check in a compact CLI table."""
+    if response_mode == "json":
+        echo(BUFFERED_JSON_TIMING_NOTE)
     for s in stats:
         if s.steady_throughput_rps is None:
             continue
@@ -336,7 +344,7 @@ def _pick(flag_value, scenario_value, default):
 def run(
     scenario_path: Path = SCENARIO_OPTION,
     target: str = typer.Option(
-        None, "--target", help="Base URL of an OpenAI-compatible endpoint, e.g. http://127.0.0.1:8000/v1"
+        None, "--target", help="OpenAI-compatible base URL or full URL for an HTTP scenario."
     ),
     model: str = typer.Option(None, "--model", help="Model name sent to the target."),
     ramp: str = typer.Option(None, "--ramp", help="Concurrency ramp 'start..stop'."),
@@ -394,7 +402,11 @@ def run(
     target_url = _pick(target, sc.target.url if sc else None, None)
     if target_url is None:
         raise typer.BadParameter("provide --target or --scenario")
-    model_name = _pick(model, sc.target.model if sc else None, "mock")
+    http_target = sc.target if sc and isinstance(sc.target, HttpTargetConfig) else None
+    if http_target is not None and model is not None:
+        raise typer.BadParameter("--model is only used by openai-compatible targets")
+    model_name = ("n/a (http target)" if http_target is not None
+                  else _pick(model, sc.target.model if sc else None, "mock"))
     sc_ramp = sc.workload.ramp if sc else None
     sc_conv = sc.workload.conversation if sc else None
     seed = _pick(seed, sc.seed if sc else None, 0)
@@ -457,7 +469,18 @@ def run(
     )
 
     headers = None
-    if sc and sc.target.auth_env:
+    turn_runner = None
+    target_type, response_mode = "openai-compatible", "sse"
+    if http_target is not None:
+        try:
+            http_target.check_turns(session_spec.turns.max)
+            resolved = http_target.resolve(target)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from None
+        turn_runner = HttpTurn(http_target, resolved)
+        target_url = resolved.display_url
+        target_type, response_mode = "http", http_target.response.mode
+    elif sc and sc.target.auth_env:
         token = os.getenv(sc.target.auth_env)
         if not token:
             typer.echo(f"auth_env {sc.target.auth_env} is set in the scenario "
@@ -490,6 +513,7 @@ def run(
     meta_path = out_dir / f"run-{run_id}-meta.json"
 
     calibration_scope = "not_run"
+    runner_kwargs = {"turn_runner": turn_runner} if turn_runner is not None else {}
     if max_spend is not None:
         typer.echo("Calibration skipped for capped run; --force cannot bypass spend control.")
     elif price_in or price_out:
@@ -497,8 +521,13 @@ def run(
         typer.echo("Calibration spend is outside completed generator attempt accounting.")
         calibration = asyncio.run(_calibrate(
             target_url, model_name, sampler, transport, headers, run_id, trace,
+            **runner_kwargs,
         ))
-        estimate = estimate_run_cost(spec.levels(), spec.hold_seconds, calibration, rates)
+        estimate = None
+        if http_target is None or (
+            calibration.input_tokens is not None and calibration.output_tokens is not None
+        ):
+            estimate = estimate_run_cost(spec.levels(), spec.hold_seconds, calibration, rates)
         if estimate is not None:
             typer.echo(f"Estimated spend for this run: ~${estimate:.2f}")
 
@@ -543,6 +572,7 @@ def run(
                     stop=controller.stop, evidence=evidence,
                     run_id=run_id, trace=trace,
                     run_origin_s=started_monotonic_s, sample_resources=sample_resources,
+                    **runner_kwargs,
                 )
             )
         except BaseException:
@@ -626,6 +656,7 @@ def run(
     finished_monotonic_s = time.perf_counter()
     write_run_meta(meta_path, RunMetadata(
         run_id=run_id, command="run", target=target_url, model=model_name,
+        target_type=target_type, response_mode=response_mode,
         ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
         hold_seconds=spec.hold_seconds,
         turns=TurnsShape(min=session_spec.turns.min, max=session_spec.turns.max),
@@ -656,7 +687,7 @@ def run(
 
     stats = aggregate(records, run_meta=run_meta)
     _warn_contamination(stats)
-    _print_timing(stats)
+    _print_timing(stats, response_mode=run_meta.response_mode)
     for line in scaling_report(
         stats, min_samples=min_samples, resources=run_meta.local_resource_samples,
         target_url=target_url,

@@ -23,6 +23,7 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Scenario reference: scenarios.md
+  - Mapping common agent servers: http-targets.md
   - The three metrics: metrics.md
   - Measurement integrity: measurement-integrity.md
   - Output format: output-format.md
