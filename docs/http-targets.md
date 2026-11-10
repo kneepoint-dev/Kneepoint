@@ -76,6 +76,49 @@ workload:
     turns: {min: 2, max: 2}
 ```
 
+## Dify Chatflow with streaming conversations
+
+Dify Chatflow sends the event type in the JSON data, so match `/event` in
+the success rule. The `workflow_finished` event carries the workflow status at
+`/data/status`. A failed workflow can arrive with HTTP 200 even when its
+upstream provider returned 429. The status rule counts that response as
+`body_failure` and keeps the original HTTP status.
+
+```yaml
+target:
+  type: http
+  url: http://127.0.0.1/v1/chat-messages
+  auth_env: DIFY_APP_KEY
+  body:
+    inputs: {}
+    query: "{prompt}"
+    response_mode: streaming
+    user: "{session_id}"
+    conversation_id: "{{capture.conversation_id}}"
+  response:
+    mode: sse
+    text_path: /answer
+  success:
+    path: /data/status
+    equals: [succeeded]
+    event_filter: {path: /event, equals: workflow_finished}
+  capture:
+    name: conversation_id
+    path: /conversation_id
+    from: sse_event
+workload:
+  ramp: {from: 1, to: 1, hold_seconds: 0}
+  conversation:
+    turns: {min: 3, max: 3}
+```
+
+Set the URL to your Chatflow endpoint. The first request sends an empty
+conversation ID to start a conversation. The following requests use the ID
+captured from the preceding successful turn. If that response supplies no
+usable ID, its record carries a `capture_missing` warning and the next turn
+that needs the ID fails before dispatch. The mapping was exercised against
+a loopback fake using the observed Dify failure shape.
+
 ## Run the bundled example
 
 From a checkout with Kneepoint installed, run these commands in one terminal.

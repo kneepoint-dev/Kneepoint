@@ -11,6 +11,7 @@ from pydantic import BaseModel, model_validator
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import AttemptStart, RunEvidence, wait_or_stop
+from kneepoint.targets.http import HttpTurn
 from kneepoint.targets.openai_compatible import run_turn
 from kneepoint.targets.trace_context import new_run_id
 from kneepoint.targets.turn import TurnRunner
@@ -46,7 +47,7 @@ class SessionSpec(BaseModel):
 
 
 def _retryable(record: RequestRecord) -> bool:
-    if record.ok:
+    if record.ok or record.error_kind == "capture_missing":
         return False
     return record.status_code is None or record.status_code in RETRYABLE_STATUS
 
@@ -82,6 +83,7 @@ async def run_session(
     evidence = evidence if evidence is not None else RunEvidence()
     status = "completed"
     active: AttemptStart | None = None
+    runner = turn_runner.for_session() if isinstance(turn_runner, HttpTurn) else turn_runner
     try:
         for turn_index in range(n_turns):
             if stop is not None and stop.is_set():
@@ -103,12 +105,14 @@ async def run_session(
                     active = None
                     break
                 evidence.attempts[active.key]["dispatched"] = True
-                outcome = await (turn_runner or run_turn)(
+                outcome = await (runner or run_turn)(
                     client, base_url, model, messages,
                     concurrency=concurrency, session_id=session_id,
                     turn_index=turn_index, attempt=attempt, run_id=run_id, trace=trace,
                     run_origin_s=run_origin_s,
                 )
+                if outcome.record.error_kind == "capture_missing":
+                    evidence.attempts[active.key]["dispatched"] = False
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)
                 evidence.finish_attempt(active, "completed")

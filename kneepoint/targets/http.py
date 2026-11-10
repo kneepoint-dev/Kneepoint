@@ -8,23 +8,30 @@ import statistics
 import time
 from collections.abc import AsyncIterator
 from copy import deepcopy
+from functools import partial
 
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.targets.http_config import (
+    Capture,
+    FieldEventFilter,
     HttpTargetConfig,
     JsonResponse,
+    NamedEventFilter,
     ResolvedHttp,
+    Scalar,
     SseResponse,
+    SuccessRule,
     Usage,
     compile_pointer,
     extract,
     render_body,
 )
 from kneepoint.targets.trace_context import attempt_context, new_run_id
-from kneepoint.targets.turn import REQUEST_WALL_S, TurnOutcome
+from kneepoint.targets.turn import REQUEST_WALL_S, TurnOutcome, TurnRunner
 
+_MISSING = object()
 _JSON_LIMIT = 16 * 1024 * 1024
 _EVENT_LIMIT = 1024 * 1024
 _NEWLINE = re.compile(rb"[\r\n]")
@@ -36,6 +43,14 @@ class _ResponseError(ValueError):
 
 
 class _AgentError(ValueError):
+    pass
+
+
+class _BodyFailure(ValueError):
+    pass
+
+
+class _CaptureMissing(ValueError):
     pass
 
 
@@ -58,6 +73,28 @@ def _json(data: bytes | str):
 
 def _select(value, path: str | None):
     return extract(value, compile_pointer(path)) if path is not None else None
+
+
+def _present_value(payload, path: str):
+    return extract(payload, compile_pointer(path), missing=_MISSING)
+
+
+def _equal(value, expected) -> bool:
+    # Python compares booleans equal to 0 and 1, which are distinct JSON types.
+    return isinstance(value, bool) == isinstance(expected, bool) and value == expected
+
+
+def _capture_value(payload, capture: Capture | None) -> Scalar | None:
+    value = _select(payload, capture.path) if capture is not None else None
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeError:
+            return None
+        return value if value.strip() else None
+    if isinstance(value, (bool, int)) or isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
 
 
 def _reply_text(value, mode: str) -> str:
@@ -133,6 +170,8 @@ class _Reply:
         self.gaps_ms: list[float] = []
         self.first_at: float | None = None
         self.last_at: float | None = None
+        self.success_value = _MISSING
+        self.captured: Scalar | None = None
         self.tokens: dict[str, int | None] = {"input_tokens": None, "output_tokens": None}
 
     def read_usage(self, payload, usage: Usage | None) -> None:
@@ -184,6 +223,26 @@ def _agent_error(value, secrets: frozenset[str]) -> _AgentError:
     return _AgentError(preview)
 
 
+def _check_success(value, rule: SuccessRule | None, secrets: frozenset[str]) -> None:
+    if rule is None:
+        return
+    if value is _MISSING:
+        raise _BodyFailure("success path missing from the selected response")
+    if rule.equals is not None:
+        accepted = any(_equal(value, item) for item in rule.equals)
+    else:
+        accepted = not any(_equal(value, item) for item in rule.not_equals)
+    if not accepted:
+        # Keep structured payloads out of diagnostics, even when they contain
+        # the familiar type/code/message keys used by legacy agent errors.
+        if isinstance(value, (dict, list)):
+            observed = "object" if isinstance(value, dict) else "array"
+        else:
+            label = value if isinstance(value, str) else json.dumps(value)
+            observed = str(_agent_error(label, secrets))
+        raise _BodyFailure(f"success rule rejected observed value {observed!r}")
+
+
 def _stream_error(data: str | None, path: str | None, secrets: frozenset[str]) -> _AgentError:
     if data is None:
         return _AgentError("event")
@@ -196,29 +255,51 @@ def _stream_error(data: str | None, path: str | None, secrets: frozenset[str]) -
 
 
 async def _read_sse(
-    response: httpx.Response, config: SseResponse, reply: _Reply, secrets: frozenset[str],
+    response: httpx.Response, target: HttpTargetConfig, reply: _Reply, secrets: frozenset[str],
 ) -> None:
+    config = target.response
     end = config.end
     usage = config.usage
     usage_selector = usage.event if usage and usage.event is not None else config.event
+    rule = target.success
+    event_filter = rule.event_filter if rule else None
     async for event, data in _events(response):
         if event == config.error_event:
             raise _stream_error(data, config.error_path, secrets)
-        if end and _matches(end.event, event) and (end.data is None or end.data == data):
+        at_end = end and _matches(end.event, event) and (end.data is None or end.data == data)
+        read_text = not at_end and _matches(config.event, event)
+        read_usage = not at_end and usage is not None and _matches(usage_selector, event)
+        read_success = rule is not None and (
+            not isinstance(event_filter, NamedEventFilter) or event_filter.event == event
+        )
+        if data is not None and (read_text or read_usage or read_success or target.capture):
+            try:
+                payload = _json(data)
+            except (json.JSONDecodeError, _ResponseError):
+                if read_text or read_usage:
+                    raise
+                # Optional extraction can also encounter control frames like [DONE].
+            else:
+                if read_success and (
+                    not isinstance(event_filter, FieldEventFilter)
+                    or _equal(_present_value(payload, event_filter.path), event_filter.equals)
+                ):
+                    value = _present_value(payload, rule.path)
+                    if event_filter is not None or value is not _MISSING:
+                        reply.success_value = value
+                captured = _capture_value(payload, target.capture)
+                if captured is not None:
+                    reply.captured = captured
+                if read_usage:
+                    reply.read_usage(payload, usage)
+                if read_text:
+                    delta = _select(payload, config.text_path)
+                    if delta is not None:
+                        text = _reply_text(delta, "SSE")
+                        if text:
+                            reply.append_delta(text)
+        if at_end:
             return
-        read_text = _matches(config.event, event)
-        read_usage = usage is not None and _matches(usage_selector, event)
-        if data is None or not (read_text or read_usage):
-            continue
-        payload = _json(data)
-        if read_usage:
-            reply.read_usage(payload, usage)
-        if read_text:
-            delta = _select(payload, config.text_path)
-            if delta is not None:
-                text = _reply_text(delta, "SSE")
-                if text:
-                    reply.append_delta(text)
     if end is not None:
         raise _ResponseError("SSE stream ended before its configured marker")
 
@@ -240,6 +321,11 @@ class HttpTurn:
         self.config = config
         self.resolved = resolved
 
+    def for_session(self) -> TurnRunner:
+        if self.config.capture is None:
+            return self
+        return partial(self, capture_state={})
+
     async def __call__(
         self,
         client: httpx.AsyncClient,
@@ -255,6 +341,7 @@ class HttpTurn:
         run_id: str | None = None,
         trace: bool = True,
         run_origin_s: float | None = None,
+        capture_state: dict[str, Scalar] | None = None,
     ) -> TurnOutcome:
         wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
         trace_id = span_id = None
@@ -269,11 +356,17 @@ class HttpTurn:
         config = self.config
         started_at, t0 = time.time(), time.perf_counter()
         status = fault = error = retry_after_s = None
+        error_kind = None
         abandoned = False
         reply = _Reply()
         try:
             async with asyncio.timeout(wall):
-                request = self._request(client, messages, session_id, turn_index, trace_headers)
+                request = self._request(
+                    client, messages, session_id, turn_index, trace_headers, capture_state,
+                )
+                secrets = self.resolved.secrets
+                if config.capture is not None and capture_state:
+                    secrets = secrets.union(str(value) for value in capture_state.values())
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
                     status = response.status_code
@@ -288,17 +381,23 @@ class HttpTurn:
                     elif isinstance(config.response, JsonResponse):
                         payload = await _json_body(response)
                         agent_error = _select(payload, config.response.error_path)
+                        if config.success is not None:
+                            reply.success_value = _present_value(payload, config.success.path)
+                        reply.captured = _capture_value(payload, config.capture)
                         try:
                             reply.read_usage(payload, config.response.usage)
                         except _ResponseError:
                             if agent_error is None:
+                                self._check_reply(reply, secrets)
                                 raise
                         if agent_error is not None:
-                            raise _agent_error(agent_error, self.resolved.secrets)
+                            raise _agent_error(agent_error, secrets)
+                        self._check_reply(reply, secrets)
                         text = _reply_text(_select(payload, config.response.text_path), "JSON")
                         reply.pieces.append(text)
                     else:
-                        await _read_sse(response, config.response, reply, self.resolved.secrets)
+                        await _read_sse(response, config, reply, secrets)
+                        self._check_reply(reply, secrets)
                 finally:
                     await response.aclose()
         except TimeoutError:
@@ -315,10 +414,25 @@ class HttpTurn:
             error = f"ValueError: {exc}"
         except _AgentError as exc:
             error = f"AgentError: {exc}"[:120]
+        except _BodyFailure as exc:
+            error_kind = "body_failure"
+            error = str(exc)
+        except _CaptureMissing as exc:
+            error_kind = "capture_missing"
+            error = str(exc)
         except (ValueError, TypeError) as exc:
             # Request encoding can fail on caller-supplied messages; their
             # content is not safe to include in a record.
             error = f"{type(exc).__name__}: invalid HTTP request data"
+
+        warnings = []
+        if error is None and config.capture is not None:
+            if reply.captured is None:
+                warnings.append("capture_missing")
+                if capture_state is not None:
+                    capture_state.pop(config.capture.name, None)
+            elif capture_state is not None:
+                capture_state[config.capture.name] = reply.captured
 
         gaps = reply.gaps_ms if error is None else []
         record = RequestRecord(
@@ -327,6 +441,7 @@ class HttpTurn:
             started_monotonic_s=t0 - run_origin_s if run_origin_s is not None else None,
             total_ms=(time.perf_counter() - t0) * 1000,
             ok=error is None, error=error[:200] if error is not None else None,
+            error_kind=error_kind, warnings=warnings,
             abandoned=abandoned, status_code=status, fault=fault,
             trace_id=trace_id, span_id=span_id,
             ttft_ms=(reply.first_at - t0) * 1000 if reply.first_at is not None else None,
@@ -342,17 +457,37 @@ class HttpTurn:
             retry_after_s=retry_after_s,
         )
 
-    def _request(self, client, messages, session_id, turn_index, trace_headers):
+    def _check_reply(self, reply: _Reply, secrets: frozenset[str]) -> None:
+        if self.config.success is not None:
+            if reply.captured is not None:
+                secrets = secrets.union((str(reply.captured),))
+            _check_success(reply.success_value, self.config.success, secrets)
+
+    def _request(self, client, messages, session_id, turn_index, trace_headers, capture_state):
         config = self.config
         headers = httpx.Headers(self.resolved.headers)
+        variables = {}
+        if config.capture_used:
+            name = config.capture.name
+            value = (capture_state or {}).get(name)
+            if turn_index > 0 and value is None:
+                raise _CaptureMissing(f"missing required capture {name!r} before HTTP dispatch")
+            variables[f"capture.{name}"] = "" if value is None else value
+            for header, parts in self.resolved.header_templates:
+                rendered = str(variables[f"capture.{name}"]).join(parts)
+                if rendered != rendered.strip() or any(
+                    not (32 <= ord(char) < 127 or char == "\t") for char in rendered
+                ):
+                    raise _ResponseError("capture produced an invalid HTTP header value")
+                headers[header] = rendered
         kwargs = {}
         if config.has_body:
-            variables = {
-                "prompt": messages[-1]["content"],
-                "session_id": session_id,
-                "turn_index": turn_index,
-                "history": deepcopy(messages),
-            }
+            variables.update(
+                prompt=messages[-1]["content"],
+                session_id=session_id,
+                turn_index=turn_index,
+                history=deepcopy(messages),
+            )
             body = render_body(config.body, variables)
             if body is None:
                 # HTTPX treats json=None as an omitted body.

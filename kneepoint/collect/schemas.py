@@ -61,6 +61,8 @@ class RequestRecord(VersionedRecord):
     # still be running, so latencies measured after this point are suspect —
     # LevelStats.contaminated carries that forward.
     abandoned: bool = False
+    error_kind: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
     @property
     def tpot_ms(self) -> float | None:

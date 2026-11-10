@@ -15,7 +15,9 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    StrictBool,
     StrictInt,
+    StrictStr,
     field_validator,
     model_validator,
 )
@@ -23,7 +25,11 @@ from pydantic import (
 _NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 _ENV = re.compile(r"\$\$\{|\$\{([^{}]*)\}|\$\{")
 _HEADER_NAME = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
-_TEMPLATE = re.compile(r"\{\{|\}\}|\{(prompt|session_id|turn_index|history)\}|[{}]")
+_CAPTURE_TOKEN = rf"\{{\{{(capture\.{_NAME})\}}\}}"
+_CAPTURE_TEMPLATE = re.compile(_CAPTURE_TOKEN)
+_TEMPLATE = re.compile(
+    rf"{_CAPTURE_TOKEN}|\{{\{{|\}}\}}|\{{(prompt|session_id|turn_index|history)\}}|[{{}}]",
+)
 _ARRAY_INDEX = re.compile(r"0|[1-9][0-9]*")
 
 
@@ -43,21 +49,25 @@ def _valid_pointer(path: str) -> str:
 
 Pointer = Annotated[str, AfterValidator(_valid_pointer)]
 Event = Annotated[str, Field(min_length=1)]
+Scalar = (
+    StrictBool | StrictInt | Annotated[float, Field(strict=True, allow_inf_nan=False)] | StrictStr
+)
+NullableScalar = Scalar | None
 
 
-def extract(value, parts: tuple[str, ...]):
-    """Read a pointer. Null and missing both mean no value to the response parser."""
+def extract(value, parts: tuple[str, ...], *, missing=None):
+    """Read a pointer, using the caller's default when the path is absent."""
     for part in parts:
         if isinstance(value, dict):
-            value = value.get(part)
+            value = value.get(part, missing)
         elif isinstance(value, list) and _ARRAY_INDEX.fullmatch(part):
             # Avoid converting arbitrarily large indices supplied in a scenario.
             if len(part) > len(str(len(value))):
-                return None
+                return missing
             index = int(part)
-            value = value[index] if index < len(value) else None
+            value = value[index] if index < len(value) else missing
         else:
-            return None
+            return missing
     return value
 
 
@@ -65,14 +75,16 @@ def _template_parts(value: str):
     for match in _TEMPLATE.finditer(value):
         if match[0] in ("{", "}"):
             raise ValueError("invalid body placeholder or unescaped brace")
-        if match[1] == "history" and value != "{history}":
+        if match[2] == "history" and value != "{history}":
             raise ValueError("{history} must occupy a whole JSON value")
         yield match
 
 
 def _validate_body(value, placeholders: set[str], ancestors: set[int]) -> None:
     if isinstance(value, str):
-        placeholders.update(match[1] for match in _template_parts(value) if match[1])
+        for match in _template_parts(value):
+            if name := match[1] or match[2]:
+                placeholders.add(name)
         try:
             value.encode("utf-8")
         except UnicodeError:
@@ -110,9 +122,14 @@ def render_body(value, variables: dict):
         return value
     if value in ("{turn_index}", "{history}"):
         return variables[value[1:-1]]
-    return _TEMPLATE.sub(
-        lambda match: str(variables[match[1]]) if match[1] else match[0][0], value,
-    )
+    if capture := _CAPTURE_TEMPLATE.fullmatch(value):
+        return variables[capture[1]]
+
+    def replace(match: re.Match[str]) -> str:
+        name = match[1] or match[2]
+        return str(variables[name]) if name else match[0][0]
+
+    return _TEMPLATE.sub(replace, value)
 
 
 def _expand(value: str, label: str, secrets: set[str]) -> str:
@@ -165,6 +182,36 @@ class StreamEnd(_Strict):
         return self
 
 
+class NamedEventFilter(_Strict):
+    event: Event
+
+
+class FieldEventFilter(_Strict):
+    path: Pointer
+    equals: NullableScalar
+
+
+class SuccessRule(_Strict):
+    path: Pointer
+    equals: list[NullableScalar] | None = Field(default=None, min_length=1)
+    not_equals: list[NullableScalar] | None = Field(default=None, min_length=1)
+    event_filter: NamedEventFilter | FieldEventFilter | None = None
+
+    @model_validator(mode="after")
+    def _one_comparison(self):
+        if len({"equals", "not_equals"} & self.model_fields_set) != 1 or (
+            self.equals is None and self.not_equals is None
+        ):
+            raise ValueError("success requires exactly one nonempty equals or not_equals list")
+        return self
+
+
+class Capture(_Strict):
+    name: Annotated[str, Field(pattern=rf"^{_NAME}$")]
+    path: Pointer
+    source: Literal["json", "sse_event"] = Field(alias="from")
+
+
 class JsonResponse(_Strict):
     mode: Literal["json"]
     text_path: Pointer
@@ -192,6 +239,7 @@ class SseResponse(_Strict):
 class ResolvedHttp:
     url: httpx.URL = field(repr=False)
     headers: tuple[tuple[str, str], ...] = field(repr=False)
+    header_templates: tuple[tuple[str, tuple[str, ...]], ...] = field(repr=False)
     secrets: frozenset[str] = field(repr=False)
     display_url: str
 
@@ -207,6 +255,8 @@ class HttpTargetConfig(_Strict):
     success_status: list[Annotated[StrictInt, Field(ge=200, le=299)]] | None = Field(
         default=None, min_length=1,
     )
+    success: SuccessRule | None = None
+    capture: Capture | None = None
     _placeholders: set[str] = PrivateAttr(default_factory=set)
 
     @field_validator("method", mode="before")
@@ -219,20 +269,30 @@ class HttpTargetConfig(_Strict):
         if self.method == "GET" and self.has_body:
             raise ValueError("GET requires an omitted body")
         seen: set[str] = set()
-        for name in self.headers:
+        self._placeholders.clear()
+        for name, value in self.headers.items():
             lower = name.lower()
             if not _HEADER_NAME.fullmatch(name) or lower in seen:
                 raise ValueError("invalid or duplicate HTTP header name")
             if lower in {"host", "content-length", "transfer-encoding"}:
                 raise ValueError(f"header {name} is set by the HTTP client")
             seen.add(lower)
+            self._placeholders.update(_CAPTURE_TEMPLATE.findall(value))
         if self.auth_env is not None and "authorization" in seen:
             raise ValueError("auth_env conflicts with an explicit Authorization header")
-        self._placeholders.clear()
         try:
             _validate_body(self.body, self._placeholders, set())
         except RecursionError:
             raise ValueError("body is nested too deeply") from None
+        capture_refs = {name for name in self._placeholders if name.startswith("capture.")}
+        if capture_refs and (
+            self.capture is None or capture_refs != {f"capture.{self.capture.name}"}
+        ):
+            raise ValueError("capture placeholders must reference the configured capture name")
+        if self.capture and (self.capture.source == "json") != (self.response.mode == "json"):
+            raise ValueError("capture.from must match the response mode")
+        if self.success and self.success.event_filter is not None and self.response.mode != "sse":
+            raise ValueError("success.event_filter requires SSE response mode")
         return self
 
     @property
@@ -240,10 +300,17 @@ class HttpTargetConfig(_Strict):
         return "body" in self.model_fields_set
 
     def check_turns(self, maximum: int) -> None:
+        server_state = "session_id" in self._placeholders or self.capture_used
         if maximum > 1 and not (
-            "history" in self._placeholders or {"prompt", "session_id"} <= self._placeholders
+            "history" in self._placeholders or "prompt" in self._placeholders and server_state
         ):
-            raise ValueError("multi-turn HTTP requires {history} or both {prompt} and {session_id}")
+            raise ValueError(
+                "multi-turn HTTP requires {history} or {prompt} with {session_id} or a capture",
+            )
+
+    @property
+    def capture_used(self) -> bool:
+        return self.capture is not None and f"capture.{self.capture.name}" in self._placeholders
 
     def resolve(self, url_override: str | None = None) -> ResolvedHttp:
         secrets: set[str] = set()
@@ -265,13 +332,22 @@ class HttpTargetConfig(_Strict):
                              "or a fragment") from None
 
         headers = {}
+        templates = []
         for name, value in self.headers.items():
-            resolved = _expand(value, f"target.headers.{name}", secrets)
+            # Split the configured template before env expansion. An env value
+            # containing template syntax must remain opaque.
+            parts = _CAPTURE_TEMPLATE.split(value)
+            label = f"target.headers.{name}"
+            literals = tuple(_expand(part, label, secrets) for part in parts[::2])
+            resolved = "x".join(literals)
             if any(not (32 <= ord(char) < 127 or char == "\t") for char in resolved):
                 raise ValueError(f"target.headers.{name}: invalid header value")
             if resolved != resolved.strip():
                 raise ValueError(f"target.headers.{name}: leading or trailing whitespace")
-            headers[name] = resolved
+            if len(parts) > 1:
+                templates.append((name, literals))
+            else:
+                headers[name] = resolved
         if self.auth_env is not None:
             token = _require_env(self.auth_env, "target.auth_env", secrets)
             if any(not 33 <= ord(char) < 127 for char in token):
@@ -282,5 +358,6 @@ class HttpTargetConfig(_Strict):
             secrets.update(value for _, value in url.params.multi_items() if value)
             secrets.add(url.query.decode("ascii"))
         return ResolvedHttp(
-            url, tuple(headers.items()), frozenset(secrets), configured_url.partition("?")[0],
+            url, tuple(headers.items()), tuple(templates), frozenset(secrets),
+            configured_url.partition("?")[0],
         )

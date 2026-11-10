@@ -237,6 +237,7 @@ def write_report(
         error_levels=error_levels,
         first_error=first_error_level(error_levels),
         total_failed=sum(lv.failed for lv in error_levels),
+        body_failures=sum(lv.error_kinds.get("body_failure", 0) for lv in error_levels),
         quality_note=quality_note, quality_thin_note=quality_thin_note,
         cost_note=cost_note, res_note=res_note,
         metadata_rows=metadata_rows(run_meta) if run_meta is not None else None,

@@ -95,7 +95,7 @@ The fields, in the order they appear on the line:
 | `total_ms` | float | full request duration, client-side — from just before the request was sent to the moment the record was made, whether the request succeeded, failed or was abandoned |
 | `input_tokens` | int \| null | reported input token count. `null` means unknown. HTTP targets can retain counts received before a later failure |
 | `output_tokens` | int \| null | as above |
-| `ok` | bool | true when the adapter accepts the status and completes reply parsing. For HTTP targets, the configured 2xx check, application error mapping, and any required end marker apply |
+| `ok` | bool | true when the adapter accepts the status and completes reply parsing. HTTP targets also apply configured application error mappings, response-body success rules, and required end markers |
 | `error` | string \| null | free text, truncated to 200 chars. Shape is not contractual. `null` whenever `ok` is true |
 | `turn_index` | int | 0-based position within the session |
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
@@ -107,6 +107,8 @@ The fields, in the order they appear on the line:
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch. Defaults to `null` |
+| `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
 Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve
 valid usage counts received before failure so those counts can contribute to

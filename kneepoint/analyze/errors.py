@@ -14,7 +14,7 @@ level is the most important row of an errors table, not one to omit.
 
 from collections import Counter
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kneepoint.collect.schemas import RequestRecord
 
@@ -46,6 +46,7 @@ class ErrorLevel(BaseModel):
     abandoned: int               # failures that were the client giving up (contamination)
     status_codes: list[StatusCount]   # every failed attempt, by status, most common first
     top_errors: list[ErrorCount]      # up to TOP_ERRORS strings, plus an "other" fold
+    error_kinds: dict[str, int] = Field(default_factory=dict)
 
 
 def errors_by_level(records: list[RequestRecord]) -> list[ErrorLevel]:
@@ -82,6 +83,7 @@ def errors_by_level(records: list[RequestRecord]) -> list[ErrorLevel]:
             abandoned=sum(1 for r in failed if r.abandoned),
             status_codes=[StatusCount(status=s, count=n) for s, n in statuses.most_common()],
             top_errors=top_errors,
+            error_kinds=dict(Counter(r.error_kind or "unclassified" for r in failed)),
         ))
     return out
 

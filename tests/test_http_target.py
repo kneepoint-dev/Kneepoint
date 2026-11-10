@@ -3,6 +3,7 @@
 import asyncio
 import json
 from pathlib import Path
+from random import Random
 
 import httpx
 import pytest
@@ -19,7 +20,7 @@ from kneepoint.config import Scenario
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, run_ramp
-from kneepoint.generator.session import RetryPolicy, SessionSpec, TurnsSpec
+from kneepoint.generator.session import RetryPolicy, SessionSpec, TurnsSpec, run_session
 from kneepoint.targets.http import HttpTurn
 from kneepoint.targets.http_config import HttpTargetConfig
 
@@ -533,3 +534,265 @@ def test_cli_calibration_ramp_and_offline_report_share_http_metadata(tmp_path, m
     assert note in result.output and rerendered.read_text() == html
     for secret in ("secret-value", "url-secret"):
         assert all(secret not in path.read_text() for path in tmp_path.glob("run-*"))
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"success": {"path": "/status"}},
+    {"success": {"path": "/status", "equals": []}},
+    {"success": {"path": "/status", "equals": [True], "not_equals": [False]}},
+    {"success": {"path": "/status", "equals": [{}]}},
+    {"success": {"path": "/status", "equals": ["ok"], "event_filter": {"event": "done"}}},
+    {"capture": {"name": "id", "path": "/id", "from": "sse_event"}},
+    {"body": {"id": "{{capture.unknown}}"}},
+    {"headers": {"X-Id": "{{capture.unknown}}"}},
+])
+def test_invalid_dogfood_configuration(kwargs):
+    with pytest.raises(ValidationError):
+        _config(**kwargs)
+
+
+def _data(*payloads):
+    return b"".join(b"data: " + json.dumps(payload).encode() + b"\n\n" for payload in payloads)
+
+
+def _dify_failure(mode, *, agent_error=False):
+    terminal = {
+        "event": "workflow_finished",
+        "data": {"status": "failed", "error": "provider returned HTTP 429"},
+    }
+    if mode == "json":
+        payload = {**terminal, "answer": "partial"}
+        if agent_error:
+            payload["error"] = "agent error"
+        return json.dumps(payload).encode()
+    payload = _data({"event": "message", "answer": "partial"}, terminal)
+    if agent_error:
+        payload += b'event: error\ndata: {"error":"agent error"}\n\n'
+    return payload
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+@pytest.mark.parametrize("agent_error", [False, True])
+async def test_workflow_failure_and_error_path_precedence(mode, agent_error):
+    response = {"mode": mode, "text_path": "/answer", "error_path": "/error"}
+    rule = {"path": "/data/status", "equals": ["succeeded"]}
+    if mode == "sse":
+        response["error_event"] = "error"
+        rule["event_filter"] = {"path": "/event", "equals": "workflow_finished"}
+    result = await _mock(
+        _runner(response, success=rule),
+        lambda _: httpx.Response(200, content=_dify_failure(mode, agent_error=agent_error)),
+    )
+    assert result.record.status_code == 200 and not result.record.ok and not result.text
+    if agent_error:
+        assert result.record.error == "AgentError: agent error"
+        assert result.record.error_kind != "body_failure"
+    else:
+        assert result.record.error_kind == "body_failure"
+        assert "'failed'" in result.record.error
+    assert "provider returned" not in result.record.error
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+@pytest.mark.parametrize(("payload", "comparison", "ok", "detail"), [
+    ({"result": {}}, {"not_equals": ["failed"]}, False, "missing"),
+    ({"result": {"status": None}}, {"equals": [None]}, True, None),
+    ({"result": {"status": True}}, {"equals": [1]}, False, "true"),
+    ({"result": {"status": False}}, {"not_equals": [0]}, True, None),
+    ({"result": {"status": 2}}, {"not_equals": [2]}, False, "2"),
+    ({"result": {"status": "x" * 200}}, {"equals": ["ok"]}, False, "x" * 80),
+])
+async def test_success_rule_values(mode, payload, comparison, ok, detail):
+    response = {"mode": mode, "text_path": "/answer"}
+    result = await _mock(
+        _runner(response, success={"path": "/result/status", **comparison}),
+        lambda _: httpx.Response(
+            200, content=(json.dumps({**payload, "answer": "ok"}).encode() if mode == "json"
+                          else _data({"answer": "ok"}, payload, {"event": "ignored"})),
+        ),
+    )
+    assert result.record.ok is ok
+    if not ok:
+        assert result.record.error_kind == "body_failure" and detail in result.record.error
+        assert "x" * 81 not in result.record.error
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+async def test_body_failure_does_not_record_configured_secrets(mode, monkeypatch):
+    monkeypatch.setenv("DOGFOOD_TOKEN", "a-secret-token")
+    payload = {"reply": "ok", "status": "x" * 78 + "a-secret-token"}
+    result = await _mock(
+        _runner({"mode": mode, "text_path": "/reply"},
+                success={"path": "/status", "equals": ["ok"]}, auth_env="DOGFOOD_TOKEN"),
+        lambda _: httpx.Response(
+            200, content=json.dumps(payload).encode() if mode == "json" else _data(payload),
+        ),
+    )
+    assert result.record.error_kind == "body_failure"
+    assert "a-secret-token" not in result.record.error
+    assert "xxx" not in result.record.error
+
+
+async def test_named_success_filter_reads_the_terminal_event():
+    result = await _mock(
+        _runner({**SSE, "event": "delta", "end": {"event": "done"}},
+                success={"path": "/status", "equals": ["succeeded"],
+                         "event_filter": {"event": "done"}}),
+        lambda _: httpx.Response(
+            200, content=b'event: delta\ndata: {"delta":"ok","status":"failed"}\n\n'
+            b'event: done\ndata: {"status":"succeeded"}\n\n',
+        ),
+    )
+    assert result.record.ok and result.text == "ok"
+
+
+async def test_field_success_filter_requires_path_on_last_matching_event():
+    result = await _mock(
+        _runner({"mode": "sse", "text_path": "/answer"}, success={
+            "path": "/status", "equals": ["succeeded"],
+            "event_filter": {"path": "/event", "equals": "finish"},
+        }),
+        lambda _: httpx.Response(200, content=_data(
+            {"event": "finish", "status": "succeeded"},
+            {"event": "finish"},
+            {"status": "succeeded"},
+        )),
+    )
+    assert result.record.error_kind == "body_failure" and "missing" in result.record.error
+
+
+def _capture_runner(mode, **kwargs):
+    return _runner(
+        {"mode": mode, "text_path": "/answer"},
+        capture={"name": "conversation_id", "path": "/conversation_id",
+                 "from": "json" if mode == "json" else "sse_event"},
+        headers={"X-Conversation": "{{capture.conversation_id}}"},
+        body={"query": "{prompt}", "conversation_id": "{{capture.conversation_id}}",
+              "turn": "{turn_index}"}, **kwargs,
+    )
+
+
+def _capture_response(mode, conversation_id):
+    payload = {"answer": "ok"}
+    if conversation_id is not None:
+        payload["conversation_id"] = conversation_id
+    if mode == "json":
+        return httpx.Response(200, json=payload)
+    return httpx.Response(200, content=_data({"event": "start"}, payload, {"event": "done"}))
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+async def test_capture_over_three_turns_with_concurrent_sessions(mode):
+    runner = _capture_runner(mode)
+    first_turns = asyncio.Event()
+    calls = {}
+
+    async def handle(request):
+        session_id = request.headers["x-kneepoint-session"]
+        payload = json.loads(request.content)
+        turn = payload["turn"]
+        expected = "" if turn == 0 else f"dify-{session_id}-{turn - 1}"
+        assert payload["conversation_id"] == request.headers["x-conversation"] == expected
+        calls.setdefault(session_id, []).append(turn)
+        if turn == 0:
+            if len(calls) == 2:
+                first_turns.set()
+            await asyncio.wait_for(first_turns.wait(), 2)
+        return _capture_response(mode, f"dify-{session_id}-{turn}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        results = await asyncio.gather(*[
+            run_session(
+                client, "", "", CorpusSampler(["hello"], seed=i),
+                SessionSpec(turns=TurnsSpec(min=3, max=3)), concurrency=2,
+                rng=Random(i), turn_runner=runner,
+            )
+            for i in range(2)
+        ])
+    assert len(calls) == 2 and all(turns == [0, 1, 2] for turns in calls.values())
+    assert all(session.ok and all(r.warnings == [] for r in records)
+               for session, records in results)
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+@pytest.mark.parametrize("missing_turn", [0, 1])
+async def test_missing_capture_warns_then_fails_without_dispatch_or_retry(mode, missing_turn):
+    calls = []
+
+    def handle(request):
+        turn = json.loads(request.content)["turn"]
+        calls.append(turn)
+        assert turn <= missing_turn
+        return _capture_response(mode, None if turn == missing_turn else "first-id")
+
+    evidence = RunEvidence()
+    sessions, records, _ = await run_ramp(
+        "", "", RampSpec(start=1, stop=1, hold_seconds=0), CorpusSampler(["hello"], seed=0),
+        SessionSpec(turns=TurnsSpec(min=3, max=3), retry=RetryPolicy(backoff_s=0)),
+        turn_runner=_capture_runner(mode), transport=httpx.MockTransport(handle),
+        evidence=evidence,
+    )
+    assert calls == list(range(missing_turn + 1))
+    assert sessions[0].turns_completed == missing_turn + 1 and not sessions[0].ok
+    assert records[-2].ok and records[-2].warnings == ["capture_missing"]
+    assert not records[-1].ok and records[-1].error_kind == "capture_missing"
+    assert records[-1].status_code is None and records[-1].attempt == 1
+    assert "conversation_id" in records[-1].error
+    assert [a["dispatched"] for a in evidence.attempts.values()] == [True] * len(calls) + [False]
+
+
+@pytest.mark.parametrize("mode", ["json", "sse"])
+async def test_fake_dify_loopback_failure_is_counted_in_run_and_rerender(mode, tmp_path):
+    payload = _dify_failure(mode)
+    media_type = "application/json" if mode == "json" else "text/event-stream"
+
+    async def handle(reader, writer):
+        try:
+            await reader.readuntil(b"\r\n\r\n")
+            writer.write(
+                (f"HTTP/1.1 200 OK\r\nContent-Length: {len(payload)}\r\n"
+                 f"Content-Type: {media_type}\r\nConnection: close\r\n\r\n").encode() + payload,
+            )
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async with await asyncio.start_server(handle, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        url = f"http://127.0.0.1:{port}/v1/chat-messages"
+        response = {"mode": mode, "text_path": "/answer"}
+        async with httpx.AsyncClient(trust_env=False) as client:
+            legacy_mapping = await _turn(_runner(response, url=url), client)
+        assert legacy_mapping.record.ok and legacy_mapping.record.status_code == 200
+
+        success = {"path": "/data/status", "equals": ["succeeded"]}
+        if mode == "sse":
+            success["event_filter"] = {"path": "/event", "equals": "workflow_finished"}
+        scenario = _scenario_file(tmp_path / "scenario.yaml", {
+            "url": url, "response": response, "success": success,
+        })
+        cli = CliRunner()
+        result = await asyncio.to_thread(
+            cli.invoke, app, ["run", "--scenario", str(scenario), "--out", str(tmp_path)],
+        )
+        assert result.exit_code == 0, (result.output, result.exception)
+        assert "1 requests, 1 errors" in result.output
+
+    records_path = next(p for p in tmp_path.glob("run-*.jsonl") if "-sessions" not in p.name)
+    record, = read_jsonl(records_path)
+    assert (record.ok, record.status_code, record.error_kind) == (False, 200, "body_failure")
+    assert "'failed'" in record.error
+    html = next(tmp_path.glob("run-*-report.html")).read_text()
+    assert '1 of 1\nrequests failed' in html
+    assert '<code>body_failure</code>&nbsp;×1' in html
+    assert '<code>200</code>&nbsp;×1' in html
+    assert '<section id="limits">\n<h2>Limits</h2>' in html
+    assert "provider returned HTTP 429" not in html
+    rerendered = tmp_path / "rerendered.html"
+    result = cli.invoke(app, ["report", str(records_path), "--out", str(rerendered)])
+    assert result.exit_code == 0, result.output
+    error_and_limits = html.split("<h2>Errors</h2>", 1)[1].split(
+        "<h2>Retry amplification</h2>", 1,
+    )[0]
+    assert error_and_limits in rerendered.read_text()

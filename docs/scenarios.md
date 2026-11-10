@@ -37,6 +37,8 @@ scenarios.
 | `body` | Structured YAML value sent as JSON. Omit for no body. Explicit `null` sends JSON null. GET requires an omitted body. |
 | `response` | Reply mapping with `mode: json` or `mode: sse` and a required `text_path`. |
 | `success_status` | Optional list of accepted 2xx status codes. Defaults to all 2xx. Redirects are disabled. |
+| `success` | Optional response-body success rule. |
+| `capture` | Optional response field to reuse within a session. |
 
 URL and header values can reference environment variables. For example,
 `Authorization: "Bearer ${AGENT_API_KEY}"` reads the token at validation or
@@ -50,8 +52,8 @@ the session, and `{turn_index}` starts at zero. A standalone `{turn_index}`
 becomes an integer. A standalone `{history}` becomes a JSON array of
 `{role, content}` messages including the pending user turn. Placeholders
 apply only to values. Escape literal braces with `{{` and `}}`. For multiple
-turns, supply `{history}` or both `{prompt}` and `{session_id}` for server-side
-state. A server that mutates session state should deduplicate retries using
+turns, supply `{history}` or combine `{prompt}` with `{session_id}` or a capture
+placeholder for server-side state. A server that mutates session state should deduplicate retries using
 the session ID and turn index.
 
 Response paths use JSON Pointer. `""` selects the whole payload,
@@ -71,6 +73,35 @@ and `message`, in that order. String errors use their first 80 characters.
 Other values use JSON type names such as `object`, `array`, or `boolean`.
 The complete `AgentError: ...` label is limited to 120 characters. Configured
 secrets are redacted.
+
+With `success`, set `path` to a JSON Pointer and supply exactly one nonempty
+list, `equals` or `not_equals`. The first accepts any listed value and the
+second rejects any listed value. List entries are JSON scalars, including
+`null`. Boolean and numeric values compare separately. A missing path
+fails either comparison. In SSE mode the default selection is the last JSON
+data event containing the path. Set `event_filter: {event: done}` to use the
+last JSON data event with that SSE name, or
+`event_filter: {path: /event, equals: workflow_finished}` to select by a field
+in the JSON data. The configured end marker bounds selection and its JSON
+data is eligible.
+
+HTTP status is checked first. A configured application error takes
+precedence over a failed success rule. A rule failure keeps the received
+HTTP status, records `body_failure`, and ends the turn without retrying.
+Use a public status field for the success rule. The diagnostic shows a
+bounded preview of scalar values and the type of objects or arrays.
+Configured secrets and matching captured values are redacted.
+
+With `capture: {name: conversation_id, path: /conversation_id, from: json}`,
+reuse the field as `{{capture.conversation_id}}` in body and header values.
+Use `from: sse_event` for the last usable value from an SSE JSON data event.
+Captures accept nonblank strings, numbers, and booleans. A capture that
+occupies an entire body value retains its JSON type. Embedded values and
+headers use text substitution. The first turn substitutes an empty string.
+After a successful turn, a missing or unusable capture clears any previous
+value and adds a `capture_missing` warning. A later turn that references the
+missing capture fails locally with error kind `capture_missing` and does
+not retry. Each session keeps its own capture.
 
 Use optional `response.usage.input_path` and `output_path` for token counts.
 For SSE, `response.usage.event` can select a separate usage event. Counts are
