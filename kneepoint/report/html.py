@@ -96,6 +96,7 @@ def metadata_rows(meta: RunMetadata) -> list[tuple[str, str]]:
         ("Target", f"{meta.target} · model {meta.model}"),
         ("Target type / response", f"{meta.target_type or UNKNOWN} / "
                                    f"{meta.response_mode or UNKNOWN}"),
+        ("Trace propagation", meta.trace_propagation or UNKNOWN),
         ("Ramp", f"{meta.ramp.start}..{meta.ramp.stop} step {meta.ramp.step}, "
                 f"{meta.hold_seconds:g} s hold per level"),
         ("Sessions", f"{turns} turn(s) each, up to {meta.retry.max_attempts} attempt(s) "

@@ -3,7 +3,35 @@
 import hashlib
 import json
 import uuid
+from enum import StrEnum
 from urllib.parse import quote
+
+
+class TracePropagation(StrEnum):
+    SAMPLED = "sampled"
+    UNSAMPLED = "unsampled"
+    OFF = "off"
+
+
+# Boolean callers retain the original enable/disable semantics.
+TraceSetting = bool | TracePropagation
+
+
+def request_trace(
+    trace: TraceSetting, run_id: str | None, session_id: str,
+    concurrency: int, turn_index: int, attempt: int,
+) -> tuple[str | None, str | None, dict[str, str]]:
+    if trace is False:
+        return None, None, {}
+    trace_id, span_id, parent, baggage = attempt_context(
+        run_id if run_id is not None else new_run_id(),
+        session_id, concurrency, turn_index, attempt,
+    )
+    if trace == TracePropagation.OFF:
+        return trace_id, span_id, {}
+    if trace == TracePropagation.UNSAMPLED:
+        parent = parent[:-2] + "00"
+    return trace_id, span_id, {"traceparent": parent, "baggage": baggage}
 
 
 def new_run_id() -> str:

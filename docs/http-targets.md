@@ -120,6 +120,26 @@ usable ID, its record carries a `capture_missing` warning and the next turn
 that needs the ID fails before dispatch. The mapping was exercised against
 a loopback fake using the observed Dify failure shape.
 
+## Tracing and observer effect
+
+Kneepoint sends sampled W3C context by default. Dify with a parent-based
+sampler can honor that flag and trace every load-test request, even when
+its own root sampling rate is lower. The extra tracing work can change
+the performance you measure.
+
+Add this top-level setting to the Dify scenario above to let Dify decide
+whether to sample each incoming request.
+
+```yaml
+trace:
+  propagation: off
+```
+
+Kneepoint still records its local trace and span IDs in this mode. The
+target starts its own trace context. Use `unsampled` to send the same
+Kneepoint IDs and baggage with flag `00`, which a parent-based sampler
+may honor by skipping the trace.
+
 ## Run the bundled example
 
 From a checkout with Kneepoint installed, run these commands in one terminal.

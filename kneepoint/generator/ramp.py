@@ -13,7 +13,7 @@ from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.pool import run_level
 from kneepoint.generator.session import SessionSpec
-from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.trace_context import TraceSetting, new_run_id
 from kneepoint.targets.turn import TurnRunner
 
 _RAMP_RE = re.compile(r"^(\d+)\.\.(\d+)$")
@@ -51,7 +51,7 @@ async def run_ramp(
     session_spec: SessionSpec,
     *,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,

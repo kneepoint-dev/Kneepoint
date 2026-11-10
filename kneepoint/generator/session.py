@@ -13,7 +13,7 @@ from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import AttemptStart, RunEvidence, wait_or_stop
 from kneepoint.targets.http import HttpTurn
 from kneepoint.targets.openai_compatible import run_turn
-from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.trace_context import TraceSetting, new_run_id
 from kneepoint.targets.turn import TurnRunner
 
 RETRYABLE_STATUS = {429, 500, 502, 503}
@@ -62,7 +62,7 @@ async def run_session(
     concurrency: int,
     rng: random.Random,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
     on_attempt_start=None,
     on_attempt_complete=None,

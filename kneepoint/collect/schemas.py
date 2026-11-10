@@ -203,3 +203,4 @@ class RunMetadata(VersionedRecord):
     think_time_max_ms: int | None = None
     target_type: str | None = None  # "openai-compatible" | "http"
     response_mode: str | None = None  # "json" | "sse"
+    trace_propagation: str | None = None

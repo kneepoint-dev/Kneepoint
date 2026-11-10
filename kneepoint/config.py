@@ -13,6 +13,7 @@ from kneepoint.judge.deterministic import CheckConfig
 from kneepoint.judge.llm_judge import JudgeConfig
 from kneepoint.slo import SloConfig, evaluate_slo_results
 from kneepoint.targets.http_config import HttpTargetConfig
+from kneepoint.targets.trace_context import TracePropagation
 
 
 class ScenarioError(Exception):
@@ -97,8 +98,12 @@ class ChaosConfig(_Strict):
         return self.faults if self.profile == "custom" else []
 
 
+class TraceConfig(_Strict):
+    propagation: TracePropagation = TracePropagation.SAMPLED
+
+
 class Scenario(_Strict):
-    trace: bool = True
+    trace: bool | TraceConfig = True
     target: ScenarioTarget
     workload: WorkloadConfig = WorkloadConfig()
     resolution: ResolutionConfig = ResolutionConfig()

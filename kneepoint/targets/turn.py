@@ -6,6 +6,7 @@ import httpx
 from pydantic import BaseModel
 
 from kneepoint.collect.schemas import RequestRecord
+from kneepoint.targets.trace_context import TraceSetting
 
 # The wall bounds an entire exchange even when bytes keep resetting the gap timeout.
 REQUEST_WALL_S = 120.0
@@ -31,6 +32,6 @@ class TurnRunner(Protocol):
         attempt: int = 1,
         wall_seconds: float | None = None,
         run_id: str | None = None,
-        trace: bool = True,
+        trace: TraceSetting = True,
         run_origin_s: float | None = None,
     ) -> TurnOutcome: ...

@@ -48,6 +48,7 @@ from kneepoint.report.rerender import ReportInputError, render_from_files
 from kneepoint.targets.http import HttpTurn
 from kneepoint.targets.http_config import HttpTargetConfig
 from kneepoint.targets.openai_compatible import REQUEST_WALL_S, run_turn
+from kneepoint.targets.trace_context import TracePropagation, TraceSetting
 from kneepoint.targets.turn import TurnRunner
 
 app = typer.Typer(
@@ -63,6 +64,9 @@ SCENARIO_OPTION = typer.Option(None, "--scenario", help="Scenario YAML file.")
 DEMO_HOLD_OPTION = typer.Option(5.0, "--hold-seconds", help="Hold time per demo ramp level.")
 DEMO_SEED_OPTION = typer.Option(0, "--seed", help="Seed for the demo's sampling and chaos.")
 DEMO_NO_OPEN_OPTION = typer.Option(False, "--no-open", help="Don't open the report in a browser.")
+TRACE_PROPAGATION_OPTION = typer.Option(
+    None, "--trace-propagation", help="Choose W3C trace propagation while retaining local IDs.",
+)
 RUN_FAULT_LOG_OPTION = typer.Option(
     None, "--fault-log",
     help="Fault log written by `kneepoint proxy`; merged so tool faults reach the "
@@ -79,7 +83,7 @@ PROXY_FAULT_LOG_OPTION = typer.Option(
 
 async def _calibrate(
     target: str, model: str, sampler, transport, headers,
-    run_id: str | None = None, trace: bool = True,
+    run_id: str | None = None, trace: TraceSetting = True,
     *, turn_runner: TurnRunner | None = None,
 ) -> RequestRecord:
     async with httpx.AsyncClient(timeout=120, transport=transport, headers=headers) as client:
@@ -383,7 +387,8 @@ def run(
         help="Minimum successes per level for knee, scaling and latency SLOs.",
     ),
     fault_log: Path = RUN_FAULT_LOG_OPTION,
-    no_trace: bool = typer.Option(False, "--no-trace", help="Omit W3C trace headers."),
+    no_trace: bool = typer.Option(False, "--no-trace", help="Disable trace headers and IDs."),
+    trace_propagation: TracePropagation | None = TRACE_PROPAGATION_OPTION,
     out_dir: Path = OUT_DIR_OPTION,
     sample_resources: bool = typer.Option(
         False, "--sample-resources", help="Sample the Linux load generator's host every 5 seconds."
@@ -398,7 +403,15 @@ def run(
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
 
-    trace = not no_trace and (sc.trace if sc else True)
+    configured_trace = sc.trace if sc else True
+    trace = trace_propagation or (
+        configured_trace if isinstance(configured_trace, bool) else configured_trace.propagation
+    )
+    if no_trace:
+        trace = False
+    trace_mode = (
+        "disabled" if trace is False else "sampled" if trace is True else trace.value
+    )
     target_url = _pick(target, sc.target.url if sc else None, None)
     if target_url is None:
         raise typer.BadParameter("provide --target or --scenario")
@@ -656,7 +669,7 @@ def run(
     finished_monotonic_s = time.perf_counter()
     write_run_meta(meta_path, RunMetadata(
         run_id=run_id, command="run", target=target_url, model=model_name,
-        target_type=target_type, response_mode=response_mode,
+        target_type=target_type, response_mode=response_mode, trace_propagation=trace_mode,
         ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
         hold_seconds=spec.hold_seconds,
         turns=TurnsShape(min=session_spec.turns.min, max=session_spec.turns.max),

@@ -517,6 +517,8 @@ fewer sessions than the run's <code>min_group</code> and is not a pass.{% endcal
   <tr><th style="width: 9rem">{{ label }}</th><td>{{ value }}</td></tr>
   {% endfor %}
 </table>
+<p class="muted">Sampled trace propagation can force targets that honor the parent sampling
+decision to trace every request.</p>
 <p class="muted">Read from the run's <code>-meta.json</code> sidecar, which is
 what <code>kneepoint report</code> re-renders from. A figure from this report is
 only comparable to another run's if the ramp, hold, seed and chaos profile here

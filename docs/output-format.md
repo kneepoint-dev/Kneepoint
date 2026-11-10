@@ -99,8 +99,8 @@ The fields, in the order they appear on the line:
 | `error` | string \| null | free text, truncated to 200 chars. Shape is not contractual. `null` whenever `ok` is true |
 | `turn_index` | int | 0-based position within the session |
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
-| `trace_id` | string \| null | 32 lowercase hex characters from the W3C `traceparent` sent on this attempt; `null` for older files or when tracing is disabled |
-| `span_id` | string \| null | 16 lowercase hex characters from that attempt's `traceparent`; `null` for older files or when tracing is disabled |
+| `trace_id` | string \| null | 32 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
+| `span_id` | string \| null | 16 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
 | `fault` | string \| null | chaos fault injected into this attempt, read from the response: `llm_rate_limit`, `llm_server_error`. Tool faults arrive via the proxy's fault log, not here |
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
@@ -114,7 +114,8 @@ Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve
 valid usage counts received before failure so those counts can contribute to
 observed spend. OpenAI-compatible targets leave usage null on failed attempts.
 
-Every traced attempt carries `traceparent: 00-<trace_id>-<span_id>-01` and W3C
+Sampled and unsampled attempts send `traceparent: 00-<trace_id>-<span_id>-<flags>`
+with flags `01` and `00` respectively, plus W3C
 `baggage` entries `kneepoint.run_id`, `kneepoint.level` (the concurrency),
 `kneepoint.session`, `kneepoint.turn` (0-based) and `kneepoint.attempt`
 (1-based). Baggage values are percent-encoded. IDs are deterministically
@@ -122,6 +123,7 @@ derived from those five identity values; retries receive distinct IDs. The
 target must propagate the incoming trace context into its OpenTelemetry spans
 for an observer to join them to this record. `--no-trace` or `trace: false` in
 the scenario omits both headers and stores `null` IDs.
+`trace.propagation: off` omits both headers while retaining local IDs.
 
 ### `itl_*` is inter-*chunk*, not strictly inter-*token*
 
@@ -225,7 +227,8 @@ rates, whether chaos was on when no fault happened to fire).
   "think_time_min_ms": null,
   "think_time_max_ms": null,
   "target_type": null,
-  "response_mode": null
+  "response_mode": null,
+  "trace_propagation": null
 }
 ```
 
@@ -259,6 +262,7 @@ rates, whether chaos was on when no fault happened to fire).
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
 | `target_type` | string \| null | `openai-compatible` or `http`. Null or absent on older runs |
 | `response_mode` | string \| null | `json` or `sse`. Null or absent on older runs. Buffered JSON reports mark TTFT and ITL as unavailable |
+| `trace_propagation` | string \| null | `sampled`, `unsampled`, or `off`. `disabled` means legacy tracing was disabled including local IDs. Null or absent on older runs |
 
 The wall timestamps are epoch floats for calendar display. Monotonic readings
 are seconds from a clock that does not follow wall-clock corrections. Old

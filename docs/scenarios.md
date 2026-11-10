@@ -6,10 +6,14 @@ corresponding flag exists, it takes precedence over the scenario and defaults.
 
 ## `trace`
 
-`trace: true` (default) sends W3C `traceparent` and `baggage` on every load
-attempt and stores its trace and span IDs in the request record. Set
-`trace: false` or pass `kneepoint run --no-trace` to omit the headers and store
-null IDs. The CLI flag takes precedence over the scenario setting.
+Use `trace: {propagation: sampled}` (the default) to send W3C
+`traceparent` with flag `01` and send `baggage`. Choose `unsampled` to
+send flag `00` with baggage, or `off` to omit propagation and let the
+target make its own sampling decision. All three modes store local trace
+and span IDs. `--trace-propagation sampled|unsampled|off` overrides the
+scenario setting. The legacy `trace: true` selects sampled propagation.
+`trace: false` and `--no-trace` still omit both headers and local IDs.
+`--no-trace` takes precedence when both CLI flags are supplied.
 
 ## `target`
 

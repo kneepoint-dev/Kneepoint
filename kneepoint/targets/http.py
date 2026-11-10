@@ -28,7 +28,7 @@ from kneepoint.targets.http_config import (
     extract,
     render_body,
 )
-from kneepoint.targets.trace_context import attempt_context, new_run_id
+from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S, TurnOutcome, TurnRunner
 
 _MISSING = object()
@@ -339,19 +339,14 @@ class HttpTurn:
         attempt: int = 1,
         wall_seconds: float | None = None,
         run_id: str | None = None,
-        trace: bool = True,
+        trace: TraceSetting = True,
         run_origin_s: float | None = None,
         capture_state: dict[str, Scalar] | None = None,
     ) -> TurnOutcome:
         wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
-        trace_id = span_id = None
-        trace_headers = {}
-        if trace:
-            trace_id, span_id, traceparent, baggage = attempt_context(
-                run_id if run_id is not None else new_run_id(),
-                session_id, concurrency, turn_index, attempt,
-            )
-            trace_headers = {"traceparent": traceparent, "baggage": baggage}
+        trace_id, span_id, trace_headers = request_trace(
+            trace, run_id, session_id, concurrency, turn_index, attempt,
+        )
 
         config = self.config
         started_at, t0 = time.time(), time.perf_counter()

@@ -5,11 +5,12 @@ import re
 from urllib.parse import unquote
 
 import httpx
+import pytest
 from typer.testing import CliRunner
 
 from kneepoint.cli import app as cli_app
 from kneepoint.collect.schemas import RequestRecord
-from kneepoint.collect.writer import KNEEPOINT_VERSION, JsonlWriter, read_jsonl
+from kneepoint.collect.writer import KNEEPOINT_VERSION, JsonlWriter, read_jsonl, read_run_meta
 from kneepoint.demo.agent import create_app
 from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.ramp import RampSpec, run_ramp
@@ -139,3 +140,55 @@ def test_cli_no_trace_and_scenario_option(mock_agent_url, tmp_path):
         path = next(path for path in out.glob("run-*.jsonl") if "-sessions" not in path.name)
         assert read_jsonl(path)
         assert all(r.trace_id is None and r.span_id is None for r in read_jsonl(path))
+
+
+@pytest.mark.parametrize("adapter", ["http", "openai-compatible"])
+@pytest.mark.parametrize(("mode", "flag"), [("sampled", "01"), ("unsampled", "00"), ("off", None)])
+def test_propagation_in_run_headers_records_and_report(adapter, mode, flag, tmp_path, monkeypatch):
+    seen = []
+    real_client = httpx.AsyncClient
+
+    def target(request):
+        seen.append(request.headers)
+        if adapter == "http":
+            return httpx.Response(200, json={"answer": "ok"})
+        return httpx.Response(200, content=b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n')
+
+    def client(**kwargs):
+        return real_client(**{**kwargs, "transport": httpx.MockTransport(target)})
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    scenario = tmp_path / "scenario.yaml"
+    # Exercise CLI precedence for off and scenario configuration for unsampled.
+    trace = "trace: {propagation: unsampled}\n" if mode != "sampled" else ""
+    extra = ["--trace-propagation", "off"] if mode == "off" else []
+    response = "  response: {mode: json, text_path: /answer}\n" if adapter == "http" else ""
+    scenario.write_text(
+        f"{trace}target:\n  type: {adapter}\n  url: http://target/v1\n{response}"
+        "  headers: {traceparent: stale, baggage: stale, tracestate: stale}\n"
+        "workload:\n  ramp: {from: 1, to: 1, hold_seconds: 0}\n"
+        if adapter == "http" else
+        f"{trace}target: {{url: http://target/v1}}\n"
+        "workload:\n  ramp: {from: 1, to: 1, hold_seconds: 0}\n",
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(
+        cli_app, ["run", "--scenario", str(scenario), "--out", str(tmp_path), *extra],
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    meta_path = next(tmp_path.glob("run-*-meta.json"))
+    meta = read_run_meta(meta_path)
+    assert meta.trace_propagation == mode
+    record, = read_jsonl(meta_path.with_name(meta_path.name.replace("-meta.json", ".jsonl")))
+    expected = attempt_context(meta.run_id, record.session_id, 1, 0, 1)
+    assert record.ok and (record.trace_id, record.span_id) == expected[:2]
+    headers, = seen
+    assert "tracestate" not in headers
+    if flag is None:
+        assert "traceparent" not in headers and "baggage" not in headers
+    else:
+        assert headers["traceparent"] == f"00-{record.trace_id}-{record.span_id}-{flag}"
+        assert headers["baggage"] == expected[3]
+    report = next(tmp_path.glob("run-*-report.html")).read_text()
+    assert f"Trace propagation</th><td>{mode}</td>" in report
+    assert "Sampled trace propagation can force targets" in report

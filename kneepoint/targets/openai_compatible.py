@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord
-from kneepoint.targets.trace_context import attempt_context, new_run_id
+from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S as REQUEST_WALL_S
 from kneepoint.targets.turn import TurnOutcome as TurnOutcome
 
@@ -64,7 +64,7 @@ async def run_turn(
     attempt: int = 1,
     wall_seconds: float | None = None,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
 ) -> TurnOutcome:
     """Run one streamed chat turn; record TTFT, latency, tokens, and text.
@@ -79,15 +79,10 @@ async def run_turn(
     The record is marked `abandoned` either way so contaminated levels can be flagged.
     """
     wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
-    run_id = run_id if run_id is not None else new_run_id()
-    trace_id = span_id = None
     request_headers = {"x-kneepoint-session": session_id}
-    trace_headers = {}
-    if trace:
-        trace_id, span_id, traceparent, baggage = attempt_context(
-            run_id, session_id, concurrency, turn_index, attempt,
-        )
-        trace_headers = {"traceparent": traceparent, "baggage": baggage}
+    trace_id, span_id, trace_headers = request_trace(
+        trace, run_id, session_id, concurrency, turn_index, attempt,
+    )
 
     started_at = time.time()
     t0 = time.perf_counter()

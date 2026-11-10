@@ -12,7 +12,7 @@ from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.monitor import InjectorMonitor
 from kneepoint.generator.resources import sample_local_resources
 from kneepoint.generator.session import SessionSpec, run_session
-from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.trace_context import TraceSetting, new_run_id
 from kneepoint.targets.turn import TurnRunner
 
 REQUEST_TIMEOUT_S = 120.0
@@ -27,7 +27,7 @@ async def run_level(
     spec: SessionSpec,
     *,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
