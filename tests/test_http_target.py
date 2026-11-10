@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import suppress
 from pathlib import Path
 from random import Random
 
@@ -435,10 +436,14 @@ async def test_loopback_partial_response_closes_on_abandonment_and_cancel(mode, 
                     if stop == "wall":
                         writer.write(b"1\r\n \r\n")
                         await writer.drain()
+        except ConnectionResetError:
+            # The client may close with a reset while response bytes are pending.
+            pass
         finally:
             writer.close()
-            await writer.wait_closed()
-            disconnected.set()
+            with suppress(ConnectionResetError):
+                await writer.wait_closed()
+        disconnected.set()
 
     server = await asyncio.start_server(handle, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]

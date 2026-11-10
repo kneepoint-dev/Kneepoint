@@ -82,7 +82,8 @@ Dify Chatflow sends the event type in the JSON data, so match `/event` in
 the success rule. The `workflow_finished` event carries the workflow status at
 `/data/status`. A failed workflow can arrive with HTTP 200 even when its
 upstream provider returned 429. The status rule counts that response as
-`body_failure` and keeps the original HTTP status.
+`body_failure` and keeps the original HTTP status. The default retry policy
+does not retry a body failure at HTTP 200.
 
 ```yaml
 target:

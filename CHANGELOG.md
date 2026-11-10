@@ -12,6 +12,11 @@ Planned for 0.5.0.
 - HTTP scenario targets map structured requests to custom JSON and SSE agent
   endpoints. They support application errors, optional token usage, W3C attempt
   tracing, and the existing retry and chaos controls.
+- HTTP response success rules classify rejected JSON or SSE bodies as
+  `body_failure` while retaining the HTTP status.
+- HTTP response capture passes values between turns in the same session.
+  Missing captures emit a warning, and later turns that require them fail
+  before dispatch with `capture_missing`.
 - Run metadata records the target type and response mode. JSON reports explain
   why buffered replies cannot provide TTFT or inter-token latency.
 
