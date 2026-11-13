@@ -110,7 +110,7 @@ The fields, in the order they appear on the line:
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
-| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires (never retried). Defaults to `null` |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests; latency percentiles use successful requests only. Defaults to `null` |
 | `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
 Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve

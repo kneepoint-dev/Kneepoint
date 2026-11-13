@@ -48,7 +48,7 @@ class SessionSpec(BaseModel):
 
 
 def _retryable(record: RequestRecord) -> bool:
-    if record.ok or record.error_kind in {"capture_missing", "timeout"}:
+    if record.ok or record.error_kind in {"capture_missing", "timeout", "context_overflow"}:
         return False
     return record.status_code is None or record.status_code in RETRYABLE_STATUS
 

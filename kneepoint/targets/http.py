@@ -14,6 +14,7 @@ from functools import partial
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord
+from kneepoint.targets.context_errors import is_context_overflow
 from kneepoint.targets.http_config import (
     Capture,
     FieldEventFilter,
@@ -44,6 +45,10 @@ class _ResponseError(ValueError):
 
 
 class _AgentError(ValueError):
+    pass
+
+
+class _ContextOverflow(_AgentError):
     pass
 
 
@@ -204,6 +209,8 @@ def _matches(selector: str | None, event: str) -> bool:
 
 
 def _agent_error(value, secrets: frozenset[str]) -> _AgentError:
+    if is_context_overflow(value):
+        return _ContextOverflow("context_overflow")
     kind = {
         dict: "object", list: "array", str: "string", bool: "boolean",
         int: "number", float: "number", type(None): "null",
@@ -373,6 +380,12 @@ class HttpTurn:
                     )
                     if not accepted:
                         error = f"HTTP {status}"
+                        if status == 400:
+                            try:
+                                if is_context_overflow(await _json_body(response)):
+                                    error_kind = "context_overflow"
+                            except (ValueError, _ResponseError):
+                                pass
                         retry_after_s = _retry_after(response.headers.get("retry-after"))
                     elif isinstance(config.response, JsonResponse):
                         payload = await _json_body(response)
@@ -411,6 +424,8 @@ class HttpTurn:
         except _ResponseError as exc:
             error = f"ValueError: {exc}"
         except _AgentError as exc:
+            if isinstance(exc, _ContextOverflow):
+                error_kind = "context_overflow"
             error = f"AgentError: {exc}"[:120]
         except _BodyFailure as exc:
             error_kind = "body_failure"
