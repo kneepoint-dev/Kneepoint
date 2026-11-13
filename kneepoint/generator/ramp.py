@@ -3,6 +3,7 @@
 import asyncio
 import re
 import time
+from pathlib import Path
 
 import httpx
 from pydantic import BaseModel
@@ -65,6 +66,7 @@ async def run_ramp(
     monitor_injector: bool = True,
     sample_resources: bool = False,
     turn_runner: TurnRunner | None = None,
+    health_path: Path | None = None,
 ) -> tuple[list[SessionRecord], list[RequestRecord], bool]:
     """Return (sessions, records, budget_exceeded), retaining partial evidence.
 
@@ -90,7 +92,7 @@ async def run_ramp(
                 on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                 stop=stop, evidence=evidence,
                 monitor_injector=monitor_injector, sample_resources=sample_resources,
-                turn_runner=turn_runner,
+                turn_runner=turn_runner, health_path=health_path,
             )
             if on_level is not None:
                 on_level(level, sessions, records)

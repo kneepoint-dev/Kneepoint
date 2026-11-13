@@ -6,7 +6,7 @@ import time
 import uuid
 
 import httpx
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
@@ -44,10 +44,11 @@ class SessionSpec(BaseModel):
     turns: TurnsSpec = TurnsSpec()
     think_time: ThinkTime = ThinkTime()
     retry: RetryPolicy = RetryPolicy()
+    deadline_seconds: float | None = Field(None, gt=0, allow_inf_nan=False)
 
 
 def _retryable(record: RequestRecord) -> bool:
-    if record.ok or record.error_kind == "capture_missing":
+    if record.ok or record.error_kind in {"capture_missing", "timeout"}:
         return False
     return record.status_code is None or record.status_code in RETRYABLE_STATUS
 
@@ -89,7 +90,8 @@ async def run_session(
             if stop is not None and stop.is_set():
                 status = "stopped"
                 break
-            messages.append({"role": "user", "content": sampler.sample()})
+            item = sampler.sample_item()
+            messages.append({"role": "user", "content": item["prompt"]})
             accepted_text: str | None = None
             for attempt in range(1, spec.retry.max_attempts + 1):
                 if stop is not None and stop.is_set():
@@ -105,14 +107,18 @@ async def run_session(
                     active = None
                     break
                 evidence.attempts[active.key]["dispatched"] = True
+                selection = sampler.dispatched(item)
+                deadline_kw = ({} if spec.deadline_seconds is None else
+                               {"wall_seconds": spec.deadline_seconds})
                 outcome = await (runner or run_turn)(
                     client, base_url, model, messages,
                     concurrency=concurrency, session_id=session_id,
                     turn_index=turn_index, attempt=attempt, run_id=run_id, trace=trace,
-                    run_origin_s=run_origin_s,
+                    run_origin_s=run_origin_s, **deadline_kw,
                 )
                 if outcome.record.error_kind == "capture_missing":
                     evidence.attempts[active.key]["dispatched"] = False
+                outcome.record.selection = selection
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)
                 evidence.finish_attempt(active, "completed")

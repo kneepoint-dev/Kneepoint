@@ -84,12 +84,14 @@ async def run_turn(
         trace, run_id, session_id, concurrency, turn_index, attempt,
     )
 
+    request_id = uuid.uuid4().hex
     started_at = time.time()
     t0 = time.perf_counter()
     started_monotonic_s = t0 - run_origin_s if run_origin_s is not None else None
 
     def record(*args, **kwargs) -> RequestRecord:
         return _record(*args, trace_id=trace_id, span_id=span_id,
+                       request_id=request_id, traceparent=trace_headers.get("traceparent"),
                        started_monotonic_s=started_monotonic_s, **kwargs)
     ttft_ms: float | None = None
     input_tokens: int | None = None
@@ -168,7 +170,7 @@ async def run_turn(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 ok=False, status_code=status_code, fault=fault, ttft_ms=ttft_ms,
                 abandoned=status_code is not None,
-                error=f"abandoned at the {wall:g}s wall",
+                error=f"abandoned at the {wall:g}s wall", error_kind="timeout",
             ),
         )
     except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
@@ -180,7 +182,7 @@ async def run_turn(
         return TurnOutcome(
             record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
-                ok=False, ttft_ms=ttft_ms, abandoned=True,
+                ok=False, ttft_ms=ttft_ms, abandoned=True, error_kind="timeout",
                 error=f"{type(exc).__name__}: {exc}"[:200],
             ),
         )

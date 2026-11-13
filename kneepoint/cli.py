@@ -64,6 +64,10 @@ SCENARIO_OPTION = typer.Option(None, "--scenario", help="Scenario YAML file.")
 DEMO_HOLD_OPTION = typer.Option(5.0, "--hold-seconds", help="Hold time per demo ramp level.")
 DEMO_SEED_OPTION = typer.Option(0, "--seed", help="Seed for the demo's sampling and chaos.")
 DEMO_NO_OPEN_OPTION = typer.Option(False, "--no-open", help="Don't open the report in a browser.")
+SELECTION_LOG_OPTION = typer.Option(
+    None, "--selection-log", help="Append per-attempt corpus selection metadata.",
+)
+HEALTH_LOG_OPTION = typer.Option(None, "--health-log", help="Append 1 s injector health.")
 TRACE_PROPAGATION_OPTION = typer.Option(
     None, "--trace-propagation", help="Choose W3C trace propagation while retaining local IDs.",
 )
@@ -386,6 +390,8 @@ def run(
         10, "--min-samples",
         help="Minimum successes per level for knee, scaling and latency SLOs.",
     ),
+    selection_log: Path | None = SELECTION_LOG_OPTION,
+    health_log: Path | None = HEALTH_LOG_OPTION,
     fault_log: Path = RUN_FAULT_LOG_OPTION,
     no_trace: bool = typer.Option(False, "--no-trace", help="Disable trace headers and IDs."),
     trace_propagation: TracePropagation | None = TRACE_PROPAGATION_OPTION,
@@ -463,7 +469,8 @@ def run(
         session_spec = SessionSpec()
         if sc_conv:
             session_spec = SessionSpec(
-                turns=sc_conv.turns, think_time=sc_conv.think_time_ms, retry=sc_conv.retry
+                turns=sc_conv.turns, think_time=sc_conv.think_time_ms, retry=sc_conv.retry,
+                deadline_seconds=sc_conv.deadline_seconds,
             )
         if turns:
             turns_min, turns_max = parse_ramp(turns)  # reuse: same 'a..b' syntax
@@ -477,7 +484,9 @@ def run(
     )
 
     sampler = (
-        CorpusSampler.from_glob(corpus, seed=seed) if corpus
+        CorpusSampler.from_glob(
+            corpus, seed=seed, config=sc_conv.sampling if sc_conv else None,
+        ) if corpus
         else CorpusSampler(DEFAULT_PROMPTS, seed=seed)
     )
 
@@ -569,6 +578,11 @@ def run(
 
         def on_attempt_complete(record: RequestRecord) -> None:
             writer.write_many([record])  # flush evidence before accounting can request stop
+            if selection_log is not None and record.selection is not None:
+                selection_log.parent.mkdir(parents=True, exist_ok=True)
+                with selection_log.open("a", encoding="utf-8") as selected:
+                    selected.write(json.dumps({"t": time.time(), "request_id": record.request_id,
+                                               **record.selection}) + "\n")
             controller.on_attempt_complete(record)
 
         def on_level(level: int, sessions: list, records: list) -> None:
@@ -580,6 +594,7 @@ def run(
             all_sessions, records, _ = asyncio.run(
                 run_ramp(
                     target_url, model_name, spec, sampler, session_spec,
+                    health_path=health_log,
                     seed=seed, transport=transport, headers=headers,
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
                     stop=controller.stop, evidence=evidence,

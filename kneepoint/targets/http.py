@@ -6,6 +6,7 @@ import math
 import re
 import statistics
 import time
+import uuid
 from collections.abc import AsyncIterator
 from copy import deepcopy
 from functools import partial
@@ -396,9 +397,11 @@ class HttpTurn:
                 finally:
                     await response.aclose()
         except TimeoutError:
+            error_kind = "timeout"
             error = f"abandoned at the {wall:g}s wall"
             abandoned = status is not None
         except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+            error_kind = "timeout"
             error = f"{type(exc).__name__}: HTTP gap timeout"
             abandoned = True
         except httpx.HTTPError as exc:
@@ -439,6 +442,7 @@ class HttpTurn:
             error_kind=error_kind, warnings=warnings,
             abandoned=abandoned, status_code=status, fault=fault,
             trace_id=trace_id, span_id=span_id,
+            request_id=uuid.uuid4().hex, traceparent=trace_headers.get("traceparent"),
             ttft_ms=(reply.first_at - t0) * 1000 if reply.first_at is not None else None,
             chunk_count=(len(reply.pieces) if error is None
                          and isinstance(config.response, SseResponse) else None),

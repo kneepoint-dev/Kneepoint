@@ -8,6 +8,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationEr
 
 from kneepoint.analyze.cost import CostRates
 from kneepoint.chaos.faults import STANDARD_PROFILE, FaultSpec
+from kneepoint.generator.corpus import SamplingConfig
 from kneepoint.generator.session import RetryPolicy, ThinkTime, TurnsSpec
 from kneepoint.judge.deterministic import CheckConfig
 from kneepoint.judge.llm_judge import JudgeConfig
@@ -60,6 +61,8 @@ class RampConfig(_Strict):
 class ConversationConfig(_Strict):
     turns: TurnsSpec = TurnsSpec()
     corpus: str | None = None
+    sampling: SamplingConfig = SamplingConfig()
+    deadline_seconds: float | None = Field(None, gt=0, allow_inf_nan=False)
     think_time_ms: ThinkTime = ThinkTime()
     retry: RetryPolicy = RetryPolicy()
 

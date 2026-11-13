@@ -31,6 +31,9 @@ class RequestRecord(VersionedRecord):
     parses.
     """
 
+    request_id: str | None = None  # absent in legacy records
+    traceparent: str | None = None  # exact header sent, or null
+    selection: dict | None = None  # optional workload item metadata
     session_id: str
     concurrency: int          # ramp level this request ran at
     started_at: float         # unix epoch seconds
