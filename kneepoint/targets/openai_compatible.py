@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord
+from kneepoint.collect.writer import version_stamps
 from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S as REQUEST_WALL_S
 from kneepoint.targets.turn import TurnOutcome as TurnOutcome
@@ -31,7 +32,10 @@ def _content_delta(chunk: dict) -> str | None:
 
 
 def _record(session_id, concurrency, turn_index, attempt, started_at, t0, **kw) -> RequestRecord:
+    if kw.get("ok") is False and not kw.get("error_kind"):
+        kw["error_kind"] = "target_error"
     return RequestRecord(
+        **version_stamps(),
         session_id=session_id, concurrency=concurrency, turn_index=turn_index,
         attempt=attempt, started_at=started_at,
         total_ms=(time.perf_counter() - t0) * 1000, **kw,

@@ -5,7 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
-Planned for 0.5.0.
+## [0.5.0.dev0] - 2026-11-14
+
+Local development build for the 0.5.0 workload branch; not published.
 
 ### Added
 
@@ -19,6 +21,11 @@ Planned for 0.5.0.
   before dispatch with `capture_missing`.
 - Run metadata records the target type and response mode. JSON reports explain
   why buffered replies cannot provide TTFT or inter-token latency.
+
+### Fixed
+
+- Live HTTP and OpenAI request records identify their installed producer version.
+- Every failed HTTP attempt records an error kind while preserving its message.
 
 ## [0.4.0] - 2026-11-06
 

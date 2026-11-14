@@ -43,6 +43,10 @@ Every record carries its own version stamp:
 * **`kneepoint_version`** *(string, nullable)* — the release that produced the
   line. `null` when kneepoint ran from a source tree rather than an install.
 
+Live HTTP and OpenAI-compatible request records also carry producer stamps before
+custom completion sinks receive them. Custom metadata sinks can use
+`kneepoint.collect.writer.version_stamps()`; legacy reads retain unknown versions.
+
 The metadata sidecar carries the same two fields at its top level. The two
 JSONL streams and the metadata sidecar share one `schema_version`. The HTML
 report shows `kneepoint_version` in its metadata block.
@@ -110,7 +114,7 @@ The fields, in the order they appear on the line:
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
-| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests; latency percentiles use successful requests only. Defaults to `null` |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests; latency percentiles use successful requests only. New HTTP failures always carry a kind: `agent_error` for target-declared errors (the existing sanitized message is retained), `http_error` for transport/status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
 | `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
 Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve

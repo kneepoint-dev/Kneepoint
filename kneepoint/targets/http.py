@@ -14,6 +14,7 @@ from functools import partial
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord
+from kneepoint.collect.writer import version_stamps
 from kneepoint.targets.context_errors import is_context_overflow
 from kneepoint.targets.http_config import (
     Capture,
@@ -418,14 +419,16 @@ class HttpTurn:
             error = f"{type(exc).__name__}: HTTP gap timeout"
             abandoned = True
         except httpx.HTTPError as exc:
+            error_kind = "http_error"
             error = f"{type(exc).__name__}: HTTP exchange failed"
         except json.JSONDecodeError:
+            error_kind = "response_error"
             error = "JSONDecodeError: malformed response JSON"
         except _ResponseError as exc:
+            error_kind = "response_error"
             error = f"ValueError: {exc}"
         except _AgentError as exc:
-            if isinstance(exc, _ContextOverflow):
-                error_kind = "context_overflow"
+            error_kind = "context_overflow" if isinstance(exc, _ContextOverflow) else "agent_error"
             error = f"AgentError: {exc}"[:120]
         except _BodyFailure as exc:
             error_kind = "body_failure"
@@ -434,6 +437,7 @@ class HttpTurn:
             error_kind = "capture_missing"
             error = str(exc)
         except (ValueError, TypeError) as exc:
+            error_kind = "request_error"
             # Request encoding can fail on caller-supplied messages; their
             # content is not safe to include in a record.
             error = f"{type(exc).__name__}: invalid HTTP request data"
@@ -449,6 +453,7 @@ class HttpTurn:
 
         gaps = reply.gaps_ms if error is None else []
         record = RequestRecord(
+            **version_stamps(),
             session_id=session_id, concurrency=concurrency, turn_index=turn_index,
             attempt=attempt, started_at=started_at,
             started_monotonic_s=t0 - run_origin_s if run_origin_s is not None else None,
