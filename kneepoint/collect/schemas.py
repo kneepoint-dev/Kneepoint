@@ -50,6 +50,8 @@ class RequestRecord(VersionedRecord):
     span_id: str | None = None   # W3C parent span ID sent to the target
     fault: str | None = None  # chaos fault injected into this attempt, if any
     status_code: int | None = None
+    retry_after_s: float | None = None  # parsed server value, before the 30 s cap
+    backoff_s: float = 0.0  # virtual-user delay applied after this response
     # Inter-token latency, at *chunk* granularity — a streamed chunk is not
     # guaranteed to be one token, so these are an approximation and are named as
     # one in the docs. Summary statistics only: a per-chunk timestamp array would

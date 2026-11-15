@@ -110,6 +110,8 @@ The fields, in the order they appear on the line:
 | `span_id` | string \| null | 16 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
 | `fault` | string \| null | chaos fault injected into this attempt, read from the response: `llm_rate_limit`, `llm_server_error`. Tool faults arrive via the proxy's fault log, not here |
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
+| `retry_after_s` | float \| null | parsed Retry-After seconds before the cap; absent or invalid header is null |
+| `backoff_s` | float | virtual-user delay after a 503 when client.honor_retry_after is enabled, capped at 30 s; otherwise 0; stop can interrupt this delay |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |

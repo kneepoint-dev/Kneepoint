@@ -1,6 +1,7 @@
 """Multi-turn session runner: growing context, think time, per-turn retries."""
 
 import asyncio
+import math
 import random
 import time
 import uuid
@@ -41,6 +42,7 @@ class RetryPolicy(BaseModel):
 
 
 class SessionSpec(BaseModel):
+    honor_retry_after: bool = False
     turns: TurnsSpec = TurnsSpec()
     think_time: ThinkTime = ThinkTime()
     retry: RetryPolicy = RetryPolicy()
@@ -118,6 +120,14 @@ async def run_session(
                 )
                 if outcome.record.error_kind == "capture_missing":
                     evidence.attempts[active.key]["dispatched"] = False
+                outcome.record.retry_after_s = outcome.retry_after_s
+                delay = outcome.retry_after_s
+                honor_delay = (
+                    min(delay, 30.0) if spec.honor_retry_after
+                    and outcome.record.status_code == 503 and delay is not None
+                    and math.isfinite(delay) and delay >= 0 else 0.0
+                )
+                outcome.record.backoff_s = honor_delay
                 outcome.record.selection = selection
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)
@@ -131,11 +141,17 @@ async def run_session(
                     turns_completed += 1
                 if on_attempt_complete is not None:
                     on_attempt_complete(outcome.record)
+                # This virtual user waits even on the final failed attempt: the
+                # pool can otherwise immediately start its next session.
+                if honor_delay:
+                    await wait_or_stop(honor_delay, stop)
                 if outcome.record.ok:
                     break
                 if not _retryable(outcome.record) or attempt == spec.retry.max_attempts:
                     break
-                await wait_or_stop(outcome.retry_after_s or spec.retry.backoff_s * attempt, stop)
+                if not honor_delay:
+                    await wait_or_stop(
+                        outcome.retry_after_s or spec.retry.backoff_s * attempt, stop)
             if accepted_text is None:
                 messages.pop()
                 break

@@ -471,6 +471,7 @@ def run(
             session_spec = SessionSpec(
                 turns=sc_conv.turns, think_time=sc_conv.think_time_ms, retry=sc_conv.retry,
                 deadline_seconds=sc_conv.deadline_seconds,
+                honor_retry_after=sc.client.honor_retry_after,
             )
         if turns:
             turns_min, turns_max = parse_ramp(turns)  # reuse: same 'a..b' syntax

@@ -11,6 +11,7 @@ import httpx
 
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.collect.writer import version_stamps
+from kneepoint.targets.retry_after import parse_retry_after
 from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S as REQUEST_WALL_S
 from kneepoint.targets.turn import TurnOutcome as TurnOutcome
@@ -130,7 +131,7 @@ async def run_turn(
                         ok=False, status_code=resp.status_code, fault=fault,
                         error=f"HTTP {resp.status_code}",
                     ),
-                    retry_after_s=float(retry_after) if retry_after else None,
+                    retry_after_s=parse_retry_after(retry_after),
                 )
             async for line in resp.aiter_lines():
                 if not line.startswith(_DATA_PREFIX):

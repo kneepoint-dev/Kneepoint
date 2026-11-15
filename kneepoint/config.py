@@ -105,7 +105,12 @@ class TraceConfig(_Strict):
     propagation: TracePropagation = TracePropagation.SAMPLED
 
 
+class ClientConfig(_Strict):
+    honor_retry_after: bool = False
+
+
 class Scenario(_Strict):
+    client: ClientConfig = ClientConfig()
     trace: bool | TraceConfig = True
     target: ScenarioTarget
     workload: WorkloadConfig = WorkloadConfig()

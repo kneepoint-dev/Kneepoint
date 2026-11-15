@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0.dev1] - 2026-11-15
+
+Local development build; not published.
+
+### Added
+
+- Optional `client.honor_retry_after` virtual-user back-off after HTTP 503,
+  including between sessions, capped at 30 seconds and interruptible by stop.
+- Request records retain parsed `retry_after_s` and applied `backoff_s`.
+- Retry-After HTTP dates and invalid values are handled by both target adapters.
+
 ## [0.5.0.dev0] - 2026-11-14
 
 Local development build for the 0.5.0 workload branch; not published.

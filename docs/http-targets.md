@@ -161,3 +161,14 @@ kneepoint run --scenario examples/http-agent/sse.yaml --out reports/http-sse
 
 See the [scenario reference](scenarios.md#http-targets) for the full mapping
 syntax, header secrets, and token usage fields.
+
+### Virtual-user Retry-After
+
+Set `client: {honor_retry_after: true}` in the scenario to wait after HTTP 503
+responses carrying a valid Retry-After (seconds or HTTP date). Default is false.
+Each virtual user waits before its next request, including across session
+boundaries; the delay is capped at 30 seconds and is interruptible by stop.
+Records include `retry_after_s` (parsed, uncapped) and `backoff_s` (applied
+delay, zero when disabled or inapplicable). Response latency excludes this wait.
+A stop may interrupt the wait; it does not dispatch another request. Existing
+per-turn retry policy remains separate; this wait is not doubled on a retry.

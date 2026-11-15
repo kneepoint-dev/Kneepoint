@@ -31,6 +31,7 @@ from kneepoint.targets.http_config import (
     extract,
     render_body,
 )
+from kneepoint.targets.retry_after import parse_retry_after as _retry_after
 from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S, TurnOutcome, TurnRunner
 
@@ -311,16 +312,6 @@ async def _read_sse(
             return
     if end is not None:
         raise _ResponseError("SSE stream ended before its configured marker")
-
-
-def _retry_after(value: str | None) -> float | None:
-    if value is None:
-        return None
-    try:
-        seconds = float(value)
-    except ValueError:
-        return None
-    return seconds if math.isfinite(seconds) and seconds >= 0 else None
 
 
 class HttpTurn:
