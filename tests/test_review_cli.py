@@ -175,3 +175,50 @@ def test_status_error_kind_in_saved_evidence(tmp_path, adapter, status, payload,
     assert record["ok"] is (expected is None)
     assert record["status_code"] == status
     assert record["error_kind"] == expected
+
+
+def install_cli_probe(tmp_path, python):
+    probe = tmp_path / "probe"
+    probe.mkdir()
+    (probe / "sitecustomize.py").write_text(python, encoding="utf-8")
+    return {**os.environ, "PYTHONPATH": os.pathsep.join(
+        [str(probe), *([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else [])]
+    )}
+
+
+@pytest.mark.parametrize("fail", [True, False])
+def test_health_sampler_warns_once_and_leaves_run_usable(tmp_path, fail):
+    import time
+
+    env = install_cli_probe(tmp_path, """
+from kneepoint.generator.health import HealthSampler
+
+class SamplerFailure(Exception):
+    pass
+
+async def run(self):
+    raise SamplerFailure("diagnostic payload")
+
+HealthSampler.run = run
+""") if fail else None
+
+    def target(_headers, _request):
+        if not fail:
+            time.sleep(1.1)
+        return 200, {}, b'{"answer":"ok"}'
+
+    log = tmp_path / "health.jsonl"
+    with serve(target) as url:
+        out, result = run(tmp_path, url, flags=("--health-log", log), env=env)
+    record, = rows(out)
+    assert record["ok"]
+    console = result.stdout + result.stderr
+    if fail:
+        assert console.count(b"Health sampler stopped (SamplerFailure)") == 1
+        assert b"diagnostic payload" not in console
+    else:
+        assert b"Health sampler stopped" not in console
+        sample = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
+        assert sample["source"] == "injector"
+        assert sample["level"] == sample["inflight"] == 1
+        assert "open_connections" in sample

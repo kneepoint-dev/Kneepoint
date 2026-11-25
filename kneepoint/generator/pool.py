@@ -1,6 +1,7 @@
 """Session pool: hold N concurrent multi-turn sessions on the target for a duration."""
 
 import asyncio
+import logging
 import random
 import time
 from pathlib import Path
@@ -18,6 +19,7 @@ from kneepoint.targets.trace_context import TraceSetting, new_run_id
 from kneepoint.targets.turn import TurnRunner
 
 REQUEST_TIMEOUT_S = 120.0
+_LOGGER = logging.getLogger(__name__)
 
 
 async def run_level(
@@ -84,10 +86,16 @@ async def run_level(
         if original_complete:
             original_complete(value)
 
-    health_task = (asyncio.create_task(HealthSampler(
-        health_path, population=lambda: inflight,
-        labels=health_labels or (lambda: {"level": concurrency}),
-    ).run()) if health_path else None)
+    async def sample_health() -> None:
+        try:
+            await HealthSampler(
+                health_path, population=lambda: inflight,
+                labels=health_labels or (lambda: {"level": concurrency}),
+            ).run()
+        except Exception as exc:
+            _LOGGER.warning("Health sampler stopped (%s)", type(exc).__name__)
+
+    health_task = asyncio.create_task(sample_health()) if health_path else None
     try:
         async with httpx.AsyncClient(
             limits=limits, timeout=httpx.Timeout(REQUEST_TIMEOUT_S),
