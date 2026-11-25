@@ -262,3 +262,38 @@ session.wait_or_stop = wait_or_stop
     assert first["backoff_s"] == (expected if header != "invalid" else 0.0)
     assert first["retry_after_s"] == (float(header) if header != "invalid" else None)
     assert second["backoff_s"] == 0.0
+
+
+def test_builtin_without_replacement_uses_unique_items(tmp_path):
+    def target(_headers, _request):
+        return 200, {}, b'{"answer":"ok"}'
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, conversation={
+            "turns": {"min": 6, "max": 6}, "sampling": {"policy": "without_replacement"},
+        }, target={"body": {"input": "{prompt}", "session": "{session_id}"}})
+    selections = [record["selection"] for record in rows(out)]
+    assert {selection["item_id"] for selection in selections} == set("123456")
+    assert all(selection["first_use"] for selection in selections)
+
+
+def test_priced_calibration_preserves_one_item_measured_corpus(tmp_path):
+    corpus = tmp_path / "corpus.txt"
+    corpus.write_text("the only item", encoding="utf-8")
+    sessions = []
+
+    def target(headers, request):
+        assert request["input"] == "the only item"
+        sessions.append(headers["X-Kneepoint-Session"])
+        return 200, {}, b'{"answer":"ok","input":3,"output":1}'
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, conversation={
+            "corpus": str(corpus), "sampling": {"policy": "without_replacement"},
+        }, target={"response": {
+            "mode": "json", "text_path": "/answer",
+            "usage": {"input_path": "/input", "output_path": "/output"},
+        }}, flags=("--price-in", "1", "--price-out", "1", "--force"))
+    record, = rows(out)
+    assert sessions == ["calibration", record["session_id"]]
+    assert record["selection"]["item_id"] == "1" and record["selection"]["first_use"]

@@ -86,14 +86,14 @@ PROXY_FAULT_LOG_OPTION = typer.Option(
 
 
 async def _calibrate(
-    target: str, model: str, sampler, transport, headers,
+    target: str, model: str, prompt: str, transport, headers,
     run_id: str | None = None, trace: TraceSetting = True,
     *, turn_runner: TurnRunner | None = None,
 ) -> RequestRecord:
     async with httpx.AsyncClient(timeout=120, transport=transport, headers=headers) as client:
         outcome = await (turn_runner or run_turn)(
             client, target, model,
-            [{"role": "user", "content": sampler.sample()}],
+            [{"role": "user", "content": prompt}],
             concurrency=1, session_id="calibration", run_id=run_id, trace=trace,
         )
     return outcome.record
@@ -484,11 +484,10 @@ def run(
         hold_seconds=_pick(hold_seconds, sc_ramp.hold_seconds if sc_ramp else None, 15.0),
     )
 
+    sampling = sc_conv.sampling if sc_conv else None
     sampler = (
-        CorpusSampler.from_glob(
-            corpus, seed=seed, config=sc_conv.sampling if sc_conv else None,
-        ) if corpus
-        else CorpusSampler(DEFAULT_PROMPTS, seed=seed)
+        CorpusSampler.from_glob(corpus, seed=seed, config=sampling) if corpus
+        else CorpusSampler(DEFAULT_PROMPTS, seed=seed, config=sampling)
     )
 
     headers = None
@@ -542,8 +541,10 @@ def run(
     elif price_in or price_out:
         calibration_scope = "outside_generator_accounting"
         typer.echo("Calibration spend is outside completed generator attempt accounting.")
+        # Draw independently so calibration cannot advance or exhaust the measured sampler.
+        calibration_prompt = CorpusSampler(sampler.items, seed=seed, config=sampling).sample()
         calibration = asyncio.run(_calibrate(
-            target_url, model_name, sampler, transport, headers, run_id, trace,
+            target_url, model_name, calibration_prompt, transport, headers, run_id, trace,
             **runner_kwargs,
         ))
         estimate = None
