@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0.dev2] - 2026-11-25
+
+Development build.
+
 ### Added
 
 - Trace propagation modes `sampled`, `unsampled`, and `off`.
