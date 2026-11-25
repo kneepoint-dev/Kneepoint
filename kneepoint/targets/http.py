@@ -13,6 +13,7 @@ from functools import partial
 
 import httpx
 
+from kneepoint.chaos.faults import known_fault
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.collect.writer import version_stamps
 from kneepoint.targets.context_errors import is_context_overflow
@@ -365,7 +366,7 @@ class HttpTurn:
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
                     status = response.status_code
-                    fault = response.headers.get("x-kneepoint-fault")
+                    fault = known_fault(response.headers.get("x-kneepoint-fault"))
                     accepted = (
                         200 <= status <= 299 if config.success_status is None
                         else status in config.success_status

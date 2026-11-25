@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 
+from kneepoint.chaos.faults import known_fault
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.collect.writer import version_stamps
 from kneepoint.targets.retry_after import parse_retry_after
@@ -122,7 +123,7 @@ async def run_turn(
             trace_headers=trace_headers,
         ) as resp:
             status_code = resp.status_code
-            fault = resp.headers.get("x-kneepoint-fault")
+            fault = known_fault(resp.headers.get("x-kneepoint-fault"))
             if resp.status_code >= 400:
                 retry_after = resp.headers.get("retry-after")
                 return TurnOutcome(
