@@ -4,7 +4,15 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import yaml
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from kneepoint.analyze.cost import CostRates
 from kneepoint.chaos.faults import STANDARD_PROFILE, FaultSpec
@@ -103,6 +111,11 @@ class ChaosConfig(_Strict):
 
 class TraceConfig(_Strict):
     propagation: TracePropagation = TracePropagation.SAMPLED
+
+    @field_validator("propagation", mode="before")
+    @classmethod
+    def _yaml_off(cls, value):
+        return TracePropagation.OFF if value is False else value
 
 
 class ClientConfig(_Strict):

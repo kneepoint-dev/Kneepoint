@@ -318,3 +318,46 @@ def test_unpriced_http_report_replays_byte_for_byte(tmp_path):
     assert hashlib.sha256(original.read_bytes()).digest() == hashlib.sha256(
         replay.read_bytes()
     ).digest()
+
+
+@pytest.mark.parametrize("variant", ["documented", "unquoted_off", "yaml_true", "sampled"])
+def test_trace_modes_from_yaml_use_expected_headers(tmp_path, variant):
+    import re
+
+    docs = (Path(__file__).resolve().parents[1] / "docs/http-targets.md").read_text(
+        encoding="utf-8"
+    )
+    documented = re.search(r"\ntrace:\n  propagation: [^\n]+\n", docs).group()
+    propagation = {
+        "documented": documented,
+        "unquoted_off": "trace: {propagation: off}\n",
+        "yaml_true": "trace: {propagation: true}\n",
+        "sampled": "trace: {propagation: sampled}\n",
+    }[variant]
+    seen = []
+
+    def target(headers, _request):
+        seen.append(headers.get("traceparent"))
+        return 200, {}, b'{"answer":"ok"}'
+
+    scenario = tmp_path / "scenario.yaml"
+    out = tmp_path / "out"
+    with serve(target) as url:
+        scenario.write_text(propagation + f"target:\n  type: http\n  url: {url}\n"
+                            "  body: {input: '{prompt}'}\n"
+                            "  response: {mode: json, text_path: /answer}\n",
+                            encoding="utf-8")
+        result = cli("run", "--scenario", scenario, "--ramp", "1..1", "--hold-seconds", 0,
+                     "--out", out)
+    if variant == "yaml_true":
+        assert result.returncode == 1 and b"invalid scenario" in result.stdout
+        assert not seen and not out.exists()
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        record, = rows(out)
+        assert record["ok"] and record["trace_id"]
+        assert seen == [record["traceparent"]]
+        if variant == "sampled":
+            assert record["traceparent"].endswith("-01")
+        else:
+            assert record["traceparent"] is None

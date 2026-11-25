@@ -132,7 +132,7 @@ whether to sample each incoming request.
 
 ```yaml
 trace:
-  propagation: off
+  propagation: "off"
 ```
 
 Kneepoint still records its local trace and span IDs in this mode. The
