@@ -109,3 +109,43 @@ def test_fault_header_only_accepts_known_names(tmp_path, adapter):
         })
     assert [r["fault"] for r in rows(out)] == ["llm_server_error"]
     assert [s["faults"] for s in rows(out, "-sessions.jsonl")] == [["llm_server_error"]]
+
+
+@pytest.mark.parametrize("mode", ["json", "sse", "sse_prior_event"])
+@pytest.mark.parametrize("matches_capture", [True, False])
+def test_current_capture_is_redacted_from_agent_errors(tmp_path, mode, matches_capture):
+    capture = "synthetic-conversation-value"
+    message = capture if matches_capture else "ordinary diagnostic"
+
+    def target(_headers, _request):
+        payload = {"id": capture, "error": message}
+        if mode == "json":
+            return 200, {}, json.dumps(payload).encode()
+        prefix = ""
+        if mode == "sse_prior_event":
+            prefix = f'data: {json.dumps({"id": capture, "delta": "ok"})}\n\n'
+            payload.pop("id")
+        body = f"{prefix}event: error\ndata: {json.dumps(payload)}\n\n"
+        return 200, {"Content-Type": "text/event-stream"}, body.encode()
+
+    response = (
+        {"mode": "json", "text_path": "/answer", "error_path": "/error"} if mode == "json"
+        else {"mode": "sse", "text_path": "/delta", "error_event": "error", "error_path": "/error"}
+    )
+    with serve(target) as url:
+        out, result = run(tmp_path, url, target={
+            "response": response, "capture": {
+                "name": "conversation", "path": "/id",
+                "from": "json" if mode == "json" else "sse_event",
+            },
+        })
+
+    record, = rows(out)
+    assert record["error_kind"] == "agent_error"
+    files = [p.name for p in out.iterdir() if capture.encode() in p.read_bytes()]
+    assert not files
+    assert capture.encode() not in result.stdout + result.stderr
+    expected = "AgentError: string" if matches_capture else f"AgentError: {message}"
+    assert record["error"] == expected
+    report, = out.glob("*-report.html")
+    assert expected.encode() in report.read_bytes()

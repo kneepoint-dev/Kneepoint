@@ -197,6 +197,12 @@ class _Reply:
                 raise _ResponseError(f"cumulative SSE {key} decreased")
             self.tokens[key] = count
 
+    def read_capture(self, payload, capture: Capture | None, secrets: set[str]) -> None:
+        value = _capture_value(payload, capture)
+        if value is not None:
+            self.captured = value
+            secrets.add(str(value))
+
     def append_delta(self, content: str) -> None:
         now = time.perf_counter()
         if self.last_at is None:
@@ -211,7 +217,7 @@ def _matches(selector: str | None, event: str) -> bool:
     return selector is None or selector == event
 
 
-def _agent_error(value, secrets: frozenset[str]) -> _AgentError:
+def _agent_error(value, secrets: set[str]) -> _AgentError:
     if is_context_overflow(value):
         return _ContextOverflow("context_overflow")
     kind = {
@@ -234,7 +240,7 @@ def _agent_error(value, secrets: frozenset[str]) -> _AgentError:
     return _AgentError(preview)
 
 
-def _check_success(value, rule: SuccessRule | None, secrets: frozenset[str]) -> None:
+def _check_success(value, rule: SuccessRule | None, secrets: set[str]) -> None:
     if rule is None:
         return
     if value is _MISSING:
@@ -254,19 +260,23 @@ def _check_success(value, rule: SuccessRule | None, secrets: frozenset[str]) -> 
         raise _BodyFailure(f"success rule rejected observed value {observed!r}")
 
 
-def _stream_error(data: str | None, path: str | None, secrets: frozenset[str]) -> _AgentError:
+def _stream_error(
+    data: str | None, target: HttpTargetConfig, reply: _Reply, secrets: set[str],
+) -> _AgentError:
     if data is None:
         return _AgentError("event")
+    path = target.response.error_path
     try:
         payload = _json(data)
     except (json.JSONDecodeError, _ResponseError):
         return _agent_error(data, secrets) if path is None else _AgentError("event")
+    reply.read_capture(payload, target.capture, secrets)
     value = _select(payload, path) if path is not None else payload
     return _agent_error(value, secrets)
 
 
 async def _read_sse(
-    response: httpx.Response, target: HttpTargetConfig, reply: _Reply, secrets: frozenset[str],
+    response: httpx.Response, target: HttpTargetConfig, reply: _Reply, secrets: set[str],
 ) -> None:
     config = target.response
     end = config.end
@@ -276,7 +286,7 @@ async def _read_sse(
     event_filter = rule.event_filter if rule else None
     async for event, data in _events(response):
         if event == config.error_event:
-            raise _stream_error(data, config.error_path, secrets)
+            raise _stream_error(data, target, reply, secrets)
         at_end = end and _matches(end.event, event) and (end.data is None or end.data == data)
         read_text = not at_end and _matches(config.event, event)
         read_usage = not at_end and usage is not None and _matches(usage_selector, event)
@@ -298,9 +308,7 @@ async def _read_sse(
                     value = _present_value(payload, rule.path)
                     if event_filter is not None or value is not _MISSING:
                         reply.success_value = value
-                captured = _capture_value(payload, target.capture)
-                if captured is not None:
-                    reply.captured = captured
+                reply.read_capture(payload, target.capture, secrets)
                 if read_usage:
                     reply.read_usage(payload, usage)
                 if read_text:
@@ -360,9 +368,9 @@ class HttpTurn:
                 request = self._request(
                     client, messages, session_id, turn_index, trace_headers, capture_state,
                 )
-                secrets = self.resolved.secrets
+                secrets = set(self.resolved.secrets)
                 if config.capture is not None and capture_state:
-                    secrets = secrets.union(str(value) for value in capture_state.values())
+                    secrets.update(str(value) for value in capture_state.values())
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
                     status = response.status_code
@@ -385,21 +393,21 @@ class HttpTurn:
                         agent_error = _select(payload, config.response.error_path)
                         if config.success is not None:
                             reply.success_value = _present_value(payload, config.success.path)
-                        reply.captured = _capture_value(payload, config.capture)
+                        reply.read_capture(payload, config.capture, secrets)
                         try:
                             reply.read_usage(payload, config.response.usage)
                         except _ResponseError:
                             if agent_error is None:
-                                self._check_reply(reply, secrets)
+                                _check_success(reply.success_value, config.success, secrets)
                                 raise
                         if agent_error is not None:
                             raise _agent_error(agent_error, secrets)
-                        self._check_reply(reply, secrets)
+                        _check_success(reply.success_value, config.success, secrets)
                         text = _reply_text(_select(payload, config.response.text_path), "JSON")
                         reply.pieces.append(text)
                     else:
                         await _read_sse(response, config, reply, secrets)
-                        self._check_reply(reply, secrets)
+                        _check_success(reply.success_value, config.success, secrets)
                 finally:
                     await response.aclose()
         except TimeoutError:
@@ -467,12 +475,6 @@ class HttpTurn:
             record=record, text="".join(reply.pieces) if record.ok else "",
             retry_after_s=retry_after_s,
         )
-
-    def _check_reply(self, reply: _Reply, secrets: frozenset[str]) -> None:
-        if self.config.success is not None:
-            if reply.captured is not None:
-                secrets = secrets.union((str(reply.captured),))
-            _check_success(reply.success_value, self.config.success, secrets)
 
     def _request(self, client, messages, session_id, turn_index, trace_headers, capture_state):
         config = self.config
