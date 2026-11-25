@@ -184,9 +184,9 @@ def render_from_files(
         summarize_cost(records, sessions, rates)
         if rates is not None and cost_note is None else None
     )
-    if cost is None and cost_note is None:
+    # A known unpriced run shares the default report wording with the live path.
+    if rates is None and meta is None:
         cost_note = (
-            "Cost not measured (the run had no price rates)." if meta is not None else
             "Cost not re-rendered: the metadata sidecar is missing, so the price rates "
             "this run used are unknown. Pass --price-in / --price-out to recompute cost "
             "from the stored token counts."

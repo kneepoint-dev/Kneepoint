@@ -297,3 +297,24 @@ def test_priced_calibration_preserves_one_item_measured_corpus(tmp_path):
     record, = rows(out)
     assert sessions == ["calibration", record["session_id"]]
     assert record["selection"]["item_id"] == "1" and record["selection"]["first_use"]
+
+
+def test_unpriced_http_report_replays_byte_for_byte(tmp_path):
+    import hashlib
+
+    def target(_headers, _request):
+        return 200, {"Content-Type": "text/event-stream"}, b'data: {"delta":"ok"}\n\n'
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, target={"response": {"mode": "sse", "text_path": "/delta"}})
+    assert rows(out)[0]["ok"]
+    records, = [
+        path for path in out.glob("run-*.jsonl") if not path.name.endswith("-sessions.jsonl")
+    ]
+    original, = out.glob("run-*-report.html")
+    replay = out / "replay.html"
+    result = cli("report", records, "--out", replay)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert hashlib.sha256(original.read_bytes()).digest() == hashlib.sha256(
+        replay.read_bytes()
+    ).digest()
