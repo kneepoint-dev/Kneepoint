@@ -130,7 +130,7 @@ async def run_turn(
                     record=record(
                         session_id, concurrency, turn_index, attempt, started_at, t0,
                         ok=False, status_code=resp.status_code, fault=fault,
-                        error=f"HTTP {resp.status_code}",
+                        error=f"HTTP {resp.status_code}", error_kind="http_error",
                     ),
                     retry_after_s=parse_retry_after(retry_after),
                 )

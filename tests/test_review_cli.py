@@ -149,3 +149,29 @@ def test_current_capture_is_redacted_from_agent_errors(tmp_path, mode, matches_c
     assert record["error"] == expected
     report, = out.glob("*-report.html")
     assert expected.encode() in report.read_bytes()
+
+
+@pytest.mark.parametrize(("adapter", "status", "payload", "expected"), [
+    ("http", 500, {}, "http_error"),
+    ("http", 302, {}, "http_error"),
+    ("http", 429, {}, "http_error"),
+    ("http", 503, {}, "http_error"),
+    ("http", 400, {"error": {"code": {"nested": "value"}}}, "http_error"),
+    ("http", 400, {"error": {"code": "context_length_exceeded"}}, "context_overflow"),
+    ("http", 200, {"answer": "ok"}, None),
+    ("openai-compatible", 500, {}, "http_error"),
+])
+def test_status_error_kind_in_saved_evidence(tmp_path, adapter, status, payload, expected):
+    seen = []
+
+    def target(_headers, _request):
+        seen.append(status)
+        return status, {"Location": "/elsewhere"}, json.dumps(payload).encode()
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, adapter=adapter)
+    assert seen == [status]
+    record, = rows(out)
+    assert record["ok"] is (expected is None)
+    assert record["status_code"] == status
+    assert record["error_kind"] == expected

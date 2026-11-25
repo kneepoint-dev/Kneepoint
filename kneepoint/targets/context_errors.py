@@ -4,8 +4,9 @@ import json
 
 def is_context_overflow(value) -> bool:
     if isinstance(value, dict):
-        if value.get("type") == "context_overflow" or value.get("code") in {
-            "context_length_exceeded", "context_window_exceeded"}:
+        if value.get("type") == "context_overflow" or value.get("code") in (
+            "context_length_exceeded", "context_window_exceeded",
+        ):
             return True
         return any(is_context_overflow(value.get(k)) for k in ("error", "message", "detail"))
     if not isinstance(value, str):

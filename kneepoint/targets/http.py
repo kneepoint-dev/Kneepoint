@@ -381,6 +381,7 @@ class HttpTurn:
                     )
                     if not accepted:
                         error = f"HTTP {status}"
+                        error_kind = "http_error"
                         if status == 400:
                             try:
                                 if is_context_overflow(await _json_body(response)):
