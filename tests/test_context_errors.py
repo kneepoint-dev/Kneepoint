@@ -51,9 +51,10 @@ def test_context_overflow_is_failed_but_not_retried_or_used_for_latency():
     )
     rejected = RequestRecord(
         session_id="s", concurrency=1, started_at=0, total_ms=9000,
-        ok=False, error_kind="context_overflow", status_code=200,
+        ok=False, error_kind="context_overflow", status_code=503,
     )
     assert not _retryable(rejected)
+    assert _retryable(rejected.model_copy(update={"error_kind": "http_error"}))
     stats = aggregate([successful, rejected])[0]
     assert stats.n == 2 and stats.successful_n == 1
     assert stats.error_rate == .5 and stats.p95_ms == 100

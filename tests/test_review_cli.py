@@ -393,3 +393,23 @@ def test_undispatched_capture_failure_has_no_wire_or_first_use_evidence(tmp_path
         assert len(seen) == 1 and second["error_kind"] == "capture_missing"
         assert (second["traceparent"], second["selection"]["first_use"],
                 chosen[1]["first_use"]) == (None, False, False)
+
+
+def test_knowledge_workload_cli_has_no_single_turn_think_time(tmp_path):
+    source = Path(__file__).resolve().parents[1] / "workloads/agent-knowledge.yaml"
+    scenario = yaml.safe_load(source.read_text(encoding="utf-8"))
+    conversation = scenario["workload"]["conversation"]
+    corpus = tmp_path / "corpus.json"
+    corpus.write_text(json.dumps([
+        {"prompt": task, "item_id": task, "task_class": task}
+        for task in ("lookup", "two_step", "off_topic")
+    ]), encoding="utf-8")
+
+    def target(_headers, _request):
+        return 200, {}, b'{"output":{"text":"ok"}}'
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, target={**scenario["target"], "url": url},
+                     conversation={**conversation, "corpus": str(corpus)})
+    assert rows(out)[0]["ok"]
+    assert "think_time_ms" not in conversation

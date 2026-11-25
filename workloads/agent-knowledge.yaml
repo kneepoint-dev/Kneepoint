@@ -16,7 +16,6 @@ workload:
       exponent: 1.0
       task_weights: {lookup: 0.7, two_step: 0.2, off_topic: 0.1}
     turns: {min: 1, max: 1}
-    think_time_ms: {min_ms: 5000, max_ms: 20000}
     retry: {max_attempts: 1, backoff_s: 0}
     deadline_seconds: 60
 seed: 0
