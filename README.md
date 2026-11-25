@@ -54,6 +54,11 @@ Useful flags: `--hold-seconds 10` (longer holds mean more samples per level
 and smoother curves), `--seed N` (reproducible prompt sampling and chaos),
 `--no-open`, `--out DIR`.
 
+## Responsible use
+
+Test only systems you own or have permission to test. Load and chaos testing
+can cause outages and incur costs.
+
 ## Against your own agent
 
 ```bash

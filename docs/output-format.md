@@ -104,7 +104,12 @@ Within a `schema_version`, kneepoint **will not**:
 
 * remove a field, rename one, or change its type;
 * change the meaning or units of an existing field;
-* change what makes `ok` true.
+* change what makes `ok` true or what usage means on failure for an existing target type.
+
+These contracts are defined per target type. OpenAI-compatible records keep
+the 0.4.0 meaning of success and leave usage null on failed attempts. The HTTP
+target introduced in 0.5.0 defines its own success rules and retains known billed
+usage on failure.
 
 Anything in the second list bumps `schema_version`. So: **read by field name,
 tolerate unknown fields, and treat a higher `schema_version` than you know as a
@@ -153,7 +158,7 @@ The fields, in the order they appear on the line:
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
-| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests and latency percentiles use successful requests only. HTTP failures use `agent_error` for target-declared errors with a sanitized message, `http_error` for transport and rejected status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible status rejections also use `http_error`, and failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests and latency percentiles use successful requests only. HTTP failures use `agent_error` for target-declared errors with a sanitized message, `http_error` for transport and rejected status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible response size limit failures use `response_error`. OpenAI-compatible status rejections also use `http_error`, and failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
 | `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
 With an HTTP-target response-body success rule, a parsed HTTP 200 can have `ok=false`.

@@ -9,15 +9,18 @@ would deliver it.
 import asyncio
 import contextlib
 import json
+import re
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import quote, unquote
 
 import httpx
 import uvicorn
 from pydantic import BaseModel
 
+from kneepoint import user_agent
+from kneepoint.chaos.faults import TOOL_FAULTS
 from kneepoint.chaos.injector import ChaosInjector
 from kneepoint.collect.schemas import SessionRecord
 
@@ -92,7 +95,8 @@ class FaultLog:
                 fault_type = entry["fault"]
             except (json.JSONDecodeError, KeyError, TypeError):
                 continue
-            log.record(fault_type, entry.get("session_id"))
+            if isinstance(fault_type, str) and fault_type in TOOL_FAULTS:
+                log.record(fault_type, entry.get("session_id"))
         return log
 
     def merge_into(self, sessions: list[SessionRecord]) -> FaultMerge:
@@ -128,14 +132,54 @@ def merge_fault_log(path: Path | str, sessions: list[SessionRecord]) -> FaultMer
     return FaultLog.load(path).merge_into(sessions)
 
 
+_ABSOLUTE_PATH = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+_ENCODED_BYTE = re.compile(r"%[0-9a-fA-F]{2}")
+
+
+def _upstream_url(upstream: httpx.URL, raw_path: bytes, query: bytes) -> httpx.URL:
+    if not raw_path.startswith(b"/") or raw_path.startswith(b"//"):
+        raise ValueError("expected a path on this proxy")
+    segments = [unquote(segment.decode("ascii"), errors="strict")
+                for segment in raw_path[1:].split(b"/")]
+    if _ABSOLUTE_PATH.match(next((segment for segment in segments if segment), "")):
+        raise ValueError("absolute URLs are not allowed in the path")
+    if any(
+        segment == ".." or "/" in segment or "\\" in segment or _ENCODED_BYTE.search(segment)
+        or any(ord(char) < 32 or ord(char) == 127 for char in segment)
+        for segment in segments
+    ):
+        raise ValueError("invalid proxy path segment")
+
+    base_path = upstream.raw_path.partition(b"?")[0].rstrip(b"/")
+    path = b"/".join(quote(segment, safe="!$&'()*+,;=:@").encode("ascii") for segment in segments)
+    full_query = b"&".join(part for part in (upstream.query, query) if part)
+    raw_target = base_path + b"/" + path
+    if full_query:
+        raw_target += b"?" + full_query
+    return upstream.copy_with(raw_path=raw_target)
+
+
+def _valid_host(scope) -> bool:
+    server = scope.get("server")
+    if server is None:
+        return False
+    host, port = server
+    expected = f"{host}:{port}".encode("ascii")
+    supplied = [value.lower() for name, value in scope["headers"] if name.lower() == b"host"]
+    return supplied == [expected] or (port == 80 and supplied == [host.encode("ascii")])
+
+
 def make_proxy_app(
     upstream_base: str,
     injector: ChaosInjector,
     log: FaultLog,
     stop_event: asyncio.Event | None = None,
     state: dict | None = None,
+    *,
+    agent: str | None = None,
 ):
-    upstream = upstream_base.rstrip("/")
+    upstream = httpx.URL(upstream_base)
+    agent = agent or user_agent()
     state = state if state is not None else {}
 
     async def app(scope, receive, send):
@@ -156,10 +200,6 @@ def make_proxy_app(
                     return
 
         assert scope["type"] == "http"
-        headers = {k.decode(): v.decode() for k, v in scope["headers"]}
-        session_id = headers.get("x-kneepoint-session")
-        fault = injector.pick("tool")
-
         async def respond(status: int, body: bytes, content_type: bytes) -> None:
             await send({
                 "type": "http.response.start", "status": status,
@@ -167,6 +207,17 @@ def make_proxy_app(
             })
             await send({"type": "http.response.body", "body": body})
 
+        if not _valid_host(scope):
+            await respond(400, b"invalid proxy Host", b"text/plain")
+            return
+        try:
+            target = _upstream_url(upstream, scope.get("raw_path") or b"", scope["query_string"])
+        except (ValueError, httpx.InvalidURL):
+            await respond(400, b"invalid proxy path", b"text/plain")
+            return
+        headers = httpx.Headers(scope["headers"])
+        session_id = headers.get("x-kneepoint-session")
+        fault = injector.pick("tool")
         if fault is not None:
             log.record(fault.type, session_id)
             if fault.type == "tool_timeout":
@@ -198,12 +249,10 @@ def make_proxy_app(
             body += message.get("body", b"")
             if not message.get("more_body"):
                 break
-        target = urljoin(upstream + "/", scope["path"].lstrip("/"))
-        if scope["query_string"]:
-            target += "?" + scope["query_string"].decode()
+        headers.pop("host", None)
+        headers["user-agent"] = agent
         upstream_resp = await state["client"].request(
-            scope["method"], target, content=body,
-            headers={k: v for k, v in headers.items() if k not in ("host",)},
+            scope["method"], target, content=body, headers=headers,
         )
         await respond(
             upstream_resp.status_code, upstream_resp.content,
@@ -240,6 +289,7 @@ def start_proxy(
     *,
     port: int = 0,
     fault_log: Path | str | None = None,
+    agent: str | None = None,
 ) -> ProxyHandle:
     """Serve the chaos proxy on 127.0.0.1:<port> in a daemon thread.
 
@@ -250,7 +300,9 @@ def start_proxy(
     stop_event = asyncio.Event()
     state: dict = {}
     config = uvicorn.Config(
-        make_proxy_app(upstream_base, injector, log, stop_event=stop_event, state=state),
+        make_proxy_app(
+            upstream_base, injector, log, stop_event=stop_event, state=state, agent=agent,
+        ),
         host="127.0.0.1", port=port, log_level="warning",
         # stop() releases held handlers via stop_event, so graceful shutdown is
         # normally instant; this is only the fallback if something still lingers

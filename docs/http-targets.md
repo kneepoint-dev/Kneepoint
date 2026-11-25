@@ -174,3 +174,7 @@ Records include `retry_after_s` (parsed, uncapped) and `backoff_s` (applied
 delay, zero when no header delay applies). Response latency excludes this wait.
 Each attempt uses at most one header delay. A stop interrupts that wait and
 prevents the next request from dispatching.
+
+Each Retry-After wait is capped at 30 seconds. A virtual user can finish its
+wait after the scheduled end of a hold. A later release will bound these waits
+by the remaining hold time.

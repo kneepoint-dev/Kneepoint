@@ -28,7 +28,7 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 class JudgeConfig(BaseModel):
     base_url: str
     model: str
-    api_key_env: str = "KNEEPOINT_JUDGE_API_KEY"
+    api_key_env: str = Field("KNEEPOINT_JUDGE_API_KEY", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     sample_rate: float = Field(0.2, gt=0, le=1)
     rubric: str = DEFAULT_RUBRIC
     timeout_s: float = 30.0

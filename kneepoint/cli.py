@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 import time
+from functools import partial
+from glob import glob
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 
@@ -37,7 +39,7 @@ from kneepoint.collect.writer import (
     write_run_meta,
 )
 from kneepoint.config import STARTER_SCENARIO, ScenarioError, SloConfig, load_scenario
-from kneepoint.generator.corpus import DEFAULT_PROMPTS, CorpusSampler
+from kneepoint.generator.corpus import DEFAULT_PROMPTS, CorpusSampler, scenario_corpus_files
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.ramp import RampSpec, parse_ramp, run_ramp
 from kneepoint.generator.session import SessionSpec
@@ -45,6 +47,7 @@ from kneepoint.judge.deterministic import CheckConfig, apply_deterministic
 from kneepoint.judge.llm_judge import judge_sessions
 from kneepoint.report.html import BUFFERED_JSON_TIMING_NOTE, RunMeta, format_started, write_report
 from kneepoint.report.rerender import ReportInputError, render_from_files
+from kneepoint.targets.evidence import EvidenceSanitizer, display_url, url_secrets
 from kneepoint.targets.http import HttpTurn
 from kneepoint.targets.http_config import HttpTargetConfig
 from kneepoint.targets.openai_compatible import REQUEST_WALL_S, run_turn
@@ -54,6 +57,7 @@ from kneepoint.targets.turn import TurnRunner
 app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
+    pretty_exceptions_show_locals=False,
     help="Find where your AI agent breaks: load, cost, and chaos testing for AI agents.",
 )
 
@@ -61,6 +65,10 @@ OUT_DIR_OPTION = typer.Option(Path("reports"), "--out", help="Output directory."
 INIT_OUT_OPTION = typer.Option(Path("."), "--out", help="Directory to initialize.")
 VALIDATE_PATH_ARGUMENT = typer.Argument(..., help="Scenario YAML to check.")
 SCENARIO_OPTION = typer.Option(None, "--scenario", help="Scenario YAML file.")
+ALLOW_CORPUS_OUTSIDE = typer.Option(
+    False, "--allow-corpus-outside",
+    help="Allow scenario corpus files outside the scenario folder.",
+)
 DEMO_HOLD_OPTION = typer.Option(5.0, "--hold-seconds", help="Hold time per demo ramp level.")
 DEMO_SEED_OPTION = typer.Option(0, "--seed", help="Seed for the demo's sampling and chaos.")
 DEMO_NO_OPEN_OPTION = typer.Option(False, "--no-open", help="Don't open the report in a browser.")
@@ -158,9 +166,12 @@ def proxy(
     tool faults into `kneepoint run`'s resilience grid across the process boundary.
     """
     faults = STANDARD_PROFILE
+    agent = None
     if scenario_path is not None:
         try:
-            faults = load_scenario(scenario_path).chaos.resolved_faults()
+            scenario = load_scenario(scenario_path)
+            faults = scenario.chaos.resolved_faults()
+            agent = scenario.client.user_agent
         except ScenarioError as exc:
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
@@ -168,9 +179,13 @@ def proxy(
     if not tool_faults:
         typer.echo("This profile has no tool faults - the proxy would forward everything.")
         raise typer.Exit(code=1)
+    try:
+        upstream_url = _absolute_http_url(upstream)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--upstream") from None
     handle = start_proxy(upstream, ChaosInjector(faults, seed=seed),
-                         port=port, fault_log=fault_log)
-    typer.echo(f"Chaos proxy: {handle.url}  ->  {upstream}")
+                         port=port, fault_log=fault_log, agent=agent)
+    typer.echo(f"Chaos proxy: {handle.url}  ->  {display_url(upstream_url)}")
     typer.echo(f"Faults: {', '.join(f'{f.type} p={f.probability}' for f in tool_faults)}")
     typer.echo(f"Point the agent's tool URL at {handle.url}/<your tool path> and have it "
                "echo the x-kneepoint-session header.")
@@ -186,12 +201,19 @@ def proxy(
 
 
 @app.command()
-def validate(path: Path = VALIDATE_PATH_ARGUMENT) -> None:
+def validate(
+    path: Path = VALIDATE_PATH_ARGUMENT, allow_corpus_outside: bool = ALLOW_CORPUS_OUTSIDE,
+) -> None:
     """Validate a scenario file without running anything."""
     try:
         scenario = load_scenario(path)
         if isinstance(scenario.target, HttpTargetConfig):
             scenario.target.resolve()
+        if scenario.workload.conversation.corpus:
+            scenario_corpus_files(
+                scenario.workload.conversation.corpus, path.parent,
+                allow_outside=allow_corpus_outside,
+            )
     except (ScenarioError, ValueError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(code=1) from exc
@@ -341,6 +363,16 @@ def _merge_tool_faults(path: Path, sessions: list, echo=typer.echo) -> None:
              "the log is shared with another run; use a fresh --fault-log per run.")
 
 
+def _absolute_http_url(value: str) -> httpx.URL:
+    try:
+        url = httpx.URL(value)
+        if url.scheme in {"http", "https"} and url.host:
+            return url
+    except (ValueError, httpx.InvalidURL):
+        pass
+    raise ValueError("expected an absolute HTTP(S) URL")
+
+
 def _pick(flag_value, scenario_value, default):
     """Precedence: CLI flag explicitly set > scenario value > built-in default."""
     if flag_value is not None:
@@ -356,12 +388,13 @@ def run(
     ),
     model: str = typer.Option(None, "--model", help="Model name sent to the target."),
     ramp: str = typer.Option(None, "--ramp", help="Concurrency ramp 'start..stop'."),
-    step: int = typer.Option(None, "--step", help="Concurrency increment between levels."),
-    hold_seconds: float = typer.Option(None, "--hold-seconds", help="Hold time per level."),
+    step: int = typer.Option(None, "--step", min=1, help="Concurrency increment between levels."),
+    hold_seconds: float = typer.Option(None, "--hold-seconds", min=0, help="Hold time per level."),
     turns: str = typer.Option(None, "--turns", help="Turns per session, 'min..max'."),
     corpus: str = typer.Option(
         None, "--corpus", help="Glob of *.txt prompt files (one prompt per file)."
     ),
+    allow_corpus_outside: bool = ALLOW_CORPUS_OUTSIDE,
     seed: int = typer.Option(None, "--seed", help="Sampling seed for reproducible runs."),
     check_contains: str = typer.Option(
         None, "--check-contains",
@@ -418,8 +451,8 @@ def run(
     trace_mode = (
         "disabled" if trace is False else "sampled" if trace is True else trace.value
     )
-    target_url = _pick(target, sc.target.url if sc else None, None)
-    if target_url is None:
+    target_address = _pick(target, sc.target.url if sc else None, None)
+    if target_address is None:
         raise typer.BadParameter("provide --target or --scenario")
     http_target = sc.target if sc and isinstance(sc.target, HttpTargetConfig) else None
     if http_target is not None and model is not None:
@@ -430,15 +463,6 @@ def run(
     sc_conv = sc.workload.conversation if sc else None
     seed = _pick(seed, sc.seed if sc else None, 0)
     chaos = _pick(chaos, sc.chaos.profile if sc else None, "off")
-    # CLI --corpus stays CWD-relative (explicit flag, explicit location);
-    # scenario-sourced globs anchor to the scenario file so scenario
-    # directories are copy-anywhere portable
-    if corpus is None and sc_conv and sc_conv.corpus:
-        corpus_path = Path(sc_conv.corpus)
-        corpus = str(
-            corpus_path if corpus_path.is_absolute()
-            else scenario_path.parent / corpus_path
-        )
     declared = sc.cost.model_fields_set if sc and sc.cost else set()
     input_declared = price_in is not None or "input_per_mtok" in declared
     output_declared = price_out is not None or "output_per_mtok" in declared
@@ -476,22 +500,29 @@ def run(
         if turns:
             turns_min, turns_max = parse_ramp(turns)  # reuse: same 'a..b' syntax
             session_spec.turns.min, session_spec.turns.max = turns_min, turns_max
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    spec = RampSpec(
-        start=start, stop=stop,
-        step=_pick(step, sc_ramp.step if sc_ramp else None, 5),
-        hold_seconds=_pick(hold_seconds, sc_ramp.hold_seconds if sc_ramp else None, 15.0),
-    )
+        spec = RampSpec(
+            start=start, stop=stop,
+            step=_pick(step, sc_ramp.step if sc_ramp else None, 5),
+            hold_seconds=_pick(hold_seconds, sc_ramp.hold_seconds if sc_ramp else None, 15.0),
+        )
+        corpus_files = [Path(path) for path in sorted(glob(corpus))] if corpus else None
+        if corpus is None and sc_conv and sc_conv.corpus:
+            corpus_files = scenario_corpus_files(
+                sc_conv.corpus, scenario_path.parent, allow_outside=allow_corpus_outside,
+            )
+    except (OSError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from None
 
-    sampling = sc_conv.sampling if sc_conv else None
-    sampler = (
-        CorpusSampler.from_glob(corpus, seed=seed, config=sampling) if corpus
-        else CorpusSampler(DEFAULT_PROMPTS, seed=seed, config=sampling)
-    )
+    judge = sc.resolution.judge if sc else None
+    judge_secrets = (os.environ.get(judge.api_key_env, ""),) if judge else ()
+    evidence_sanitizer = EvidenceSanitizer(judge_secrets)
+
+    def echo(value: str, *, err: bool = False) -> None:
+        typer.echo(evidence_sanitizer.text(value), err=err)
 
     headers = None
     turn_runner = None
+    agent = sc.client.user_agent if sc else None
     target_type, response_mode = "openai-compatible", "sse"
     if http_target is not None:
         try:
@@ -499,16 +530,44 @@ def run(
             resolved = http_target.resolve(target)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from None
-        turn_runner = HttpTurn(http_target, resolved)
+        evidence_sanitizer.add(resolved.secrets)
+        turn_runner = HttpTurn(http_target, resolved, agent=agent, secrets=judge_secrets)
         target_url = resolved.display_url
         target_type, response_mode = "http", http_target.response.mode
-    elif sc and sc.target.auth_env:
-        token = os.getenv(sc.target.auth_env)
-        if not token:
-            typer.echo(f"auth_env {sc.target.auth_env} is set in the scenario "
-                       "but the environment variable is empty.")
-            raise typer.Exit(code=1)
-        headers = {"Authorization": f"Bearer {token}"}
+    else:
+        try:
+            openai_url = _absolute_http_url(target_address)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--target") from None
+        evidence_sanitizer.add(url_secrets(openai_url))
+        target_url = display_url(openai_url)
+        if sc and sc.target.auth_env:
+            token = os.getenv(sc.target.auth_env)
+            if not token:
+                echo(f"auth_env {sc.target.auth_env} is set in the scenario "
+                     "but the environment variable is empty.")
+                raise typer.Exit(code=1)
+            headers = {"Authorization": f"Bearer {token}"}
+            evidence_sanitizer.add((token, headers["Authorization"]))
+        if agent or judge_secrets:
+            turn_runner = partial(run_turn, agent=agent, secrets=judge_secrets)
+
+    target_url = evidence_sanitizer.text(target_url)
+    display_model = evidence_sanitizer.text(model_name)
+    if sc:
+        names = sc.environment_names(target)
+        echo("Scenario environment variables: " + (", ".join(names) if names else "(none)"))
+    roots = sorted({str(file.resolve().parent) for file in corpus_files or ()})
+    echo("Corpus roots: " + (", ".join(roots) if roots else "(bundled prompts)"))
+    sampling = sc_conv.sampling if sc_conv else None
+    try:
+        sampler = (
+            CorpusSampler.from_files(corpus_files, seed=seed, config=sampling)
+            if corpus_files is not None
+            else CorpusSampler(DEFAULT_PROMPTS, seed=seed, config=sampling)
+        )
+    except (OSError, ValueError) as exc:
+        raise typer.BadParameter(evidence_sanitizer.text(str(exc))) from None
 
     transport = None
     faults = []
@@ -520,11 +579,11 @@ def run(
             else STANDARD_PROFILE
         )
         transport = ChaosTransport(httpx.AsyncHTTPTransport(), ChaosInjector(faults, seed=seed))
-        typer.echo(f"Chaos: {chaos} profile ({', '.join(f.type for f in faults)})")
+        echo(f"Chaos: {chaos} profile ({', '.join(f.type for f in faults)})")
         if any(f.type in TOOL_FAULTS for f in faults) and fault_log is None:
             # otherwise the line above advertises four faults while two of them
             # can never fire, and the resilience score is scored on half a grid
-            typer.echo(
+            echo(
                 "  Tool faults need the proxy: run `kneepoint proxy --upstream <agent> "
                 "--fault-log faults.jsonl`, point the agent's tool URL at it, and pass "
                 "--fault-log here. Without it only the LLM faults reach the grid."
@@ -537,14 +596,14 @@ def run(
     calibration_scope = "not_run"
     runner_kwargs = {"turn_runner": turn_runner} if turn_runner is not None else {}
     if max_spend is not None:
-        typer.echo("Calibration skipped for capped run; --force cannot bypass spend control.")
+        echo("Calibration skipped for capped run; --force cannot bypass spend control.")
     elif price_in or price_out:
         calibration_scope = "outside_generator_accounting"
-        typer.echo("Calibration spend is outside completed generator attempt accounting.")
+        echo("Calibration spend is outside completed generator attempt accounting.")
         # Draw independently so calibration cannot advance or exhaust the measured sampler.
         calibration_prompt = CorpusSampler(sampler.items, seed=seed, config=sampling).sample()
         calibration = asyncio.run(_calibrate(
-            target_url, model_name, calibration_prompt, transport, headers, run_id, trace,
+            target_address, model_name, calibration_prompt, transport, headers, run_id, trace,
             **runner_kwargs,
         ))
         estimate = None
@@ -553,9 +612,9 @@ def run(
         ):
             estimate = estimate_run_cost(spec.levels(), spec.hold_seconds, calibration, rates)
         if estimate is not None:
-            typer.echo(f"Estimated spend for this run: ~${estimate:.2f}")
+            echo(f"Estimated spend for this run: ~${estimate:.2f}")
 
-    typer.echo(
+    echo(
         f"Ramping {spec.start}..{spec.stop} step {spec.step}, "
         f"holding {spec.hold_seconds}s per level"
     )
@@ -589,13 +648,13 @@ def run(
 
         def on_level(level: int, sessions: list, records: list) -> None:
             errors = sum(1 for r in records if not r.ok)
-            typer.echo(f"  level {level:>3}: {len(sessions)} sessions, "
+            echo(f"  level {level:>3}: {len(sessions)} sessions, "
                        f"{len(records)} requests, {errors} errors")
 
         try:
             all_sessions, records, _ = asyncio.run(
                 run_ramp(
-                    target_url, model_name, spec, sampler, session_spec,
+                    target_address, model_name, spec, sampler, session_spec,
                     health_path=health_log,
                     seed=seed, transport=transport, headers=headers,
                     on_level=on_level, on_attempt_complete=on_attempt_complete,
@@ -615,13 +674,13 @@ def run(
                     session_writer.write_many(evidence.sessions)
                 save_lifecycle()
             except Exception as save_error:
-                typer.echo(f"Could not save all partial evidence: {type(save_error).__name__}",
+                echo(f"Could not save all partial evidence: {type(save_error).__name__}",
                            err=True)
             raise
         save_lifecycle()
     accounting = controller.snapshot()
     if accounting["stop_requested"]:
-        typer.echo(
+        echo(
             f"Spend control stopped admission ({accounting['stop_reason']}); "
             f"known spend ${accounting['known_spend']:.4f}, "
             f"known overshoot ${accounting['known_overshoot']:.4f}. "
@@ -629,7 +688,7 @@ def run(
         )
 
     if fault_log is not None:
-        _merge_tool_faults(fault_log, all_sessions)
+        _merge_tool_faults(fault_log, all_sessions, echo=echo)
 
     check = None
     if check_regex:
@@ -648,33 +707,33 @@ def run(
         asyncio.run(judge_sessions(judgeable, sc.resolution.judge, seed=seed))
     quality_summary = resolution_summary(all_sessions)
     for line in quality_summary.lines():
-        typer.echo(line)
+        echo(line)
 
     cost = None
     cost_note = incomplete_cost_note(records, rates) if track_cost else None
     if track_cost:
-        typer.echo("Cost scope: completed generator attempts only; calibration and judging "
+        echo("Cost scope: completed generator attempts only; calibration and judging "
                    "excluded. No finite billing upper bound is known.")
         if cost_note is not None:
-            typer.echo(cost_note)
+            echo(cost_note)
         else:
             cost = summarize_cost(records, all_sessions, rates)
-            typer.echo(f"Total spend:     ${cost.total_spend:.4f}")
-            typer.echo(f"Retry waste:     {cost.retry_waste_pct:.1%} (${cost.waste_spend:.4f})")
+            echo(f"Total spend:     ${cost.total_spend:.4f}")
+            echo(f"Retry waste:     {cost.retry_waste_pct:.1%} (${cost.waste_spend:.4f})")
             if cost.cost_per_resolved is not None:
-                typer.echo(f"$/confirmed resolution: ${cost.cost_per_resolved:.4f}")
+                echo(f"$/confirmed resolution: ${cost.cost_per_resolved:.4f}")
             else:
-                typer.echo("$/confirmed resolution: n/a (no confirmed resolved sessions)")
+                echo("$/confirmed resolution: n/a (no confirmed resolved sessions)")
 
     if chaos != "off":
         res = resilience(all_sessions, min_group=RUN_MIN_GROUP)
         if res.score is not None:
-            typer.echo(
+            echo(
                 f"Resilience score: {res.score:.0f} "
                 f"({res.faulted_sessions} faulted vs {res.clean_sessions} clean sessions)"
             )
         else:
-            typer.echo("Resilience score: n/a (not enough faulted or clean sessions - "
+            echo("Resilience score: n/a (not enough faulted or clean sessions - "
                        "run longer holds or raise fault probabilities)")
 
     # session summaries are small: written once, post-judging, so verdicts land in the file
@@ -685,7 +744,7 @@ def run(
     finished_at = time.time()
     finished_monotonic_s = time.perf_counter()
     write_run_meta(meta_path, RunMetadata(
-        run_id=run_id, command="run", target=target_url, model=model_name,
+        run_id=run_id, command="run", target=target_url, model=display_model,
         target_type=target_type, response_mode=response_mode, trace_propagation=trace_mode,
         ramp=RampShape(start=spec.start, stop=spec.stop, step=spec.step),
         hold_seconds=spec.hold_seconds,
@@ -716,17 +775,17 @@ def run(
     run_meta = read_run_meta(meta_path)
 
     stats = aggregate(records, run_meta=run_meta)
-    _warn_contamination(stats)
-    _print_timing(stats, response_mode=run_meta.response_mode)
+    _warn_contamination(stats, echo=echo)
+    _print_timing(stats, echo=echo, response_mode=run_meta.response_mode)
     for line in scaling_report(
         stats, min_samples=min_samples, resources=run_meta.local_resource_samples,
         target_url=target_url,
     ).lines():
-        typer.echo(line)
+        echo(line)
     retry_levels = retry_by_level(records, all_sessions)
     worst = worst_amplification(retry_levels)
     if worst is not None:
-        typer.echo(
+        echo(
             f"Retry amplification: {worst.amplification:.2f}x at concurrency "
             f"{worst.concurrency} ({worst.requests} requests for {worst.first_attempts} "
             "turns) - the generator adds load where the target is struggling; "
@@ -735,12 +794,12 @@ def run(
     knee_summary = knee_report(stats, min_samples=min_samples)
     knee = find_knee(stats, min_samples=min_samples)
     for line in knee_summary.lines():
-        typer.echo(line)
+        echo(line)
     report_path = write_report(
         out_dir / f"run-{run_id}-report.html",
         write_metrics=True,
         meta=RunMeta(
-            target=target_url, model=model_name,
+            target=target_url, model=display_model,
             started=format_started(started_at),  # the run's start, not this line's clock
             ramp=f"{spec.start}..{spec.stop} step {spec.step}", chaos=chaos,
             total_requests=len(records), total_sessions=len(all_sessions),
@@ -752,16 +811,16 @@ def run(
         retry_levels=retry_levels, min_samples=min_samples,
         error_levels=errors_by_level(records), run_meta=run_meta,
     )
-    typer.echo(f"Raw records: {jsonl_path}")
-    typer.echo(f"Sessions:    {sessions_path}")
-    typer.echo(f"Metadata:    {meta_path}")
-    typer.echo(f"Report:      {report_path}")
+    echo(f"Raw records: {jsonl_path}")
+    echo(f"Sessions:    {sessions_path}")
+    echo(f"Metadata:    {meta_path}")
+    echo(f"Report:      {report_path}")
     slo_evaluation = evaluate_run_slo(
         run_meta.slo, stats=stats, quality=quality_summary, cost=cost, cost_note=cost_note,
         min_samples=min_samples,
     )
     for line in slo_evaluation.lines():
-        typer.echo(line)
+        echo(line)
     if accounting["stop_requested"]:
         raise typer.Exit(code=3)
     if slo_evaluation.nonpassing:

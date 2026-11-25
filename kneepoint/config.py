@@ -37,7 +37,7 @@ class TargetConfig(_Strict):
     type: Literal["openai-compatible"] = "openai-compatible"
     url: str
     model: str = "mock"
-    auth_env: str | None = None
+    auth_env: str | None = Field(None, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _default_target_type(value):
@@ -56,8 +56,8 @@ class RampConfig(_Strict):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     from_: int = Field(1, alias="from", ge=1)
     to: int = 50
-    step: int = 5
-    hold_seconds: float = 15.0
+    step: int = Field(5, gt=0)
+    hold_seconds: float = Field(15.0, ge=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def _ordered(self) -> "RampConfig":
@@ -120,6 +120,7 @@ class TraceConfig(_Strict):
 
 class ClientConfig(_Strict):
     honor_retry_after: bool = False
+    user_agent: str | None = Field(None, pattern=r"^[!-~](?:[ -~]*[!-~])?$")
 
 
 class Scenario(_Strict):
@@ -137,7 +138,18 @@ class Scenario(_Strict):
     def _check_http_turns(self):
         if isinstance(self.target, HttpTargetConfig):
             self.target.check_turns(self.workload.conversation.turns.max)
+
         return self
+
+    def environment_names(self, url_override: str | None = None) -> list[str]:
+        names = set()
+        if self.target.auth_env:
+            names.add(self.target.auth_env)
+        if isinstance(self.target, HttpTargetConfig):
+            names.update(self.target.environment_names(url_override))
+        if self.resolution.judge:
+            names.add(self.resolution.judge.api_key_env)
+        return sorted(names)
 
 
 def load_scenario(path: Path) -> Scenario:

@@ -35,9 +35,15 @@ class ThinkTime(BaseModel):
     min_ms: int = 0
     max_ms: int = 0
 
+    @model_validator(mode="after")
+    def _ordered(self) -> "ThinkTime":
+        if self.min_ms > self.max_ms:
+            raise ValueError("think time needs min_ms <= max_ms")
+        return self
+
 
 class RetryPolicy(BaseModel):
-    max_attempts: int = 3
+    max_attempts: int = Field(3, ge=1)
     backoff_s: float = 0.5
 
 
@@ -80,6 +86,7 @@ async def run_session(
     t0 = time.perf_counter()
     n_turns = rng.randint(spec.turns.min, spec.turns.max)
     messages: list[dict] = []
+    evidence_replies: dict[int, str] = {}
     records: list[RequestRecord] = []
     faults: list[str] = []
     turns_completed = 0
@@ -148,6 +155,8 @@ async def run_session(
                     faults.append(outcome.record.fault)
                 if outcome.record.ok:
                     accepted_text = outcome.text
+                    if outcome.evidence_text is not None and outcome.evidence_text != accepted_text:
+                        evidence_replies[len(messages)] = outcome.evidence_text
                     messages.append({"role": "assistant", "content": accepted_text})
                     turns_completed += 1
                 if on_attempt_complete is not None:
@@ -181,6 +190,7 @@ async def run_session(
             turns_requested=n_turns, turns_completed=turns_completed,
             ok=turns_completed == n_turns, faults=faults, transcript=messages,
         )
+        session._evidence_replies = evidence_replies
         evidence.sessions.append(session)
         evidence.session_status[session_id] = status
     return session, records

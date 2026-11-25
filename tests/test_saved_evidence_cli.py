@@ -399,11 +399,11 @@ def test_knowledge_workload_cli_has_no_single_turn_think_time(tmp_path):
     source = Path(__file__).resolve().parents[1] / "workloads/agent-knowledge.yaml"
     scenario = yaml.safe_load(source.read_text(encoding="utf-8"))
     conversation = scenario["workload"]["conversation"]
-    corpus = tmp_path / "corpus.json"
-    corpus.write_text(json.dumps([
-        {"prompt": task, "item_id": task, "task_class": task}
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text("\n".join(
+        json.dumps({"prompt": task, "item_id": task, "task_class": task})
         for task in ("lookup", "two_step", "off_topic")
-    ]), encoding="utf-8")
+    ), encoding="utf-8")
 
     def target(_headers, _request):
         return 200, {}, b'{"output":{"text":"ok"}}'
@@ -438,10 +438,25 @@ def test_logged_fields_and_http_body_contract_are_documented(tmp_path):
     docs = (Path(__file__).resolve().parents[1] / "docs/output-format.md").read_text(
         encoding="utf-8"
     )
-    for path in (health, selection):
-        keys = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-        assert all(f'| `{key}` |' in docs for key in keys)
-    for field in ("task_class", "open_connections_reason"):
-        assert f'| `{field}` |' in docs
+    log_docs = docs.split("## Optional JSONL logs", 1)[1].split("## Versioning", 1)[0]
+    health_docs, selection_docs = log_docs.split("`kneepoint run --selection-log PATH`", 1)
+
+    def fields(section):
+        return {line.split(" | ")[0].removeprefix("| `").removesuffix("`")
+                for line in section.splitlines() if line.startswith("| `")}
+
+    for path, section, optional in (
+        (health, health_docs, "open_connections_reason"),
+        (selection, selection_docs, "task_class"),
+    ):
+        keys = set(json.loads(path.read_text(encoding="utf-8").splitlines()[0]))
+        assert keys | {optional} <= fields(section)
+
+    missing_row = "\n".join(
+        line for line in selection_docs.splitlines() if not line.startswith("| `request_id` |")
+    )
+    assert "request_id" in json.loads(selection.read_text(encoding="utf-8").splitlines()[0])
+    assert "request_id" not in fields(missing_row)
+    assert "| `request_id` |" in docs.split("## Versioning", 1)[1]
     assert "Remove the machine hostname" in docs
     assert "a parsed HTTP 200 can have `ok=false`" in docs

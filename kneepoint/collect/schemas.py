@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr, field_serializer
 
 from kneepoint.chaos.faults import FaultSpec
 from kneepoint.slo import SloConfig
@@ -102,6 +102,16 @@ class SessionRecord(VersionedRecord):
     transcript: list[dict] = Field(default_factory=list)  # {"role","content"}
     resolved: bool | None = None          # None = no verdict (not evaluated/unknown)
     resolution_method: str | None = None  # "deterministic" | "llm_judge" | "execution_failure"
+
+    _evidence_replies: dict[int, str] = PrivateAttr(default_factory=dict)
+
+    @field_serializer("transcript")
+    def _serialize_transcript(self, messages: list[dict]) -> list[dict]:
+        return [
+            {**message, "content": self._evidence_replies[i]}
+            if i in self._evidence_replies else message
+            for i, message in enumerate(messages)
+        ]
 
 
 class RampShape(BaseModel):

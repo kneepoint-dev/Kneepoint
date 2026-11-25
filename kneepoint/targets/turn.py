@@ -15,6 +15,7 @@ REQUEST_WALL_S = 120.0
 class TurnOutcome(BaseModel):
     record: RequestRecord
     text: str = ""
+    evidence_text: str | None = None
     retry_after_s: float | None = None
 
 

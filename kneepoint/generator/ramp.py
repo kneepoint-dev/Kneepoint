@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kneepoint.analyze.budget import BudgetExceeded
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
@@ -34,8 +34,8 @@ def parse_ramp(text: str) -> tuple[int, int]:
 class RampSpec(BaseModel):
     start: int = 1
     stop: int = 50
-    step: int = 5
-    hold_seconds: float = 15.0
+    step: int = Field(5, gt=0)
+    hold_seconds: float = Field(15.0, ge=0, allow_inf_nan=False)
 
     def levels(self) -> list[int]:
         levels = list(range(self.start, self.stop + 1, self.step))

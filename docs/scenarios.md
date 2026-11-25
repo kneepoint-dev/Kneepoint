@@ -15,6 +15,13 @@ scenario setting. The legacy `trace: true` selects sampled propagation.
 `trace: false` and `--no-trace` still omit both headers and local IDs.
 `--no-trace` takes precedence when both CLI flags are supplied.
 
+## `client`
+
+Both target adapters and the chaos proxy send `kneepoint/<version>` as their
+User-Agent. Set `client: {user_agent: my-load-test/1}` to override it. The proxy
+reads this setting when invoked with `--scenario`. An explicit
+`target.headers.User-Agent` takes precedence for the HTTP adapter.
+
 ## `target`
 
 The default type is `openai-compatible`.
@@ -120,18 +127,26 @@ policy.
 |---|---|---|---|
 | `from` | int ≥ 1 | `1` | starting concurrency |
 | `to` | int | `50` | final concurrency (must be ≥ `from`) |
-| `step` | int | `5` | concurrency increment between levels |
-| `hold_seconds` | float | `15.0` | how long each level holds — longer = more samples = smoother curves |
+| `step` | int ≥ 1 | `5` | concurrency increment between levels |
+| `hold_seconds` | float ≥ 0 | `15.0` | how long each level holds — longer = more samples = smoother curves |
 
 ## `workload.conversation`
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `turns.min` / `turns.max` | int | `1` / `1` | turns per session, sampled uniformly; history grows every turn |
-| `corpus` | glob | bundled prompts | `*.txt` files, one prompt per file — **resolved relative to the scenario file**, so scenario directories are copy-anywhere (the CLI `--corpus` flag stays CWD-relative) |
-| `think_time_ms.min_ms` / `.max_ms` | int | `0` / `0` | simulated user pause between turns |
-| `retry.max_attempts` | int | `3` | attempts per turn; 429 `Retry-After` is honored |
+| `turns.min` / `turns.max` | int | `1` / `1` | ordered inclusive range of turns per session, sampled uniformly |
+| `corpus` | glob | bundled prompts | regular `.txt`, `.md` and `.jsonl` files, resolved relative to the scenario directory |
+| `think_time_ms.min_ms` / `.max_ms` | int | `0` / `0` | ordered range for simulated user pauses between turns |
+| `retry.max_attempts` | int ≥ 1 | `3` | attempts per turn; 429 `Retry-After` is honored |
 | `retry.backoff_s` | float | `0.5` | base backoff between attempts |
+
+Text and Markdown files provide one prompt per file. JSONL files provide one
+prompt string or ranked item object per line. Scenario corpus files must resolve
+inside the scenario directory, including symlink destinations. For trusted
+external directories, pass `--allow-corpus-outside` to `validate` or `run`.
+An explicit `run --corpus` flag remains relative to the current directory.
+Before making a request, `run` prints the corpus directories and the names of
+environment variables read by the scenario.
 
 !!! note "Retries are load, and the report says how much"
 

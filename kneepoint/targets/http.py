@@ -3,7 +3,6 @@
 import asyncio
 import json
 import math
-import re
 import statistics
 import time
 import uuid
@@ -13,10 +12,11 @@ from functools import partial
 
 import httpx
 
-from kneepoint.chaos.faults import known_fault
+from kneepoint import user_agent
 from kneepoint.collect.schemas import RequestRecord
 from kneepoint.collect.writer import version_stamps
 from kneepoint.targets.context_errors import is_context_overflow
+from kneepoint.targets.evidence import REDACTED, EvidenceSanitizer
 from kneepoint.targets.http_config import (
     Capture,
     FieldEventFilter,
@@ -32,19 +32,14 @@ from kneepoint.targets.http_config import (
     extract,
     render_body,
 )
+from kneepoint.targets.response_limits import BODY_LIMIT, EVENT_LIMIT, SseLineTooLong, sse_lines
+from kneepoint.targets.response_limits import ResponseError as _ResponseError
 from kneepoint.targets.retry_after import parse_retry_after as _retry_after
 from kneepoint.targets.trace_context import TraceSetting, request_trace
 from kneepoint.targets.turn import REQUEST_WALL_S, TurnOutcome, TurnRunner
 
 _MISSING = object()
-_JSON_LIMIT = 16 * 1024 * 1024
-_EVENT_LIMIT = 1024 * 1024
-_NEWLINE = re.compile(rb"[\r\n]")
 _TRACE_HEADERS = ("traceparent", "baggage", "tracestate")
-
-
-class _ResponseError(ValueError):
-    """A fixed diagnostic safe to publish without the request or response data."""
 
 
 class _AgentError(ValueError):
@@ -119,39 +114,16 @@ def _reply_text(value, mode: str) -> str:
 async def _json_body(response: httpx.Response):
     body = bytearray()
     async for chunk in response.aiter_bytes():
-        if len(body) + len(chunk) > _JSON_LIMIT:
+        if len(body) + len(chunk) > BODY_LIMIT:
             raise _ResponseError("JSON body exceeds 16 MiB")
         body.extend(chunk)
     return _json(body)
 
 
-async def _sse_lines(response: httpx.Response) -> AsyncIterator[bytes]:
-    """Split CR, LF and CRLF lines without buffering an unbounded line."""
-    line = bytearray()
-    after_cr = False
-    async for chunk in response.aiter_bytes():
-        start = 0
-        for match in _NEWLINE.finditer(chunk):
-            end = match.start()
-            if len(line) + end - start > _EVENT_LIMIT:
-                raise _ResponseError("SSE event exceeds 1 MiB")
-            line.extend(chunk[start:end])
-            if not (after_cr and start == end and match[0] == b"\n"):
-                yield bytes(line)
-                line.clear()
-            after_cr = match[0] == b"\r"
-            start = end + 1
-        if start < len(chunk):
-            if len(line) + len(chunk) - start > _EVENT_LIMIT:
-                raise _ResponseError("SSE event exceeds 1 MiB")
-            line.extend(chunk[start:])
-            after_cr = False
-
-
 async def _events(response: httpx.Response) -> AsyncIterator[tuple[str, str | None]]:
     event, data, size = "", [], 0
     first_line = True
-    async for raw_line in _sse_lines(response):
+    async for raw_line in sse_lines(response):
         try:
             line = raw_line.decode("utf-8-sig" if first_line else "utf-8")
         except UnicodeError:
@@ -163,7 +135,7 @@ async def _events(response: httpx.Response) -> AsyncIterator[tuple[str, str | No
             event, data, size = "", [], 0
             continue
         size += len(raw_line) + 1
-        if size > _EVENT_LIMIT:
+        if size > EVENT_LIMIT:
             raise _ResponseError("SSE event exceeds 1 MiB")
         field, _, value = line.partition(":")
         value = value.removeprefix(" ")
@@ -181,6 +153,7 @@ class _Reply:
         self.last_at: float | None = None
         self.success_value = _MISSING
         self.captured: Scalar | None = None
+        self.capture_changed = False
         self.tokens: dict[str, int | None] = {"input_tokens": None, "output_tokens": None}
 
     def read_usage(self, payload, usage: Usage | None) -> None:
@@ -197,11 +170,16 @@ class _Reply:
                 raise _ResponseError(f"cumulative SSE {key} decreased")
             self.tokens[key] = count
 
-    def read_capture(self, payload, capture: Capture | None, secrets: set[str]) -> None:
+    def read_capture(self, payload, capture: Capture | None) -> None:
         value = _capture_value(payload, capture)
         if value is not None:
+            if self.captured is not None and str(self.captured) != str(value):
+                self.capture_changed = True
             self.captured = value
-            secrets.add(str(value))
+
+    @property
+    def capture_secret(self) -> str | None:
+        return str(self.captured) if self.captured is not None else None
 
     def append_delta(self, content: str) -> None:
         now = time.perf_counter()
@@ -217,7 +195,7 @@ def _matches(selector: str | None, event: str) -> bool:
     return selector is None or selector == event
 
 
-def _agent_error(value, secrets: set[str]) -> _AgentError:
+def _agent_error(value, evidence: EvidenceSanitizer, reply: _Reply) -> _AgentError:
     if is_context_overflow(value):
         return _ContextOverflow("context_overflow")
     kind = {
@@ -232,15 +210,19 @@ def _agent_error(value, secrets: set[str]) -> _AgentError:
             if isinstance(value.get(key), str):
                 label = value[key]
                 break
-    limit = 80 if isinstance(value, str) else 120 - len("AgentError: ")
-    preview = "".join(char if char.isprintable() else " " for char in label[:limit])
-    # Check before truncation as well, so a secret cut in half cannot leak.
-    if any(secret in label or secret in preview for secret in secrets):
+    # Once a stream rotates its capture, earlier values have been discarded.
+    # Keep only the error shape in that case, since those values may be echoed.
+    if reply.capture_changed:
         return _AgentError(kind)
-    return _AgentError(preview)
+    limit = 80 if isinstance(value, str) else 120 - len("AgentError: ")
+    return _AgentError(evidence.text(
+        label, fallback=kind, limit=limit, diagnostic=True, extra=reply.capture_secret,
+    ))
 
 
-def _check_success(value, rule: SuccessRule | None, secrets: set[str]) -> None:
+def _check_success(
+    value, rule: SuccessRule | None, evidence: EvidenceSanitizer, reply: _Reply,
+) -> None:
     if rule is None:
         return
     if value is _MISSING:
@@ -256,12 +238,12 @@ def _check_success(value, rule: SuccessRule | None, secrets: set[str]) -> None:
             observed = "object" if isinstance(value, dict) else "array"
         else:
             label = value if isinstance(value, str) else json.dumps(value)
-            observed = str(_agent_error(label, secrets))
+            observed = str(_agent_error(label, evidence, reply))
         raise _BodyFailure(f"success rule rejected observed value {observed!r}")
 
 
 def _stream_error(
-    data: str | None, target: HttpTargetConfig, reply: _Reply, secrets: set[str],
+    data: str | None, target: HttpTargetConfig, reply: _Reply, evidence: EvidenceSanitizer,
 ) -> _AgentError:
     if data is None:
         return _AgentError("event")
@@ -269,14 +251,14 @@ def _stream_error(
     try:
         payload = _json(data)
     except (json.JSONDecodeError, _ResponseError):
-        return _agent_error(data, secrets) if path is None else _AgentError("event")
-    reply.read_capture(payload, target.capture, secrets)
+        return _agent_error(data, evidence, reply) if path is None else _AgentError("event")
+    reply.read_capture(payload, target.capture)
     value = _select(payload, path) if path is not None else payload
-    return _agent_error(value, secrets)
+    return _agent_error(value, evidence, reply)
 
 
 async def _read_sse(
-    response: httpx.Response, target: HttpTargetConfig, reply: _Reply, secrets: set[str],
+    response: httpx.Response, target: HttpTargetConfig, reply: _Reply, evidence: EvidenceSanitizer,
 ) -> None:
     config = target.response
     end = config.end
@@ -286,7 +268,7 @@ async def _read_sse(
     event_filter = rule.event_filter if rule else None
     async for event, data in _events(response):
         if event == config.error_event:
-            raise _stream_error(data, target, reply, secrets)
+            raise _stream_error(data, target, reply, evidence)
         at_end = end and _matches(end.event, event) and (end.data is None or end.data == data)
         read_text = not at_end and _matches(config.event, event)
         read_usage = not at_end and usage is not None and _matches(usage_selector, event)
@@ -308,7 +290,7 @@ async def _read_sse(
                     value = _present_value(payload, rule.path)
                     if event_filter is not None or value is not _MISSING:
                         reply.success_value = value
-                reply.read_capture(payload, target.capture, secrets)
+                reply.read_capture(payload, target.capture)
                 if read_usage:
                     reply.read_usage(payload, usage)
                 if read_text:
@@ -326,9 +308,14 @@ async def _read_sse(
 class HttpTurn:
     """Bind one validated HTTP scenario to the generator's turn interface."""
 
-    def __init__(self, config: HttpTargetConfig, resolved: ResolvedHttp) -> None:
+    def __init__(
+        self, config: HttpTargetConfig, resolved: ResolvedHttp, *,
+        agent: str | None = None, secrets: tuple[str, ...] = (),
+    ) -> None:
         self.config = config
         self.resolved = resolved
+        self.agent = agent or user_agent()
+        self.secrets = resolved.secrets.union(secrets)
 
     def for_session(self) -> TurnRunner:
         if self.config.capture is None:
@@ -365,21 +352,22 @@ class HttpTurn:
         abandoned = False
         dispatched = False
         reply = _Reply()
+        evidence = EvidenceSanitizer(self.secrets)
+        if capture_state:
+            evidence.add(str(value) for value in capture_state.values())
         try:
             async with asyncio.timeout(wall):
                 request = self._request(
-                    client, messages, session_id, turn_index, trace_headers, capture_state,
+                    client, messages, session_id, turn_index, trace_headers,
+                    capture_state, evidence,
                 )
-                secrets = set(self.resolved.secrets)
-                if config.capture is not None and capture_state:
-                    secrets.update(str(value) for value in capture_state.values())
                 dispatched = True
                 if on_dispatch is not None:
                     on_dispatch()
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
                     status = response.status_code
-                    fault = known_fault(response.headers.get("x-kneepoint-fault"))
+                    fault = response.headers.get("x-kneepoint-fault")
                     accepted = (
                         200 <= status <= 299 if config.success_status is None
                         else status in config.success_status
@@ -399,21 +387,21 @@ class HttpTurn:
                         agent_error = _select(payload, config.response.error_path)
                         if config.success is not None:
                             reply.success_value = _present_value(payload, config.success.path)
-                        reply.read_capture(payload, config.capture, secrets)
+                        reply.read_capture(payload, config.capture)
                         try:
                             reply.read_usage(payload, config.response.usage)
                         except _ResponseError:
                             if agent_error is None:
-                                _check_success(reply.success_value, config.success, secrets)
+                                _check_success(reply.success_value, config.success, evidence, reply)
                                 raise
                         if agent_error is not None:
-                            raise _agent_error(agent_error, secrets)
-                        _check_success(reply.success_value, config.success, secrets)
+                            raise _agent_error(agent_error, evidence, reply)
+                        _check_success(reply.success_value, config.success, evidence, reply)
                         text = _reply_text(_select(payload, config.response.text_path), "JSON")
                         reply.pieces.append(text)
                     else:
-                        await _read_sse(response, config, reply, secrets)
-                        _check_success(reply.success_value, config.success, secrets)
+                        await _read_sse(response, config, reply, evidence)
+                        _check_success(reply.success_value, config.success, evidence, reply)
                 finally:
                     await response.aclose()
         except TimeoutError:
@@ -430,12 +418,15 @@ class HttpTurn:
         except json.JSONDecodeError:
             error_kind = "response_error"
             error = "JSONDecodeError: malformed response JSON"
+        except SseLineTooLong:
+            error_kind = "response_error"
+            error = "ValueError: SSE event exceeds 1 MiB"
         except _ResponseError as exc:
             error_kind = "response_error"
             error = f"ValueError: {exc}"
         except _AgentError as exc:
             error_kind = "context_overflow" if isinstance(exc, _ContextOverflow) else "agent_error"
-            error = f"AgentError: {exc}"[:120]
+            error = f"AgentError: {exc}"
         except _BodyFailure as exc:
             error_kind = "body_failure"
             error = str(exc)
@@ -457,6 +448,8 @@ class HttpTurn:
             elif capture_state is not None:
                 capture_state[config.capture.name] = reply.captured
 
+        if reply.capture_secret is not None:
+            evidence.add((reply.capture_secret,))
         gaps = reply.gaps_ms if error is None else []
         record = RequestRecord(
             **version_stamps(),
@@ -464,9 +457,8 @@ class HttpTurn:
             attempt=attempt, started_at=started_at,
             started_monotonic_s=t0 - run_origin_s if run_origin_s is not None else None,
             total_ms=(time.perf_counter() - t0) * 1000,
-            ok=error is None, error=error[:200] if error is not None else None,
-            error_kind=error_kind, warnings=warnings,
-            abandoned=abandoned, status_code=status, fault=fault,
+            ok=error is None, error_kind=error_kind, abandoned=abandoned, status_code=status,
+            **evidence.fields(error=error, warnings=warnings, fault=fault),
             trace_id=trace_id, span_id=span_id,
             request_id=uuid.uuid4().hex,
             traceparent=trace_headers.get("traceparent") if dispatched else None,
@@ -478,12 +470,15 @@ class HttpTurn:
                         if len(gaps) > 1 else gaps[0] if gaps else None),
             **reply.tokens,
         )
+        text = "".join(reply.pieces) if record.ok else ""
         return TurnOutcome(
-            record=record, text="".join(reply.pieces) if record.ok else "",
-            retry_after_s=retry_after_s,
+            record=record, text=text, retry_after_s=retry_after_s,
+            evidence_text=REDACTED if text and reply.capture_changed else evidence.text(text),
         )
 
-    def _request(self, client, messages, session_id, turn_index, trace_headers, capture_state):
+    def _request(
+        self, client, messages, session_id, turn_index, trace_headers, capture_state, evidence,
+    ):
         config = self.config
         headers = httpx.Headers(self.resolved.headers)
         variables = {}
@@ -500,6 +495,8 @@ class HttpTurn:
                 ):
                     raise _ResponseError("capture produced an invalid HTTP header value")
                 headers[header] = rendered
+                evidence.add((rendered,))
+        headers.setdefault("User-Agent", self.agent)
         kwargs = {}
         if config.has_body:
             variables.update(

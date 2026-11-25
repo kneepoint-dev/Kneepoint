@@ -22,6 +22,8 @@ from pydantic import (
     model_validator,
 )
 
+from kneepoint.targets.evidence import url_secrets
+
 _NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 _ENV = re.compile(r"\$\$\{|\$\{([^{}]*)\}|\$\{")
 _HEADER_NAME = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
@@ -312,6 +314,15 @@ class HttpTargetConfig(_Strict):
     def capture_used(self) -> bool:
         return self.capture is not None and f"capture.{self.capture.name}" in self._placeholders
 
+    def environment_names(self, url_override: str | None = None) -> set[str]:
+        values = (self.url if url_override is None else url_override, *self.headers.values())
+        return {
+            match[1]
+            for value in values
+            for match in _ENV.finditer(value)
+            if match[1] and re.fullmatch(_NAME, match[1])
+        }
+
     def resolve(self, url_override: str | None = None) -> ResolvedHttp:
         secrets: set[str] = set()
         configured_url = self.url if url_override is None else url_override
@@ -346,6 +357,7 @@ class HttpTargetConfig(_Strict):
                 raise ValueError(f"target.headers.{name}: leading or trailing whitespace")
             if len(parts) > 1:
                 templates.append((name, literals))
+                secrets.update(filter(None, literals))
             else:
                 headers[name] = resolved
         if self.auth_env is not None:
@@ -354,9 +366,7 @@ class HttpTargetConfig(_Strict):
                 raise ValueError("target.auth_env: invalid Bearer token")
             headers["Authorization"] = f"Bearer {token}"
         secrets.update(value for value in headers.values() if value)
-        if url.query:
-            secrets.update(value for _, value in url.params.multi_items() if value)
-            secrets.add(url.query.decode("ascii"))
+        secrets.update(url_secrets(url))
         return ResolvedHttp(
             url, tuple(headers.items()), tuple(templates), frozenset(secrets),
             configured_url.partition("?")[0],

@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+_SCENARIO_SUFFIXES = {".txt", ".md", ".jsonl"}
+
 DEFAULT_PROMPTS = [
     "Where is my order?",
     "I was charged twice for ticket 4471, please fix it.",
@@ -37,6 +39,25 @@ class SamplingConfig(BaseModel):
                     or not math.isclose(sum(weights), 1.0, abs_tol=1e-9)):
                 raise ValueError("task weights must be positive, finite and sum to 1")
         return self
+
+
+def scenario_corpus_files(pattern: str, root: Path, *, allow_outside: bool) -> list[Path]:
+    root = root.resolve()
+    files = []
+    for match in sorted(glob.glob(str(root / pattern))):
+        path = Path(match).resolve()
+        if (
+            Path(match).suffix not in _SCENARIO_SUFFIXES or path.suffix not in _SCENARIO_SUFFIXES
+            or not path.is_file()
+        ):
+            raise ValueError("scenario corpus must use regular .txt, .md or .jsonl files")
+        if not allow_outside and not path.is_relative_to(root):
+            raise ValueError("scenario corpus is outside the scenario folder; "
+                             "use --allow-corpus-outside to permit it")
+        files.append(path)
+    if not files:
+        raise ValueError("scenario corpus matched no files")
+    return files
 
 
 class CorpusSampler:
@@ -82,15 +103,21 @@ class CorpusSampler:
 
     @classmethod
     def from_glob(cls, pattern: str, seed: int = 0, config: SamplingConfig | None = None):
+        return cls.from_files([Path(p) for p in sorted(glob.glob(pattern))], seed, config)
+
+    @classmethod
+    def from_files(cls, paths: list[Path], seed: int = 0, config: SamplingConfig | None = None):
         prompts = []
-        for p in sorted(glob.glob(pattern)):
-            text = Path(p).read_text(encoding="utf-8").strip()
+        for path in paths:
+            text = path.read_text(encoding="utf-8").strip()
             if not text:
                 continue
-            # JSON corpus files contain an explicit ranked array of item objects.
-            prompts.extend(json.loads(text) if p.endswith(".json") else [text])
-        if not prompts:
-            raise ValueError(f"corpus glob matched no non-empty files: {pattern!r}")
+            if path.suffix == ".json":
+                prompts.extend(json.loads(text))
+            elif path.suffix == ".jsonl":
+                prompts.extend(json.loads(line) for line in text.split("\n") if line.strip())
+            else:
+                prompts.append(text)
         return cls(prompts, seed=seed, config=config)
 
     def sample_item(self) -> dict:

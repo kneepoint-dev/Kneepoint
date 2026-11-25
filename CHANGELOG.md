@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0.dev3] - 2026-11-25
+
+- Sanitize target diagnostics, fault labels and saved replies. Protect configured
+  headers, bearer tokens, judge keys, URL query values, and conversation captures.
+  Store target URLs without credentials or query strings. Report rejected usage
+  fields without their input values.
+- Retain only the latest usable SSE capture. Limit OpenAI-compatible response
+  bodies to 16 MiB and individual SSE lines to 1 MiB.
+- Keep chaos proxy requests on the configured upstream and reject invalid Host
+  headers and unsafe paths.
+- Restrict scenario corpora to local text, Markdown and JSONL files. Use
+  `--allow-corpus-outside` for trusted external directories. Print the corpus
+  roots and the names of environment variables a run will read.
+- Validate positive ramp steps and retry attempts, nonnegative holds, and
+  ordered turn and think-time ranges.
+- Send `kneepoint/<version>` from both adapters and the chaos proxy. Set
+  `client.user_agent` to override it.
+- Document success and billed usage by adapter, how Retry-After waits can
+  extend a hold, and responsible use.
+- Add a private vulnerability reporting policy. Pin workflow actions, use
+  read-only workflow defaults, and schedule weekly dependency checks.
+
 ## [0.5.0.dev2] - 2026-11-25
 
 Development build.
@@ -23,9 +45,10 @@ Development build.
 - Accept only known response fault names in request and session evidence.
 - Redact captures from the current JSON or SSE response before formatting an
   application diagnostic.
-- Classify rejected HTTP statuses as `http_error` in both adapters while
-  preserving HTTP 400 context-overflow classification. Structured error codes
-  no longer misclassify a status rejection as a request error.
+- Classify rejected statuses as `http_error` in both adapters. The HTTP target
+  recognizes explicit context overflow in an HTTP 400 as `context_overflow`.
+  The OpenAI-compatible target records the same status as `http_error`.
+  Structured error codes no longer misclassify a status rejection as a request error.
 - Require psutil 6.0.0 or newer and warn when health sampling stops unexpectedly.
   CI exercises the lowest declared versions of direct runtime dependencies.
 - Cap Retry-After waits at 30 seconds and record the applied header delay.
