@@ -361,3 +361,35 @@ def test_trace_modes_from_yaml_use_expected_headers(tmp_path, variant):
             assert record["traceparent"].endswith("-01")
         else:
             assert record["traceparent"] is None
+
+
+@pytest.mark.parametrize("has_capture", [False, True])
+def test_undispatched_capture_failure_has_no_wire_or_first_use_evidence(tmp_path, has_capture):
+    seen = []
+
+    def target(headers, _request):
+        seen.append(headers["traceparent"])
+        return 200, {}, b'{"answer":"ok","id":"usable"}' if has_capture else b'{"answer":"ok"}'
+
+    selection = tmp_path / "selection.jsonl"
+    for name in ("one", "two"):
+        (tmp_path / f"{name}.txt").write_text(name, encoding="utf-8")
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, conversation={
+            "turns": {"min": 2, "max": 2}, "sampling": {"policy": "without_replacement"},
+            "corpus": "*.txt",
+        }, target={
+            "body": {"input": "{prompt}", "conversation": "{{capture.id}}"},
+            "capture": {"name": "id", "path": "/id", "from": "json"},
+        }, flags=("--selection-log", selection))
+    first, second = rows(out)
+    chosen = [json.loads(line) for line in selection.read_text().splitlines()]
+    assert first["traceparent"] == seen[0]
+    assert first["selection"]["first_use"] and chosen[0]["first_use"]
+    if has_capture:
+        assert second["ok"] and second["traceparent"] == seen[1]
+        assert second["selection"]["first_use"] and chosen[1]["first_use"]
+    else:
+        assert len(seen) == 1 and second["error_kind"] == "capture_missing"
+        assert (second["traceparent"], second["selection"]["first_use"],
+                chosen[1]["first_use"]) == (None, False, False)

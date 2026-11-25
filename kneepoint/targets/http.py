@@ -7,7 +7,7 @@ import re
 import statistics
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from copy import deepcopy
 from functools import partial
 
@@ -351,6 +351,7 @@ class HttpTurn:
         trace: TraceSetting = True,
         run_origin_s: float | None = None,
         capture_state: dict[str, Scalar] | None = None,
+        on_dispatch: Callable[[], None] | None = None,
     ) -> TurnOutcome:
         wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
         trace_id, span_id, trace_headers = request_trace(
@@ -362,6 +363,7 @@ class HttpTurn:
         status = fault = error = retry_after_s = None
         error_kind = None
         abandoned = False
+        dispatched = False
         reply = _Reply()
         try:
             async with asyncio.timeout(wall):
@@ -371,6 +373,9 @@ class HttpTurn:
                 secrets = set(self.resolved.secrets)
                 if config.capture is not None and capture_state:
                     secrets.update(str(value) for value in capture_state.values())
+                dispatched = True
+                if on_dispatch is not None:
+                    on_dispatch()
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
                     status = response.status_code
@@ -463,7 +468,8 @@ class HttpTurn:
             error_kind=error_kind, warnings=warnings,
             abandoned=abandoned, status_code=status, fault=fault,
             trace_id=trace_id, span_id=span_id,
-            request_id=uuid.uuid4().hex, traceparent=trace_headers.get("traceparent"),
+            request_id=uuid.uuid4().hex,
+            traceparent=trace_headers.get("traceparent") if dispatched else None,
             ttft_ms=(reply.first_at - t0) * 1000 if reply.first_at is not None else None,
             chunk_count=(len(reply.pieces) if error is None
                          and isinstance(config.response, SseResponse) else None),

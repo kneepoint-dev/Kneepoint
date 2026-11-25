@@ -107,8 +107,14 @@ class CorpusSampler:
             return items[bisect.bisect_right(cdf, self._rng.random() * cdf[-1])].copy()
         return self._rng.choice(items).copy()
 
-    def dispatched(self, item: dict) -> dict:
+    @staticmethod
+    def selection(item: dict) -> dict:
         selection = {k: v for k, v in item.items() if k != "prompt"}
+        selection["first_use"] = False
+        return selection
+
+    def dispatched(self, item: dict) -> dict:
+        selection = self.selection(item)
         selection["first_use"] = item["item_id"] not in self._seen
         self._seen.add(item["item_id"])
         return selection

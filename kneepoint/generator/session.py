@@ -86,7 +86,15 @@ async def run_session(
     evidence = evidence if evidence is not None else RunEvidence()
     status = "completed"
     active: AttemptStart | None = None
-    runner = turn_runner.for_session() if isinstance(turn_runner, HttpTurn) else turn_runner
+    http_target = isinstance(turn_runner, HttpTurn)
+    runner = turn_runner.for_session() if http_target else turn_runner
+    selection = None
+
+    def mark_dispatched() -> None:
+        nonlocal selection
+        evidence.attempts[active.key]["dispatched"] = True
+        selection = sampler.dispatched(item)
+
     try:
         for turn_index in range(n_turns):
             if stop is not None and stop.is_set():
@@ -108,18 +116,19 @@ async def run_session(
                     evidence.finish_attempt(active, "stopped")
                     active = None
                     break
-                evidence.attempts[active.key]["dispatched"] = True
-                selection = sampler.dispatched(item)
-                deadline_kw = ({} if spec.deadline_seconds is None else
-                               {"wall_seconds": spec.deadline_seconds})
+                selection = None
+                runner_kwargs = ({} if spec.deadline_seconds is None else
+                                 {"wall_seconds": spec.deadline_seconds})
+                if http_target:
+                    runner_kwargs["on_dispatch"] = mark_dispatched
+                else:
+                    mark_dispatched()
                 outcome = await (runner or run_turn)(
                     client, base_url, model, messages,
                     concurrency=concurrency, session_id=session_id,
                     turn_index=turn_index, attempt=attempt, run_id=run_id, trace=trace,
-                    run_origin_s=run_origin_s, **deadline_kw,
+                    run_origin_s=run_origin_s, **runner_kwargs,
                 )
-                if outcome.record.error_kind == "capture_missing":
-                    evidence.attempts[active.key]["dispatched"] = False
                 outcome.record.retry_after_s = outcome.retry_after_s
                 delay = outcome.retry_after_s
                 retrying = attempt < spec.retry.max_attempts and _retryable(outcome.record)
@@ -128,7 +137,9 @@ async def run_session(
                 outcome.record.backoff_s = (
                     min(delay, 30.0) if valid_delay and (retrying or honor_delay) else 0.0
                 )
-                outcome.record.selection = selection
+                outcome.record.selection = (
+                    selection if selection is not None else sampler.selection(item)
+                )
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)
                 evidence.finish_attempt(active, "completed")
