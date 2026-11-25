@@ -222,3 +222,43 @@ HealthSampler.run = run
         assert sample["source"] == "injector"
         assert sample["level"] == sample["inflight"] == 1
         assert "open_connections" in sample
+
+
+@pytest.mark.parametrize(("honor", "status", "header", "expected"), [
+    (False, 503, "90", 30.0),
+    (True, 429, "90", 30.0),
+    (True, 503, "90", 30.0),
+    (False, 503, "1.25", 1.25),
+    (False, 503, "0", 0.0),
+    (False, 503, "invalid", 0.5),
+])
+def test_retry_after_wait_is_capped_and_recorded(tmp_path, honor, status, header, expected):
+    waits = tmp_path / "waits.txt"
+    env = install_cli_probe(tmp_path, f"""
+from pathlib import Path
+from kneepoint.generator import session
+
+async def wait_or_stop(seconds, stop):
+    with Path({str(waits)!r}).open("a", encoding="utf-8") as stream:
+        stream.write(f"{{seconds}}\\n")
+
+session.wait_or_stop = wait_or_stop
+""")
+    seen = []
+
+    def target(_headers, _request):
+        seen.append(len(seen))
+        if len(seen) == 1:
+            return status, {"Retry-After": header}, b""
+        return 200, {}, b'{"answer":"ok"}'
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, options={"client": {"honor_retry_after": honor}},
+                     conversation={"retry": {"max_attempts": 2, "backoff_s": 0.5}}, env=env)
+    first, second = rows(out)
+    assert seen == [0, 1] and second["ok"]
+    observed = [float(line) for line in waits.read_text().splitlines()] if waits.exists() else []
+    assert observed == ([expected] if expected else [])
+    assert first["backoff_s"] == (expected if header != "invalid" else 0.0)
+    assert first["retry_after_s"] == (float(header) if header != "invalid" else None)
+    assert second["backoff_s"] == 0.0

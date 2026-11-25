@@ -122,12 +122,12 @@ async def run_session(
                     evidence.attempts[active.key]["dispatched"] = False
                 outcome.record.retry_after_s = outcome.retry_after_s
                 delay = outcome.retry_after_s
-                honor_delay = (
-                    min(delay, 30.0) if spec.honor_retry_after
-                    and outcome.record.status_code == 503 and delay is not None
-                    and math.isfinite(delay) and delay >= 0 else 0.0
+                retrying = attempt < spec.retry.max_attempts and _retryable(outcome.record)
+                honor_delay = spec.honor_retry_after and outcome.record.status_code == 503
+                valid_delay = delay is not None and math.isfinite(delay) and delay >= 0
+                outcome.record.backoff_s = (
+                    min(delay, 30.0) if valid_delay and (retrying or honor_delay) else 0.0
                 )
-                outcome.record.backoff_s = honor_delay
                 outcome.record.selection = selection
                 records.append(outcome.record)
                 evidence.records.append(outcome.record)
@@ -143,15 +143,12 @@ async def run_session(
                     on_attempt_complete(outcome.record)
                 # This virtual user waits even on the final failed attempt: the
                 # pool can otherwise immediately start its next session.
-                if honor_delay:
-                    await wait_or_stop(honor_delay, stop)
-                if outcome.record.ok:
+                if outcome.record.backoff_s:
+                    await wait_or_stop(outcome.record.backoff_s, stop)
+                if not retrying:
                     break
-                if not _retryable(outcome.record) or attempt == spec.retry.max_attempts:
-                    break
-                if not honor_delay:
-                    await wait_or_stop(
-                        outcome.retry_after_s or spec.retry.backoff_s * attempt, stop)
+                if not valid_delay:
+                    await wait_or_stop(spec.retry.backoff_s * attempt, stop)
             if accepted_text is None:
                 messages.pop()
                 break
