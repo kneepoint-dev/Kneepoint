@@ -413,3 +413,35 @@ def test_knowledge_workload_cli_has_no_single_turn_think_time(tmp_path):
                      conversation={**conversation, "corpus": str(corpus)})
     assert rows(out)[0]["ok"]
     assert "think_time_ms" not in conversation
+
+
+def test_logged_fields_and_http_body_contract_are_documented(tmp_path):
+    import time
+
+    def target(_headers, _request):
+        time.sleep(1.1)
+        return 200, {}, b'{"answer":"ok","accepted":false,"usage":{"input":7,"output":2}}'
+
+    health = tmp_path / "health.jsonl"
+    selection = tmp_path / "selection.jsonl"
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, target={
+            "success": {"path": "/accepted", "equals": [True]},
+            "response": {"mode": "json", "text_path": "/answer",
+                         "usage": {"input_path": "/usage/input", "output_path": "/usage/output"}},
+        }, flags=("--health-log", health, "--selection-log", selection))
+    record, = rows(out)
+    assert record["status_code"] == 200 and record["ok"] is False
+    assert record["error_kind"] == "body_failure"
+    assert (record["input_tokens"], record["output_tokens"]) == (7, 2)
+
+    docs = (Path(__file__).resolve().parents[1] / "docs/output-format.md").read_text(
+        encoding="utf-8"
+    )
+    for path in (health, selection):
+        keys = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+        assert all(f'| `{key}` |' in docs for key in keys)
+    for field in ("task_class", "open_connections_reason"):
+        assert f'| `{field}` |' in docs
+    assert "Remove the machine hostname" in docs
+    assert "a parsed HTTP 200 can have `ok=false`" in docs

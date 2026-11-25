@@ -29,6 +29,43 @@ header line** — the first line is a record like any other, so `tail -f`,
 that is not a request or a session — target, ramp, seed, chaos profile, prices —
 lives in the metadata sidecar instead, described [below](#run-id-metajson-what-the-run-was).
 
+## Optional JSONL logs
+
+`kneepoint run --health-log PATH` appends one injector health sample per second.
+Remove the machine hostname from `host` before publishing any health log.
+
+| Field | Meaning |
+|---|---|
+| `t` | Sample time in Unix epoch seconds |
+| `host` | Load generator machine hostname |
+| `source` | Always `injector` for this CLI log |
+| `level` | Concurrency of the current ramp hold |
+| `lag_ms` | Milliseconds the timer ran after its scheduled sample time |
+| `loop_delay_ms` | Milliseconds needed to resume after yielding to the event loop |
+| `cpu_pct` | Injector process CPU usage as a percentage of one logical core |
+| `host_cpu_pct` | Host CPU usage as a percentage of total CPU capacity |
+| `inflight` | Number of active request attempts awaiting a result |
+| `open_connections` | Injector process TCP connection count, including idle keep-alive sockets. Null if the counter is unavailable |
+| `open_connections_reason` | Exception type when the connection counter is unavailable. Omitted otherwise |
+
+`kneepoint run --selection-log PATH` appends a row for each recorded attempt
+with a corpus selection.
+
+| Field | Meaning |
+|---|---|
+| `t` | Log time in Unix epoch seconds |
+| `request_id` | Attempt ID that joins to `RequestRecord.request_id` |
+| `item_id` | Corpus item identifier |
+| `popularity_rank` | Corpus-supplied popularity rank |
+| `template_id` | Corpus-supplied prompt template identifier |
+| `length_class` | Corpus-supplied prompt length category |
+| `off_topic` | Corpus-supplied off-topic flag |
+| `task_class` | Optional corpus-supplied task category used for weighted sampling |
+| `first_use` | True on the first dispatch of the item in this run. False on repeats and attempts rejected before dispatch |
+
+The selection log also carries any additional metadata from custom corpus items,
+with the prompt text excluded.
+
 ## Versioning
 
 Every record carries its own version stamp:
@@ -92,8 +129,8 @@ The fields, in the order they appear on the line:
 | `schema_version` | int | 0 for pre-versioning files |
 | `kneepoint_version` | string \| null | null when run from source |
 | `request_id` | string \| null | unique attempt identifier; null in legacy records |
-| `traceparent` | string \| null | exact W3C header sent; null when propagation is off or in legacy records |
-| `selection` | object \| null | selected item metadata: item_id, popularity_rank, template_id, length_class, off_topic and first_use; absent for direct adapter calls |
+| `traceparent` | string \| null | exact W3C header sent. Null when the attempt did not dispatch, propagation is off, or the record is legacy |
+| `selection` | object \| null | selected item metadata, as in the optional selection log except for its log time and request ID. Absent for direct adapter calls |
 | `session_id` | string | joins to `SessionRecord.session_id` |
 | `concurrency` | int | the ramp level this attempt ran at |
 | `started_at` | float | unix epoch seconds, wall clock |
@@ -108,17 +145,18 @@ The fields, in the order they appear on the line:
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
 | `trace_id` | string \| null | 32 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
 | `span_id` | string \| null | 16 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
-| `fault` | string \| null | chaos fault injected into this attempt, read from the response: `llm_rate_limit`, `llm_server_error`. Tool faults arrive via the proxy's fault log, not here |
+| `fault` | string \| null | accepted response fault name, one of `llm_rate_limit`, `llm_server_error`, `tool_timeout`, or `tool_malformed_json`. Other values are stored as null. A separate proxy fault log can add tool faults to session evidence |
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
 | `retry_after_s` | float \| null | parsed Retry-After seconds before the cap; absent or invalid header is null |
-| `backoff_s` | float | virtual-user delay after a 503 when client.honor_retry_after is enabled, capped at 30 s; otherwise 0; stop can interrupt this delay |
+| `backoff_s` | float | Retry-After delay applied before a retry or after an opt-in HTTP 503, capped at 30 s. Zero when no header delay applies. Stop can interrupt the delay |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
 | `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
-| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests; latency percentiles use successful requests only. New HTTP failures always carry a kind: `agent_error` for target-declared errors (the existing sanitized message is retained), `http_error` for transport/status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests and latency percentiles use successful requests only. HTTP failures use `agent_error` for target-declared errors with a sanitized message, `http_error` for transport and rejected status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible status rejections also use `http_error`, and failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
 | `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
+With an HTTP-target response-body success rule, a parsed HTTP 200 can have `ok=false`.
 Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve
 valid usage counts received before failure so those counts can contribute to
 observed spend. OpenAI-compatible targets leave usage null on failed attempts.

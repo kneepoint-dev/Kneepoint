@@ -5,6 +5,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- Trace propagation modes `sampled`, `unsampled`, and `off`.
+- Uniform, without-replacement, and Zipf workload sampling with optional task
+  weights, along with the `--selection-log` attempt log.
+- The `--health-log` injector sampler and its runtime `psutil` dependency.
+- The conversation `deadline_seconds` setting for per-attempt wall deadlines,
+  and classification of explicit server context rejections as `context_overflow`.
+
+### Fixed
+
+- Accept only known response fault names in request and session evidence.
+- Redact captures from the current JSON or SSE response before formatting an
+  application diagnostic.
+- Classify rejected HTTP statuses as `http_error` in both adapters while
+  preserving HTTP 400 context-overflow classification. Structured error codes
+  no longer misclassify a status rejection as a request error.
+- Require psutil 6.0.0 or newer and warn when health sampling stops unexpectedly.
+  CI exercises the lowest declared versions of direct runtime dependencies.
+- Cap Retry-After waits at 30 seconds and record the applied header delay.
+- Apply the sampling policy to built-in prompts and use an independent
+  calibration draw so measurement retains its full sequence.
+- Re-render an unpriced HTTP-target report byte for byte from its saved evidence.
+- Accept unquoted YAML `off` in `trace.propagation` and quote the docs example.
+- Record no sent trace header or first use for a turn that fails before dispatch.
+- Exercise the context-overflow retry guard with a retryable status and remove
+  the ineffective think time from the single-turn knowledge workload.
+- Document selection and health log fields, hostname removal before publishing,
+  and the token counts and success rules of failed HTTP-target records.
+
 ## [0.5.0.dev1] - 2026-11-15
 
 Local development build; not published.

@@ -18,7 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from typer.main import get_command
 
-from kneepoint.chaos.faults import LLM_FAULTS, STANDARD_PROFILE, TOOL_FAULTS, FaultType
+from kneepoint.chaos.faults import STANDARD_PROFILE, FaultType
 from kneepoint.cli import app
 from kneepoint.collect.schemas import RequestRecord, RunMetadata, SessionRecord
 from kneepoint.collect.writer import JsonlWriter, read_run_meta, write_run_meta
@@ -190,11 +190,9 @@ def test_published_tpot_expression_is_the_property():
         assert eval(block, {"__builtins__": {}}, dict(case)) == record.tpot_ms, case
 
 
-def test_fault_values_named_for_request_lines_are_the_llm_faults():
-    """Only LLM faults ride the response; tool faults come through the proxy log."""
+def test_fault_values_named_for_request_lines_match_the_allowlist():
     named = set(re.findall(r"`([a-z_]+)`", _notes(REQUEST, "fault")))
-    assert LLM_FAULTS <= named
-    assert not (TOOL_FAULTS & named)
+    assert named == set(typing.get_args(FaultType))
 
 
 def test_chaos_row_names_every_fault_type_and_every_profile():

@@ -167,8 +167,10 @@ syntax, header secrets, and token usage fields.
 Set `client: {honor_retry_after: true}` in the scenario to wait after HTTP 503
 responses carrying a valid Retry-After (seconds or HTTP date). Default is false.
 Each virtual user waits before its next request, including across session
-boundaries; the delay is capped at 30 seconds and is interruptible by stop.
+boundaries. Any per-turn retry also uses a valid Retry-After delay, even with
+this option disabled. All header delays are capped at 30 seconds and are
+interruptible by stop.
 Records include `retry_after_s` (parsed, uncapped) and `backoff_s` (applied
-delay, zero when disabled or inapplicable). Response latency excludes this wait.
-A stop may interrupt the wait; it does not dispatch another request. Existing
-per-turn retry policy remains separate; this wait is not doubled on a retry.
+delay, zero when no header delay applies). Response latency excludes this wait.
+Each attempt uses at most one header delay. A stop interrupts that wait and
+prevents the next request from dispatching.
