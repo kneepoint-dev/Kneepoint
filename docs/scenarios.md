@@ -135,13 +135,14 @@ policy.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `turns.min` / `turns.max` | int | `1` / `1` | ordered inclusive range of turns per session, sampled uniformly |
-| `corpus` | glob | bundled prompts | regular `.txt`, `.md` and `.jsonl` files, resolved relative to the scenario directory |
+| `corpus` | glob | bundled prompts | regular `.txt`, `.md`, `.json`, and `.jsonl` files, resolved relative to the scenario directory |
 | `think_time_ms.min_ms` / `.max_ms` | int | `0` / `0` | ordered range for simulated user pauses between turns |
 | `retry.max_attempts` | int ≥ 1 | `3` | attempts per turn; 429 `Retry-After` is honored |
 | `retry.backoff_s` | float | `0.5` | base backoff between attempts |
 
-Text and Markdown files provide one prompt per file. JSONL files provide one
-prompt string or ranked item object per line. Scenario corpus files must resolve
+Text and Markdown files provide one prompt per file. JSON files contain an array
+of prompt strings or ranked item objects. JSONL files provide one prompt string or
+ranked item object per line. Scenario corpus files must resolve
 inside the scenario directory, including symlink destinations. For trusted
 external directories, pass `--allow-corpus-outside` to `validate` or `run`.
 An explicit `run --corpus` flag remains relative to the current directory.

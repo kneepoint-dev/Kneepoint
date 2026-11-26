@@ -115,3 +115,37 @@ def test_scenario_only_accepts_documented_corpus_types(tmp_path):
 
     assert validate_corpus("prompt.txt").returncode == 0
     assert validate_corpus("prompt.bin").returncode != 0
+
+
+@pytest.mark.parametrize(
+    "corpus_path,expected_error",
+    [
+        ("corpus.json", None),
+        ("../corpus.json", b"outside the scenario folder"),
+        ("corpus.sh", b"scenario corpus must use regular"),
+    ],
+)
+def test_agent_knowledge_scenario_corpus(tmp_path, corpus_path, expected_error):
+    template = Path(__file__).resolve().parents[1] / "workloads" / "agent-knowledge.yaml"
+    scenario_dir = tmp_path / "workloads"
+    scenario_dir.mkdir()
+    scenario = scenario_dir / template.name
+    config = yaml.safe_load(template.read_text())
+    config["workload"]["conversation"]["corpus"] = corpus_path
+    scenario.write_text(yaml.safe_dump(config))
+    (scenario_dir / corpus_path).write_text(json.dumps([{
+        "prompt": "Where can I find the support guide?",
+        "item_id": "1",
+        "popularity_rank": 1,
+        "template_id": "lookup",
+        "length_class": "short",
+        "off_topic": False,
+        "task_class": "lookup",
+    }]))
+
+    result = cli("validate", scenario)
+    if expected_error is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert expected_error in result.stdout

@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-_SCENARIO_SUFFIXES = {".txt", ".md", ".jsonl"}
+_SCENARIO_SUFFIXES = {".txt", ".md", ".json", ".jsonl"}
 
 DEFAULT_PROMPTS = [
     "Where is my order?",
@@ -50,7 +50,7 @@ def scenario_corpus_files(pattern: str, root: Path, *, allow_outside: bool) -> l
             Path(match).suffix not in _SCENARIO_SUFFIXES or path.suffix not in _SCENARIO_SUFFIXES
             or not path.is_file()
         ):
-            raise ValueError("scenario corpus must use regular .txt, .md or .jsonl files")
+            raise ValueError("scenario corpus must use regular .txt, .md, .json or .jsonl files")
         if not allow_outside and not path.is_relative_to(root):
             raise ValueError("scenario corpus is outside the scenario folder; "
                              "use --allow-corpus-outside to permit it")
