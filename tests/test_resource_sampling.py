@@ -1,5 +1,6 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -15,6 +16,7 @@ async def test_sampler_converts_host_counter_deltas_to_a_level_sample(tmp_path, 
     monkeypatch.setattr(resources, "PROC_STAT", proc_stat)
     monkeypatch.setattr(resources.os, "cpu_count", lambda: 8)
     sleeps = []
+    real_sleep = asyncio.sleep
 
     async def advance(delay):
         sleeps.append(delay)
@@ -23,10 +25,13 @@ async def test_sampler_converts_host_counter_deltas_to_a_level_sample(tmp_path, 
         else:
             raise asyncio.CancelledError
 
-    monkeypatch.setattr(resources.asyncio, "sleep", advance)
+    # Replace only the sampler module's binding, leaving Uvicorn's asyncio intact.
+    monkeypatch.setattr(resources, "asyncio", SimpleNamespace(sleep=advance))
+    assert asyncio.sleep is real_sleep
     samples = []
     with pytest.raises(asyncio.CancelledError):
-        await resources.sample_local_resources(4, resources.time.perf_counter(), samples)
+        async with asyncio.timeout(1):
+            await resources.sample_local_resources(4, resources.time.perf_counter(), samples)
     sample, = samples
     assert sleeps == [5.0, 5.0]
     assert sample.vcpu_count == 8
