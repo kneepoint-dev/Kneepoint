@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0.dev5] - 2026-11-26
+
+- Limit HTTP target SSE response bodies to 16 MiB.
+
 ## [0.5.0.dev4] - 2026-11-26
 
 - Restore support for JSON scenario corpus files.

@@ -32,7 +32,13 @@ from kneepoint.targets.http_config import (
     extract,
     render_body,
 )
-from kneepoint.targets.response_limits import BODY_LIMIT, EVENT_LIMIT, SseLineTooLong, sse_lines
+from kneepoint.targets.response_limits import (
+    BODY_LIMIT,
+    EVENT_LIMIT,
+    ResponseBodyTooLarge,
+    SseLineTooLong,
+    sse_lines,
+)
 from kneepoint.targets.response_limits import ResponseError as _ResponseError
 from kneepoint.targets.retry_after import parse_retry_after as _retry_after
 from kneepoint.targets.trace_context import TraceSetting, request_trace
@@ -123,7 +129,7 @@ async def _json_body(response: httpx.Response):
 async def _events(response: httpx.Response) -> AsyncIterator[tuple[str, str | None]]:
     event, data, size = "", [], 0
     first_line = True
-    async for raw_line in sse_lines(response):
+    async for raw_line in sse_lines(response, body_limit=BODY_LIMIT):
         try:
             line = raw_line.decode("utf-8-sig" if first_line else "utf-8")
         except UnicodeError:
@@ -421,6 +427,9 @@ class HttpTurn:
         except SseLineTooLong:
             error_kind = "response_error"
             error = "ValueError: SSE event exceeds 1 MiB"
+        except ResponseBodyTooLarge as exc:
+            error_kind = "response_error"
+            error = str(exc)
         except _ResponseError as exc:
             error_kind = "response_error"
             error = f"ValueError: {exc}"

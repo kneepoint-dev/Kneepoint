@@ -460,3 +460,28 @@ def test_logged_fields_and_http_body_contract_are_documented(tmp_path):
     assert "| `request_id` |" in docs.split("## Versioning", 1)[1]
     assert "Remove the machine hostname" in docs
     assert "a parsed HTTP 200 can have `ok=false`" in docs
+
+
+@pytest.mark.parametrize("event_count", [1, 40], ids=["normal", "oversize"])
+def test_http_sse_total_body_limit(tmp_path, event_count):
+    prefix = b'data: {"delta":"'
+    suffix = b'"}\n\n'
+    event = prefix + b"x" * (512 * 1024 - len(prefix) - len(suffix)) + suffix
+    body = event * event_count + b"data: [DONE]\n\n"
+
+    def target(_headers, _request):
+        return 200, {"Content-Type": "text/event-stream"}, body
+
+    with serve(target) as url:
+        out, _ = run(tmp_path, url, target={
+            "response": {"mode": "sse", "text_path": "/delta", "end": {"data": "[DONE]"}},
+        })
+
+    record, = rows(out)
+    assert record["status_code"] == 200
+    if event_count == 1:
+        assert record["ok"] and record["chunk_count"] == 1
+    else:
+        assert not record["ok"]
+        assert record["error_kind"] == "response_error"
+        assert record["error"] == "response body exceeds 16 MiB"

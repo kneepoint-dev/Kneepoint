@@ -14,6 +14,10 @@ class ResponseError(ValueError):
     """A fixed diagnostic safe to publish without request or response data."""
 
 
+class ResponseBodyTooLarge(ResponseError):
+    """The decoded response exceeded the total byte limit."""
+
+
 class SseLineTooLong(ResponseError):
     """A stream line exceeded the byte limit."""
 
@@ -29,7 +33,7 @@ async def sse_lines(
         if body_limit is not None:
             total += len(chunk)
             if total > body_limit:
-                raise ResponseError("response body exceeds 16 MiB")
+                raise ResponseBodyTooLarge("response body exceeds 16 MiB")
         start = 0
         for match in _NEWLINE.finditer(chunk):
             end = match.start()
