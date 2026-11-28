@@ -5,103 +5,54 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
-## [0.5.0.dev5] - 2026-11-26
-
-- Limit HTTP target SSE response bodies to 16 MiB.
-
-## [0.5.0.dev4] - 2026-11-26
-
-- Restore support for JSON scenario corpus files.
-
-## [0.5.0.dev3] - 2026-11-25
-
-- Sanitize target diagnostics, fault labels and saved replies. Protect configured
-  headers, bearer tokens, judge keys, URL query values, and conversation captures.
-  Store target URLs without credentials or query strings. Report rejected usage
-  fields without their input values.
-- Retain only the latest usable SSE capture. Limit OpenAI-compatible response
-  bodies to 16 MiB and individual SSE lines to 1 MiB.
-- Keep chaos proxy requests on the configured upstream and reject invalid Host
-  headers and unsafe paths.
-- Restrict scenario corpora to local text, Markdown and JSONL files. Use
-  `--allow-corpus-outside` for trusted external directories. Print the corpus
-  roots and the names of environment variables a run will read.
-- Validate positive ramp steps and retry attempts, nonnegative holds, and
-  ordered turn and think-time ranges.
-- Send `kneepoint/<version>` from both adapters and the chaos proxy. Set
-  `client.user_agent` to override it.
-- Document success and billed usage by adapter, how Retry-After waits can
-  extend a hold, and responsible use.
-- Add a private vulnerability reporting policy. Pin workflow actions, use
-  read-only workflow defaults, and schedule weekly dependency checks.
-
-## [0.5.0.dev2] - 2026-11-25
-
-Development build.
+## [0.5.0] - 2026-11-28
 
 ### Added
 
-- Trace propagation modes `sampled`, `unsampled`, and `off`.
-- Uniform, without-replacement, and Zipf workload sampling with optional task
-  weights, along with the `--selection-log` attempt log.
-- The `--health-log` injector sampler and its runtime `psutil` dependency.
-- The conversation `deadline_seconds` setting for per-attempt wall deadlines,
-  and classification of explicit server context rejections as `context_overflow`.
+- Test custom HTTP agent endpoints that return JSON or server-sent events
+  (SSE). Scenarios can map request fields, define success rules, record token
+  usage, and pass selected response values between turns.
+- Choose uniform, without-replacement, or Zipf workload sampling with optional
+  task weights. Use `--selection-log` to record task selections and
+  `--health-log` to sample local load-generator health.
+- Set per-attempt conversation deadlines and choose sampled, unsampled, or
+  disabled W3C trace propagation.
+- Enable `client.honor_retry_after` to honor back-off requested after HTTP 503,
+  up to 30 seconds. Request records show the requested and applied delays.
+
+### Changed
+
+- Run metadata identifies the target type and response mode. Reports explain
+  why buffered JSON replies cannot measure time to first token or inter-token
+  latency.
+- Both HTTP adapters and the chaos proxy send `kneepoint/<version>` as the
+  default user agent. Set `client.user_agent` to override it.
 
 ### Fixed
 
-- Accept only known response fault names in request and session evidence.
-- Redact captures from the current JSON or SSE response before formatting an
-  application diagnostic.
-- Classify rejected statuses as `http_error` in both adapters. The HTTP target
-  recognizes explicit context overflow in an HTTP 400 as `context_overflow`.
-  The OpenAI-compatible target records the same status as `http_error`.
-  Structured error codes no longer misclassify a status rejection as a request error.
-- Require psutil 6.0.0 or newer and warn when health sampling stops unexpectedly.
-  CI exercises the lowest declared versions of direct runtime dependencies.
-- Cap Retry-After waits at 30 seconds and record the applied header delay.
-- Apply the sampling policy to built-in prompts and use an independent
-  calibration draw so measurement retains its full sequence.
-- Re-render an unpriced HTTP-target report byte for byte from its saved evidence.
-- Accept unquoted YAML `off` in `trace.propagation` and quote the docs example.
-- Record no sent trace header or first use for a turn that fails before dispatch.
-- Exercise the context-overflow retry guard with a retryable status and remove
-  the ineffective think time from the single-turn knowledge workload.
-- Document selection and health log fields, hostname removal before publishing,
-  and the token counts and success rules of failed HTTP-target records.
+- Failed HTTP attempts record an error kind and retain the HTTP status when
+  available. The custom HTTP adapter distinguishes failed response success
+  rules, missing captures, and explicit context-window rejections.
+- Apply the configured sampling policy to built-in prompts and keep calibration
+  draws separate from the measured sequence. Record sent trace headers and first
+  use only after dispatch.
+- Rebuild an unpriced HTTP-target report byte for byte from saved evidence.
+  Restore JSON scenario corpus support and accept unquoted YAML `off` for
+  trace propagation.
 
-## [0.5.0.dev1] - 2026-11-15
+### Security
 
-Local development build; not published.
-
-### Added
-
-- Optional `client.honor_retry_after` virtual-user back-off after HTTP 503,
-  including between sessions, capped at 30 seconds and interruptible by stop.
-- Request records retain parsed `retry_after_s` and applied `backoff_s`.
-- Retry-After HTTP dates and invalid values are handled by both target adapters.
-
-## [0.5.0.dev0] - 2026-11-14
-
-Local development build for the 0.5.0 workload branch; not published.
-
-### Added
-
-- HTTP scenario targets map structured requests to custom JSON and SSE agent
-  endpoints. They support application errors, optional token usage, W3C attempt
-  tracing, and the existing retry and chaos controls.
-- HTTP response success rules classify rejected JSON or SSE bodies as
-  `body_failure` while retaining the HTTP status.
-- HTTP response capture passes values between turns in the same session.
-  Missing captures emit a warning, and later turns that require them fail
-  before dispatch with `capture_missing`.
-- Run metadata records the target type and response mode. JSON reports explain
-  why buffered replies cannot provide TTFT or inter-token latency.
-
-### Fixed
-
-- Live HTTP and OpenAI request records identify their installed producer version.
-- Every failed HTTP attempt records an error kind while preserving its message.
+- Keep credentials and target-controlled diagnostic text out of run records
+  and reports. Strip credentials and query strings from recorded target URLs.
+- Keep chaos proxy traffic on its configured upstream and reject invalid Host
+  headers and unsafe request paths.
+- Limit scenario corpus reads to the permitted local directories and file
+  types. Use `--allow-corpus-outside` for trusted external directories. Show
+  which directories and environment variable names the run can read.
+- Cap response body sizes, bound OpenAI-compatible SSE line size, and retain
+  only the latest usable streamed capture.
+- Document how to report vulnerabilities privately. Pin CI actions, give
+  workflows read-only permissions by default, and check dependencies weekly.
 
 ## [0.4.0] - 2026-11-06
 
