@@ -3,6 +3,57 @@
 All notable changes to kneepoint are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/) (pre-1.0: minor = features, patch = fixes).
 
+## [Unreleased]
+
+## [0.5.0] - 2026-11-28
+
+### Added
+
+- Test custom HTTP agent endpoints that return JSON or server-sent events
+  (SSE). Scenarios can map request fields, define success rules, record token
+  usage, and pass selected response values between turns.
+- Choose uniform, without-replacement, or Zipf workload sampling with optional
+  task weights. Use `--selection-log` to record task selections and
+  `--health-log` to sample local load-generator health.
+- Set per-attempt conversation deadlines and choose sampled, unsampled, or
+  disabled W3C trace propagation.
+- Enable `client.honor_retry_after` to honor back-off requested after HTTP 503,
+  up to 30 seconds. Request records show the requested and applied delays.
+
+### Changed
+
+- Run metadata identifies the target type and response mode. Reports explain
+  why buffered JSON replies cannot measure time to first token or inter-token
+  latency.
+- Both HTTP adapters and the chaos proxy send `kneepoint/<version>` as the
+  default user agent. Set `client.user_agent` to override it.
+
+### Fixed
+
+- Failed HTTP attempts record an error kind and retain the HTTP status when
+  available. The custom HTTP adapter distinguishes failed response success
+  rules, missing captures, and explicit context-window rejections.
+- Apply the configured sampling policy to built-in prompts and keep calibration
+  draws separate from the measured sequence. Record sent trace headers and first
+  use only after dispatch.
+- Rebuild an unpriced HTTP-target report byte for byte from saved evidence.
+  Restore JSON scenario corpus support and accept unquoted YAML `off` for
+  trace propagation.
+
+### Security
+
+- Keep credentials and target-controlled diagnostic text out of run records
+  and reports. Strip credentials and query strings from recorded target URLs.
+- Keep chaos proxy traffic on its configured upstream and reject invalid Host
+  headers and unsafe request paths.
+- Limit scenario corpus reads to the permitted local directories and file
+  types. Use `--allow-corpus-outside` for trusted external directories. Show
+  which directories and environment variable names the run can read.
+- Cap response body sizes, bound OpenAI-compatible SSE line size, and retain
+  only the latest usable streamed capture.
+- Document how to report vulnerabilities privately. Pin CI actions, give
+  workflows read-only permissions by default, and check dependencies weekly.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added

@@ -1,20 +1,25 @@
 """Session pool: hold N concurrent multi-turn sessions on the target for a duration."""
 
 import asyncio
+import logging
 import random
 import time
+from pathlib import Path
 
 import httpx
 
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
 from kneepoint.generator.corpus import CorpusSampler
+from kneepoint.generator.health import HealthSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.monitor import InjectorMonitor
 from kneepoint.generator.resources import sample_local_resources
 from kneepoint.generator.session import SessionSpec, run_session
-from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.trace_context import TraceSetting, new_run_id
+from kneepoint.targets.turn import TurnRunner
 
 REQUEST_TIMEOUT_S = 120.0
+_LOGGER = logging.getLogger(__name__)
 
 
 async def run_level(
@@ -26,7 +31,7 @@ async def run_level(
     spec: SessionSpec,
     *,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -38,6 +43,9 @@ async def run_level(
     evidence: RunEvidence | None = None,
     monitor_injector: bool = True,
     sample_resources: bool = False,
+    turn_runner: TurnRunner | None = None,
+    health_path: Path | None = None,
+    health_labels=None,
 ) -> tuple[list[SessionRecord], list[RequestRecord]]:
     """Run `concurrency` workers for `hold_seconds`; each worker loops full
     sessions and always completes at least one."""
@@ -63,6 +71,31 @@ async def run_level(
             concurrency, level_origin, evidence.local_resource_samples,
         )) if sample_resources else None
     )
+    inflight = 0
+    original_start, original_complete = on_attempt_start, on_attempt_complete
+
+    def attempt_start(value):
+        nonlocal inflight
+        inflight += 1
+        if original_start:
+            original_start(value)
+
+    def attempt_complete(value):
+        nonlocal inflight
+        inflight -= 1
+        if original_complete:
+            original_complete(value)
+
+    async def sample_health() -> None:
+        try:
+            await HealthSampler(
+                health_path, population=lambda: inflight,
+                labels=health_labels or (lambda: {"level": concurrency}),
+            ).run()
+        except Exception as exc:
+            _LOGGER.warning("Health sampler stopped (%s)", type(exc).__name__)
+
+    health_task = asyncio.create_task(sample_health()) if health_path else None
     try:
         async with httpx.AsyncClient(
             limits=limits, timeout=httpx.Timeout(REQUEST_TIMEOUT_S),
@@ -77,8 +110,8 @@ async def run_level(
                         client, base_url, model, sampler, spec,
                         concurrency=concurrency, rng=rng, run_id=run_id, trace=trace,
                         run_origin_s=run_origin_s,
-                        on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
-                        stop=stop, evidence=evidence,
+                        on_attempt_start=attempt_start, on_attempt_complete=attempt_complete,
+                        stop=stop, evidence=evidence, turn_runner=turn_runner,
                     )
                     if on_record is not None:
                         for rec in recs:
@@ -101,6 +134,9 @@ async def run_level(
         evidence.status = evidence.level_status[concurrency] = status
         raise
     finally:
+        if health_task is not None:
+            health_task.cancel()
+            await asyncio.gather(health_task, return_exceptions=True)
         if sampler_task is not None:
             sampler_task.cancel()
             await asyncio.gather(sampler_task, return_exceptions=True)

@@ -1,17 +1,28 @@
 """Scenario config: the declarative YAML of docs/scenarios.md, Pydantic-validated."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from kneepoint.analyze.cost import CostRates
 from kneepoint.chaos.faults import STANDARD_PROFILE, FaultSpec
+from kneepoint.generator.corpus import SamplingConfig
 from kneepoint.generator.session import RetryPolicy, ThinkTime, TurnsSpec
 from kneepoint.judge.deterministic import CheckConfig
 from kneepoint.judge.llm_judge import JudgeConfig
 from kneepoint.slo import SloConfig, evaluate_slo_results
+from kneepoint.targets.http_config import HttpTargetConfig
+from kneepoint.targets.trace_context import TracePropagation
 
 
 class ScenarioError(Exception):
@@ -26,15 +37,27 @@ class TargetConfig(_Strict):
     type: Literal["openai-compatible"] = "openai-compatible"
     url: str
     model: str = "mock"
-    auth_env: str | None = None
+    auth_env: str | None = Field(None, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _default_target_type(value):
+    if isinstance(value, dict) and "type" not in value:
+        return {"type": "openai-compatible", **value}
+    return value
+
+
+ScenarioTarget = Annotated[
+    TargetConfig | HttpTargetConfig, Field(discriminator="type"),
+    BeforeValidator(_default_target_type),
+]
 
 
 class RampConfig(_Strict):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     from_: int = Field(1, alias="from", ge=1)
     to: int = 50
-    step: int = 5
-    hold_seconds: float = 15.0
+    step: int = Field(5, gt=0)
+    hold_seconds: float = Field(15.0, ge=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def _ordered(self) -> "RampConfig":
@@ -46,6 +69,8 @@ class RampConfig(_Strict):
 class ConversationConfig(_Strict):
     turns: TurnsSpec = TurnsSpec()
     corpus: str | None = None
+    sampling: SamplingConfig = SamplingConfig()
+    deadline_seconds: float | None = Field(None, gt=0, allow_inf_nan=False)
     think_time_ms: ThinkTime = ThinkTime()
     retry: RetryPolicy = RetryPolicy()
 
@@ -84,9 +109,24 @@ class ChaosConfig(_Strict):
         return self.faults if self.profile == "custom" else []
 
 
+class TraceConfig(_Strict):
+    propagation: TracePropagation = TracePropagation.SAMPLED
+
+    @field_validator("propagation", mode="before")
+    @classmethod
+    def _yaml_off(cls, value):
+        return TracePropagation.OFF if value is False else value
+
+
+class ClientConfig(_Strict):
+    honor_retry_after: bool = False
+    user_agent: str | None = Field(None, pattern=r"^[!-~](?:[ -~]*[!-~])?$")
+
+
 class Scenario(_Strict):
-    trace: bool = True
-    target: TargetConfig
+    client: ClientConfig = ClientConfig()
+    trace: bool | TraceConfig = True
+    target: ScenarioTarget
     workload: WorkloadConfig = WorkloadConfig()
     resolution: ResolutionConfig = ResolutionConfig()
     cost: CostConfig | None = None
@@ -94,12 +134,31 @@ class Scenario(_Strict):
     slo: SloConfig = SloConfig()
     seed: int = 0
 
+    @model_validator(mode="after")
+    def _check_http_turns(self):
+        if isinstance(self.target, HttpTargetConfig):
+            self.target.check_turns(self.workload.conversation.turns.max)
+
+        return self
+
+    def environment_names(self, url_override: str | None = None) -> list[str]:
+        names = set()
+        if self.target.auth_env:
+            names.add(self.target.auth_env)
+        if isinstance(self.target, HttpTargetConfig):
+            names.update(self.target.environment_names(url_override))
+        if self.resolution.judge:
+            names.add(self.resolution.judge.api_key_env)
+        return sorted(names)
+
 
 def load_scenario(path: Path) -> Scenario:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        raise ScenarioError(f"{path}: invalid YAML - {exc}") from exc
+        mark = getattr(exc, "problem_mark", None)
+        location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        raise ScenarioError(f"{path}: invalid YAML{location}") from None
     if not isinstance(raw, dict):
         raise ScenarioError(f"{path}: scenario must be a YAML mapping")
     try:
@@ -108,7 +167,7 @@ def load_scenario(path: Path) -> Scenario:
         lines = [
             f"  {'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
         ]
-        raise ScenarioError(f"{path}: invalid scenario\n" + "\n".join(lines)) from exc
+        raise ScenarioError(f"{path}: invalid scenario\n" + "\n".join(lines)) from None
 
 
 def evaluate_slo(

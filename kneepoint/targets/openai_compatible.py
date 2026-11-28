@@ -8,25 +8,18 @@ import uuid
 from contextlib import asynccontextmanager
 
 import httpx
-from pydantic import BaseModel
 
+from kneepoint import user_agent
 from kneepoint.collect.schemas import RequestRecord
-from kneepoint.targets.trace_context import attempt_context, new_run_id
+from kneepoint.collect.writer import version_stamps
+from kneepoint.targets.evidence import EvidenceSanitizer, exception_type_and_path, url_secrets
+from kneepoint.targets.response_limits import BODY_LIMIT, ResponseError, sse_lines
+from kneepoint.targets.retry_after import parse_retry_after
+from kneepoint.targets.trace_context import TraceSetting, request_trace
+from kneepoint.targets.turn import REQUEST_WALL_S as REQUEST_WALL_S
+from kneepoint.targets.turn import TurnOutcome as TurnOutcome
 
 _DATA_PREFIX = "data: "
-
-# Total wall for one request, measured from the first byte sent. httpx's own
-# timeout is a *gap* timeout — it only fires when no byte arrives for that long,
-# so a stream that trickles forever never trips it. This is the wall a request
-# is abandoned at; abandonment is recorded, never silently folded into latency.
-REQUEST_WALL_S = 120.0
-
-
-class TurnOutcome(BaseModel):
-    record: RequestRecord
-    text: str = ""
-    retry_after_s: float | None = None
-
 
 def _pct(values: list[float], p: int) -> float:
     """Same inclusive method the ramp analysis uses, so percentiles agree."""
@@ -43,7 +36,10 @@ def _content_delta(chunk: dict) -> str | None:
 
 
 def _record(session_id, concurrency, turn_index, attempt, started_at, t0, **kw) -> RequestRecord:
+    if kw.get("ok") is False and not kw.get("error_kind"):
+        kw["error_kind"] = "target_error"
     return RequestRecord(
+        **version_stamps(),
         session_id=session_id, concurrency=concurrency, turn_index=turn_index,
         attempt=attempt, started_at=started_at,
         total_ms=(time.perf_counter() - t0) * 1000, **kw,
@@ -57,7 +53,7 @@ async def _stream_attempt(client, url, request_headers, body, *, trace_headers):
     for name in ("traceparent", "baggage", "tracestate"):
         request.headers.pop(name, None)
     request.headers.update(trace_headers)
-    response = await client.send(request, stream=True)
+    response = await client.send(request, stream=True, follow_redirects=False)
     try:
         yield response
     finally:
@@ -76,8 +72,10 @@ async def run_turn(
     attempt: int = 1,
     wall_seconds: float | None = None,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
+    agent: str | None = None,
+    secrets: tuple[str, ...] = (),
 ) -> TurnOutcome:
     """Run one streamed chat turn; record TTFT, latency, tokens, and text.
 
@@ -91,22 +89,24 @@ async def run_turn(
     The record is marked `abandoned` either way so contaminated levels can be flagged.
     """
     wall = REQUEST_WALL_S if wall_seconds is None else wall_seconds
-    run_id = run_id if run_id is not None else new_run_id()
-    trace_id = span_id = None
-    request_headers = {"x-kneepoint-session": session_id}
-    trace_headers = {}
-    if trace:
-        trace_id, span_id, traceparent, baggage = attempt_context(
-            run_id, session_id, concurrency, turn_index, attempt,
-        )
-        trace_headers = {"traceparent": traceparent, "baggage": baggage}
+    request_headers = {"x-kneepoint-session": session_id, "User-Agent": agent or user_agent()}
+    evidence = EvidenceSanitizer(secrets)
+    authorization = client.headers.get("authorization")
+    if authorization:
+        evidence.add((authorization, authorization.partition(" ")[2]))
+    trace_id, span_id, trace_headers = request_trace(
+        trace, run_id, session_id, concurrency, turn_index, attempt,
+    )
 
+    request_id = uuid.uuid4().hex
     started_at = time.time()
     t0 = time.perf_counter()
     started_monotonic_s = t0 - run_origin_s if run_origin_s is not None else None
 
-    def record(*args, **kwargs) -> RequestRecord:
+    def record(*args, error=None, fault=None, **kwargs) -> RequestRecord:
+        kwargs.update(evidence.fields(error=error, fault=fault))
         return _record(*args, trace_id=trace_id, span_id=span_id,
+                       request_id=request_id, traceparent=trace_headers.get("traceparent"),
                        started_monotonic_s=started_monotonic_s, **kwargs)
     ttft_ms: float | None = None
     input_tokens: int | None = None
@@ -121,8 +121,12 @@ async def run_turn(
         # where no bytes arrive — that is the gap httpx's timeout resets on and
         # the one Run D's requests died in. On expiry the read is cancelled and
         # `client.stream`'s teardown closes the response, which shuts the socket.
+        base = httpx.URL(base_url)
+        evidence.add(url_secrets(base))
+        path, separator, query = base.raw_path.partition(b"?")
+        url = base.copy_with(raw_path=path.rstrip(b"/") + b"/chat/completions" + separator + query)
         async with asyncio.timeout(wall), _stream_attempt(
-            client, f"{base_url.rstrip('/')}/chat/completions", request_headers,
+            client, url, request_headers,
             {
                 "model": model,
                 "messages": messages,
@@ -139,11 +143,17 @@ async def run_turn(
                     record=record(
                         session_id, concurrency, turn_index, attempt, started_at, t0,
                         ok=False, status_code=resp.status_code, fault=fault,
-                        error=f"HTTP {resp.status_code}",
+                        error=f"HTTP {resp.status_code}", error_kind="http_error",
                     ),
-                    retry_after_s=float(retry_after) if retry_after else None,
+                    retry_after_s=parse_retry_after(retry_after),
                 )
-            async for line in resp.aiter_lines():
+            first_line = True
+            async for raw_line in sse_lines(resp, body_limit=BODY_LIMIT, keep_final=True):
+                try:
+                    line = raw_line.decode("utf-8-sig" if first_line else "utf-8")
+                except UnicodeError:
+                    raise ResponseError("invalid SSE UTF-8") from None
+                first_line = False
                 if not line.startswith(_DATA_PREFIX):
                     continue
                 payload = line[len(_DATA_PREFIX):]
@@ -165,6 +175,7 @@ async def run_turn(
                 if usage:
                     input_tokens = usage.get("prompt_tokens")
                     output_tokens = usage.get("completion_tokens")
+        text = "".join(pieces)
         return TurnOutcome(
             record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
@@ -177,7 +188,7 @@ async def run_turn(
                 itl_mean_ms=statistics.fmean(gaps_ms) if gaps_ms else None,
                 itl_p99_ms=_pct(gaps_ms, 99) if gaps_ms else None,
             ),
-            text="".join(pieces),
+            text=text, evidence_text=evidence.text(text),
         )
     except TimeoutError:  # the wall
         return TurnOutcome(
@@ -185,7 +196,7 @@ async def run_turn(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
                 ok=False, status_code=status_code, fault=fault, ttft_ms=ttft_ms,
                 abandoned=status_code is not None,
-                error=f"abandoned at the {wall:g}s wall",
+                error=f"abandoned at the {wall:g}s wall", error_kind="timeout",
             ),
         )
     except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
@@ -197,15 +208,23 @@ async def run_turn(
         return TurnOutcome(
             record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
-                ok=False, ttft_ms=ttft_ms, abandoned=True,
-                error=f"{type(exc).__name__}: {exc}"[:200],
+                ok=False, ttft_ms=ttft_ms, abandoned=True, error_kind="timeout",
+                error=f"{type(exc).__name__}: HTTP gap timeout",
+            ),
+        )
+    except ResponseError as exc:
+        return TurnOutcome(
+            record=record(
+                session_id, concurrency, turn_index, attempt, started_at, t0,
+                ok=False, status_code=status_code, fault=fault, ttft_ms=ttft_ms,
+                error=f"ResponseError: {exc}", error_kind="response_error",
             ),
         )
     except Exception as exc:  # noqa: BLE001 - record the failure, keep the run alive
         return TurnOutcome(
             record=record(
                 session_id, concurrency, turn_index, attempt, started_at, t0,
-                ok=False, ttft_ms=ttft_ms, error=f"{type(exc).__name__}: {exc}"[:200],
+                ok=False, ttft_ms=ttft_ms, error=exception_type_and_path(exc),
             ),
         )
 

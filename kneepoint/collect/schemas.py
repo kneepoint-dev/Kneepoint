@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr, field_serializer
 
 from kneepoint.chaos.faults import FaultSpec
 from kneepoint.slo import SloConfig
@@ -31,6 +31,9 @@ class RequestRecord(VersionedRecord):
     parses.
     """
 
+    request_id: str | None = None  # absent in legacy records
+    traceparent: str | None = None  # exact header sent, or null
+    selection: dict | None = None  # optional workload item metadata
     session_id: str
     concurrency: int          # ramp level this request ran at
     started_at: float         # unix epoch seconds
@@ -47,6 +50,8 @@ class RequestRecord(VersionedRecord):
     span_id: str | None = None   # W3C parent span ID sent to the target
     fault: str | None = None  # chaos fault injected into this attempt, if any
     status_code: int | None = None
+    retry_after_s: float | None = None  # parsed server value, before the 30 s cap
+    backoff_s: float = 0.0  # virtual-user delay applied after this response
     # Inter-token latency, at *chunk* granularity — a streamed chunk is not
     # guaranteed to be one token, so these are an approximation and are named as
     # one in the docs. Summary statistics only: a per-chunk timestamp array would
@@ -61,6 +66,8 @@ class RequestRecord(VersionedRecord):
     # still be running, so latencies measured after this point are suspect —
     # LevelStats.contaminated carries that forward.
     abandoned: bool = False
+    error_kind: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
     @property
     def tpot_ms(self) -> float | None:
@@ -95,6 +102,16 @@ class SessionRecord(VersionedRecord):
     transcript: list[dict] = Field(default_factory=list)  # {"role","content"}
     resolved: bool | None = None          # None = no verdict (not evaluated/unknown)
     resolution_method: str | None = None  # "deterministic" | "llm_judge" | "execution_failure"
+
+    _evidence_replies: dict[int, str] = PrivateAttr(default_factory=dict)
+
+    @field_serializer("transcript")
+    def _serialize_transcript(self, messages: list[dict]) -> list[dict]:
+        return [
+            {**message, "content": self._evidence_replies[i]}
+            if i in self._evidence_replies else message
+            for i, message in enumerate(messages)
+        ]
 
 
 class RampShape(BaseModel):
@@ -199,3 +216,6 @@ class RunMetadata(VersionedRecord):
     local_resource_samples: list[ResourceSample] | None = None
     think_time_min_ms: int | None = None
     think_time_max_ms: int | None = None
+    target_type: str | None = None  # "openai-compatible" | "http"
+    response_mode: str | None = None  # "json" | "sse"
+    trace_propagation: str | None = None

@@ -16,6 +16,8 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import httpx
+
 from kneepoint.analyze.cost import CostRates, CostSummary, incomplete_cost_note, summarize_cost
 from kneepoint.analyze.errors import errors_by_level
 from kneepoint.analyze.knee import KneeReport, LevelStats, aggregate, find_knee, knee_report
@@ -26,6 +28,7 @@ from kneepoint.analyze.slo import RunSloEvaluation, evaluate_run_slo
 from kneepoint.collect.schemas import RequestRecord, RunMetadata, SessionRecord
 from kneepoint.collect.writer import read_jsonl, read_run_meta
 from kneepoint.report.html import UNKNOWN, RunMeta, format_started, write_report
+from kneepoint.targets.evidence import EvidenceSanitizer, display_url, url_secrets
 
 # `run` and `report` share this default. When the sidecar is missing the run's own
 # threshold is unknown, so the report says which threshold *it* applied.
@@ -149,6 +152,15 @@ def render_from_files(
             "per session, cost per resolved task and resilience cannot be recomputed"
         )
     meta = read_run_meta(meta_path) if meta_path.exists() else None
+    if meta is not None and meta.target.startswith(("http://", "https://")):
+        try:
+            url = httpx.URL(meta.target)
+        except httpx.InvalidURL:
+            meta.target = UNKNOWN
+        else:
+            evidence = EvidenceSanitizer(url_secrets(url))
+            meta.target = evidence.text(display_url(url))
+            meta.model = evidence.text(meta.model)
     if not records and not (
         sessions_path.exists() and not sessions and _is_saved_zero_cap_run(records_path, meta)
     ):
@@ -184,9 +196,9 @@ def render_from_files(
         summarize_cost(records, sessions, rates)
         if rates is not None and cost_note is None else None
     )
-    if cost is None and cost_note is None:
+    # A known unpriced run shares the default report wording with the live path.
+    if rates is None and meta is None:
         cost_note = (
-            "Cost not measured (the run had no price rates)." if meta is not None else
             "Cost not re-rendered: the metadata sidecar is missing, so the price rates "
             "this run used are unknown. Pass --price-in / --price-out to recompute cost "
             "from the stored token counts."

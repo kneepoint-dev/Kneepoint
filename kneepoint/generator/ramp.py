@@ -3,9 +3,10 @@
 import asyncio
 import re
 import time
+from pathlib import Path
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kneepoint.analyze.budget import BudgetExceeded
 from kneepoint.collect.schemas import RequestRecord, SessionRecord
@@ -13,7 +14,8 @@ from kneepoint.generator.corpus import CorpusSampler
 from kneepoint.generator.lifecycle import RunEvidence
 from kneepoint.generator.pool import run_level
 from kneepoint.generator.session import SessionSpec
-from kneepoint.targets.trace_context import new_run_id
+from kneepoint.targets.trace_context import TraceSetting, new_run_id
+from kneepoint.targets.turn import TurnRunner
 
 _RAMP_RE = re.compile(r"^(\d+)\.\.(\d+)$")
 
@@ -32,8 +34,8 @@ def parse_ramp(text: str) -> tuple[int, int]:
 class RampSpec(BaseModel):
     start: int = 1
     stop: int = 50
-    step: int = 5
-    hold_seconds: float = 15.0
+    step: int = Field(5, gt=0)
+    hold_seconds: float = Field(15.0, ge=0, allow_inf_nan=False)
 
     def levels(self) -> list[int]:
         levels = list(range(self.start, self.stop + 1, self.step))
@@ -50,7 +52,7 @@ async def run_ramp(
     session_spec: SessionSpec,
     *,
     run_id: str | None = None,
-    trace: bool = True,
+    trace: TraceSetting = True,
     run_origin_s: float | None = None,
     seed: int = 0,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -63,6 +65,8 @@ async def run_ramp(
     evidence: RunEvidence | None = None,
     monitor_injector: bool = True,
     sample_resources: bool = False,
+    turn_runner: TurnRunner | None = None,
+    health_path: Path | None = None,
 ) -> tuple[list[SessionRecord], list[RequestRecord], bool]:
     """Return (sessions, records, budget_exceeded), retaining partial evidence.
 
@@ -88,6 +92,7 @@ async def run_ramp(
                 on_attempt_start=on_attempt_start, on_attempt_complete=on_attempt_complete,
                 stop=stop, evidence=evidence,
                 monitor_injector=monitor_injector, sample_resources=sample_resources,
+                turn_runner=turn_runner, health_path=health_path,
             )
             if on_level is not None:
                 on_level(level, sessions, records)

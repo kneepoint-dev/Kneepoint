@@ -29,6 +29,43 @@ header line** — the first line is a record like any other, so `tail -f`,
 that is not a request or a session — target, ramp, seed, chaos profile, prices —
 lives in the metadata sidecar instead, described [below](#run-id-metajson-what-the-run-was).
 
+## Optional JSONL logs
+
+`kneepoint run --health-log PATH` appends one injector health sample per second.
+Remove the machine hostname from `host` before publishing any health log.
+
+| Field | Meaning |
+|---|---|
+| `t` | Sample time in Unix epoch seconds |
+| `host` | Load generator machine hostname |
+| `source` | Always `injector` for this CLI log |
+| `level` | Concurrency of the current ramp hold |
+| `lag_ms` | Milliseconds the timer ran after its scheduled sample time |
+| `loop_delay_ms` | Milliseconds needed to resume after yielding to the event loop |
+| `cpu_pct` | Injector process CPU usage as a percentage of one logical core |
+| `host_cpu_pct` | Host CPU usage as a percentage of total CPU capacity |
+| `inflight` | Number of active request attempts awaiting a result |
+| `open_connections` | Injector process TCP connection count, including idle keep-alive sockets. Null if the counter is unavailable |
+| `open_connections_reason` | Exception type when the connection counter is unavailable. Omitted otherwise |
+
+`kneepoint run --selection-log PATH` appends a row for each recorded attempt
+with a corpus selection.
+
+| Field | Meaning |
+|---|---|
+| `t` | Log time in Unix epoch seconds |
+| `request_id` | Attempt ID that joins to `RequestRecord.request_id` |
+| `item_id` | Corpus item identifier |
+| `popularity_rank` | Corpus-supplied popularity rank |
+| `template_id` | Corpus-supplied prompt template identifier |
+| `length_class` | Corpus-supplied prompt length category |
+| `off_topic` | Corpus-supplied off-topic flag |
+| `task_class` | Optional corpus-supplied task category used for weighted sampling |
+| `first_use` | True on the first dispatch of the item in this run. False on repeats and attempts rejected before dispatch |
+
+The selection log also carries any additional metadata from custom corpus items,
+with the prompt text excluded.
+
 ## Versioning
 
 Every record carries its own version stamp:
@@ -42,6 +79,10 @@ Every record carries its own version stamp:
   keep going; do not fail.
 * **`kneepoint_version`** *(string, nullable)* — the release that produced the
   line. `null` when kneepoint ran from a source tree rather than an install.
+
+Live HTTP and OpenAI-compatible request records also carry producer stamps before
+custom completion sinks receive them. Custom metadata sinks can use
+`kneepoint.collect.writer.version_stamps()`; legacy reads retain unknown versions.
 
 The metadata sidecar carries the same two fields at its top level. The two
 JSONL streams and the metadata sidecar share one `schema_version`. The HTML
@@ -63,7 +104,12 @@ Within a `schema_version`, kneepoint **will not**:
 
 * remove a field, rename one, or change its type;
 * change the meaning or units of an existing field;
-* change what makes `ok` true.
+* change what makes `ok` true or what usage means on failure for an existing target type.
+
+These contracts are defined per target type. OpenAI-compatible records keep
+the 0.4.0 meaning of success and leave usage null on failed attempts. The HTTP
+target introduced in 0.5.0 defines its own success rules and retains known billed
+usage on failure.
 
 Anything in the second list bumps `schema_version`. So: **read by field name,
 tolerate unknown fields, and treat a higher `schema_version` than you know as a
@@ -87,34 +133,41 @@ The fields, in the order they appear on the line:
 |---|---|---|
 | `schema_version` | int | 0 for pre-versioning files |
 | `kneepoint_version` | string \| null | null when run from source |
+| `request_id` | string \| null | unique attempt identifier; null in legacy records |
+| `traceparent` | string \| null | exact W3C header sent. Null when the attempt did not dispatch, propagation is off, or the record is legacy |
+| `selection` | object \| null | selected item metadata, as in the optional selection log except for its log time and request ID. Absent for direct adapter calls |
 | `session_id` | string | joins to `SessionRecord.session_id` |
 | `concurrency` | int | the ramp level this attempt ran at |
 | `started_at` | float | unix epoch seconds, wall clock |
 | `started_monotonic_s` | float \| null | optional attempt start in seconds since this run's monotonic origin. Older records have no value and remain valid schema-1 records |
-| `ttft_ms` | float \| null | time to first *content* chunk. `null` when no content chunk arrived before the request ended — an HTTP error, a failure during the silent prefill gap, or a stream that only ever carried usage. A request that failed *after* its first content chunk keeps its `ttft_ms` |
+| `ttft_ms` | float \| null | time to first streamed content chunk. `null` for buffered JSON or a stream with no content chunk. A request that failed after its first content chunk keeps its `ttft_ms` |
 | `total_ms` | float | full request duration, client-side — from just before the request was sent to the moment the record was made, whether the request succeeded, failed or was abandoned |
-| `input_tokens` | int \| null | from the provider's `usage` on a successful request. `null` when the provider didn't send one — kneepoint never estimates tokens — and always `null` when `ok` is false |
+| `input_tokens` | int \| null | reported input token count. `null` means unknown. HTTP targets can retain counts received before a later failure |
 | `output_tokens` | int \| null | as above |
-| `ok` | bool | true only when the response status was below 400 **and** the stream ran to its end (`[DONE]` or the body closing). A stream that broke off is `ok: false` |
+| `ok` | bool | true when the adapter accepts the status and completes reply parsing. HTTP targets also apply configured application error mappings, response-body success rules, and required end markers |
 | `error` | string \| null | free text, truncated to 200 chars. Shape is not contractual. `null` whenever `ok` is true |
 | `turn_index` | int | 0-based position within the session |
 | `attempt` | int | 1-based. `> 1` means this line is a retry |
-| `trace_id` | string \| null | 32 lowercase hex characters from the W3C `traceparent` sent on this attempt; `null` for older files or when tracing is disabled |
-| `span_id` | string \| null | 16 lowercase hex characters from that attempt's `traceparent`; `null` for older files or when tracing is disabled |
-| `fault` | string \| null | chaos fault injected into this attempt, read from the response: `llm_rate_limit`, `llm_server_error`. Tool faults arrive via the proxy's fault log, not here |
+| `trace_id` | string \| null | 32 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
+| `span_id` | string \| null | 16 lowercase hex characters for this attempt; `null` for older files or when tracing is disabled |
+| `fault` | string \| null | accepted response fault name, one of `llm_rate_limit`, `llm_server_error`, `tool_timeout`, or `tool_malformed_json`. Other values are stored as null. A separate proxy fault log can add tool faults to session evidence |
 | `status_code` | int \| null | the HTTP status the server sent, whatever it was — on a successful stream that is the real 2xx, not an assumed 200. `null` when no response arrived at all (connection refused, DNS, a wall reached before any status) |
+| `retry_after_s` | float \| null | parsed Retry-After seconds before the cap; absent or invalid header is null |
+| `backoff_s` | float | Retry-After delay applied before a retry or after an opt-in HTTP 503, capped at 30 s. Zero when no header delay applies. Stop can interrupt the delay |
 | `itl_mean_ms` | float \| null | mean gap between successive content chunks. `null` when `chunk_count < 2` — one chunk defines no gap — and always `null` when `ok` is false |
 | `itl_p99_ms` | float \| null | p99 of the same gaps, inclusive method. Equals the mean when there is exactly one gap. `null` under the same conditions |
-| `chunk_count` | int \| null | content-bearing SSE chunks. A usage-only chunk is not counted. `null` when `ok` is false, even if chunks had arrived |
+| `chunk_count` | int \| null | content-bearing SSE chunks. Usage-only chunks do not contribute. `null` for buffered JSON or failed attempts |
 | `abandoned` | bool | **true when the client gave up on a request the server had begun answering** — the read-gap timeout, or the total wall once a response status had arrived. The server may still have been generating. A wall reached while still waiting for a status, and a connection that never landed, are errors but *not* abandonment: nothing shows that work started upstream. See [Measurement integrity](measurement-integrity.md) |
+| `error_kind` | string \| null | `body_failure` for a rejected HTTP response body, `capture_missing` when a required capture is unavailable before dispatch, `timeout` when the client wall or read/write gap expires, `context_overflow` for an explicit model-server context-length rejection (both never retried). Context overflows remain failed requests and latency percentiles use successful requests only. HTTP failures use `agent_error` for target-declared errors with a sanitized message, `http_error` for transport and rejected status failures, `response_error` for malformed responses, and `request_error` for invalid request data. OpenAI-compatible response size limit failures use `response_error`. OpenAI-compatible status rejections also use `http_error`, and failures without a more specific kind use `target_error`. Successful and legacy records may have `null` |
+| `warnings` | string[] | `capture_missing` marks a successful HTTP turn that supplied no usable configured capture. Defaults to an empty list |
 
-Fields that exist only on a successful request (`input_tokens`,
-`output_tokens`, `chunk_count`, `itl_*`) are `null` on a failed one even when
-the provider had sent some of them. A partial answer's tokens are not spend
-that produced an answer, and a broken stream's chunk gaps would describe the
-break, not the server.
+With an HTTP-target response-body success rule, a parsed HTTP 200 can have `ok=false`.
+Failed attempts have null `chunk_count` and `itl_*`. HTTP targets preserve
+valid usage counts received before failure so those counts can contribute to
+observed spend. OpenAI-compatible targets leave usage null on failed attempts.
 
-Every traced attempt carries `traceparent: 00-<trace_id>-<span_id>-01` and W3C
+Sampled and unsampled attempts send `traceparent: 00-<trace_id>-<span_id>-<flags>`
+with flags `01` and `00` respectively, plus W3C
 `baggage` entries `kneepoint.run_id`, `kneepoint.level` (the concurrency),
 `kneepoint.session`, `kneepoint.turn` (0-based) and `kneepoint.attempt`
 (1-based). Baggage values are percent-encoded. IDs are deterministically
@@ -122,6 +175,7 @@ derived from those five identity values; retries receive distinct IDs. The
 target must propagate the incoming trace context into its OpenTelemetry spans
 for an observer to join them to this record. `--no-trace` or `trace: false` in
 the scenario omits both headers and stores `null` IDs.
+`trace.propagation: off` omits both headers while retaining local IDs.
 
 ### `itl_*` is inter-*chunk*, not strictly inter-*token*
 
@@ -154,10 +208,9 @@ shipped one. `output_tps` is `1000 / tpot_ms`.
 
 ### Why so many nullables
 
-Because kneepoint refuses to invent numbers. `null` always means *not measured*,
-never *zero*. A `ttft_ms` of `null` is a request that never produced content; an
-`output_tokens` of `null` is a provider that didn't report usage. Treating either
-as 0 will silently corrupt any average you compute.
+`null` means the value is unavailable. A buffered JSON response or a stream
+without content has null `ttft_ms`. A null `output_tokens` means the count is
+unknown. Treating either as zero corrupts averages.
 
 ## `run-<id>-sessions.jsonl` — one line per session
 
@@ -224,7 +277,10 @@ rates, whether chaos was on when no fault happened to fire).
   "injector_levels": null,
   "local_resource_samples": null,
   "think_time_min_ms": null,
-  "think_time_max_ms": null
+  "think_time_max_ms": null,
+  "target_type": null,
+  "response_mode": null,
+  "trace_propagation": null
 }
 ```
 
@@ -233,8 +289,8 @@ rates, whether chaos was on when no fault happened to fire).
 | `schema_version`, `kneepoint_version` | | as above |
 | `run_id` | string | the `<id>` in all four filenames |
 | `command` | string | `run` or `demo` |
-| `target` | string | base URL the requests went to |
-| `model` | string | model name sent to the target |
+| `target` | string | OpenAI-compatible base URL or configured HTTP endpoint with query values removed and env references intact |
+| `model` | string | model name sent to the target or `n/a (http target)` |
 | `ramp` | object | `start`, `stop`, `step` — the levels are `range(start, stop + 1, step)`, plus `stop` if the step skipped it |
 | `hold_seconds` | float | hold time per level |
 | `turns` | object | `min`, `max` turns per session |
@@ -256,6 +312,9 @@ rates, whether chaos was on when no fault happened to fire).
 | `local_resource_samples` | object[] \| null | optional Linux load-generator CPU and runnable task samples by level. See [local resource samples](#local-resource-samples). |
 | `think_time_min_ms` | int \| null | optional minimum configured think time |
 | `think_time_max_ms` | int \| null | optional maximum configured think time; their mean is weighted by the fraction of completed turns followed by another turn in the closed-loop consistency check |
+| `target_type` | string \| null | `openai-compatible` or `http`. Null or absent on older runs |
+| `response_mode` | string \| null | `json` or `sse`. Null or absent on older runs. Buffered JSON reports mark TTFT and ITL as unavailable |
+| `trace_propagation` | string \| null | `sampled`, `unsampled`, or `off`. `disabled` means legacy tracing was disabled including local IDs. Null or absent on older runs |
 
 The wall timestamps are epoch floats for calendar display. Monotonic readings
 are seconds from a clock that does not follow wall-clock corrections. Old

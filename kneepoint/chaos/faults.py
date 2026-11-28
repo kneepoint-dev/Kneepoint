@@ -10,6 +10,11 @@ LLM_FAULTS: set[str] = {"llm_rate_limit", "llm_server_error"}
 TOOL_FAULTS: set[str] = {"tool_timeout", "tool_malformed_json"}
 
 
+def known_fault(value: str | None) -> str | None:
+    """Keep only fault names from the public vocabulary in saved evidence."""
+    return value if value in LLM_FAULTS or value in TOOL_FAULTS else None
+
+
 class FaultSpec(BaseModel):
     type: FaultType
     probability: float = Field(ge=0.0, le=1.0)

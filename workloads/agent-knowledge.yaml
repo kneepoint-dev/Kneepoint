@@ -1,0 +1,21 @@
+# Assumptions: closed-loop, single-turn knowledge lookup, no retries.
+# Supply a ranked JSON array with prompt, item_id, popularity_rank, template_id,
+# length_class, off_topic and task_class fields (lookup / two_step / off_topic).
+target:
+  type: http
+  url: http://127.0.0.1:8000/invoke
+  method: POST
+  body: {input: '{prompt}'}
+  response: {mode: json, text_path: /output/text, error_path: /error}
+workload:
+  ramp: {from: 1, to: 4, step: 3, hold_seconds: 120}
+  conversation:
+    corpus: ./corpus.json
+    sampling:
+      policy: zipf
+      exponent: 1.0
+      task_weights: {lookup: 0.7, two_step: 0.2, off_topic: 0.1}
+    turns: {min: 1, max: 1}
+    retry: {max_attempts: 1, backoff_s: 0}
+    deadline_seconds: 60
+seed: 0

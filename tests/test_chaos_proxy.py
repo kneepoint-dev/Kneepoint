@@ -124,3 +124,42 @@ async def test_agent_through_timing_out_proxy(upstream, monkeypatch):
         assert "[TOOL-ERROR timeout]" in text
     finally:
         handle.stop()
+
+
+def test_proxy_routes_paths_below_the_configured_prefix():
+    from kneepoint.chaos.proxy import _upstream_url
+
+    upstream = httpx.URL("http://example.test/tools?format=json")
+    url = _upstream_url(upstream, b"/search%20items", b"q=hello")
+    assert str(url) == "http://example.test/tools/search%20items?format=json&q=hello"
+
+
+def test_proxy_accepts_only_a_single_host_matching_its_listener():
+    from kneepoint.chaos.proxy import _valid_host
+
+    scope = {"server": ("127.0.0.1", 8000), "headers": [(b"host", b"127.0.0.1:8000")]}
+    assert _valid_host(scope)
+    assert not _valid_host({**scope, "headers": [(b"host", b"example.test")]})
+    assert not _valid_host({**scope, "headers": scope["headers"] * 2})
+
+
+@pytest.mark.parametrize("override", [None, "acme-proxy/1"])
+async def test_proxy_supplies_its_user_agent(override):
+    from kneepoint import user_agent
+    from tests.test_saved_evidence_cli import serve
+
+    observed = []
+
+    def target(headers, _body):
+        observed.append(headers["User-Agent"])
+        return 200, {}, b"ok"
+
+    with serve(target) as url:
+        handle = start_proxy(url + "/tools", _never(), agent=override)
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.post(f"{handle.url}/search", json={"q": "hello"})
+        finally:
+            handle.stop()
+    assert response.status_code == 200
+    assert observed == [override or user_agent()]

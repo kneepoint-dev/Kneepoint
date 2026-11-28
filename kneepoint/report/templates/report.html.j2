@@ -296,6 +296,11 @@ completed; it does not score factual accuracy, tone or safety — that is evals,
 a different discipline.{% endcall %}
 {% else %}<p class="placeholder">{{ quality_thin_note or quality_note or "Resolution not measured — configure a resolution check." }}</p>{% endif %}
 
+{% if buffered_json_note %}
+<h2>Latency breakdown</h2>
+<p class="placeholder">{{ buffered_json_note }}. Inter-token latency and time per
+output token require streamed content. End-to-end latency is measured above.</p>
+{% else %}
 <h2>Time to first token vs. time per output token</h2>
 {% if ttft_div %}{{ ttft_div | safe }}
 <p class="muted">Two different slow-downs on one chart. <strong>TTFT</strong> rising
@@ -361,6 +366,7 @@ against TPOT, the chart above. Total latency is the sum of these parts, and
 they fail for different reasons — telling them apart is most of
 diagnosis.{% endcall %}
 {% else %}<p class="placeholder">No TTFT recorded — the target produced no streamed content.</p>{% endif %}
+{% endif %}
 
 <h2>Errors</h2>
 {% if error_levels %}
@@ -374,18 +380,19 @@ requests failed. Errors first appear at concurrency {{ first_error.concurrency }
 rather than capacity{% else %} — absent below it, which is a capacity signal{% endif %}.</p>
 <table>
   <tr><th>Concurrency</th><th>Requests</th><th>Failed</th><th>Error rate</th>
-      <th>Status codes</th><th>Most common errors</th></tr>
+      <th>Status codes</th><th>Error kinds</th><th>Most common errors</th></tr>
   {% for lv in error_levels %}
   <tr><td>{{ lv.concurrency }}</td><td>{{ lv.requests }}</td><td>{{ lv.failed }}</td>
       <td{% if lv.error_rate >= 0.05 %} class="fail"{% elif lv.failed %} class="degraded"{% endif %}>{{ "%.1f"|format(lv.error_rate * 100) }}%</td>
       <td>{% for sc in lv.status_codes %}<code>{{ sc.status }}</code>&nbsp;×{{ sc.count }}{{ ", " if not loop.last }}{% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td>{% for kind, count in lv.error_kinds | dictsort %}<code>{{ kind }}</code>&nbsp;×{{ count }}{{ ", " if not loop.last }}{% else %}<span class="muted">—</span>{% endfor %}</td>
       <td>{% for e in lv.top_errors %}{{ e.error }} <span class="muted">×{{ e.count }}</span>{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">—</span>{% endfor %}</td></tr>
   {% endfor %}
 </table>
 <p class="muted">A <code>429</code> is the provider throttling you, not struggling;
-a <code>5xx</code> is the server genuinely failing; <code>no code</code> is a
-timeout or a dropped connection — the client gave up before any status arrived.
-These have different fixes, so never read the rate without the mix.
+a <code>5xx</code> signals a server error. <code>no code</code> means the
+attempt produced no HTTP status. For example, <code>capture_missing</code>
+fails before sending a request.
 {% set abandoned_failures = error_levels | sum(attribute="abandoned") %}
 {% if abandoned_failures %}{{ abandoned_failures }} of the failures
 {{ "was" if abandoned_failures == 1 else "were" }} Kneepoint abandoning a request at
@@ -401,6 +408,16 @@ saturation. When the order is different — resolution falling while latency and
 errors stay flat — something more interesting is happening: context truncation,
 quality collapse, or a judge problem.{% endcall %}
 {% else %}<p class="placeholder">No request records to analyse.</p>{% endif %}
+
+{% if body_failures %}
+<section id="limits">
+<h2>Limits</h2>
+<p>The HTTP status was accepted for {{ body_failures }}
+attempt{{ "" if body_failures == 1 else "s" }} that failed the configured
+response-body success rule. These <code>body_failure</code> attempts count as
+errors. The rule identifies a failed response without attributing its cause.</p>
+</section>
+{% endif %}
 
 <h2>Retry amplification</h2>
 {% if retry_levels %}
@@ -500,6 +517,8 @@ fewer sessions than the run's <code>min_group</code> and is not a pass.{% endcal
   <tr><th style="width: 9rem">{{ label }}</th><td>{{ value }}</td></tr>
   {% endfor %}
 </table>
+<p class="muted">Sampled trace propagation can force targets that honor the parent sampling
+decision to trace every request.</p>
 <p class="muted">Read from the run's <code>-meta.json</code> sidecar, which is
 what <code>kneepoint report</code> re-renders from. A figure from this report is
 only comparable to another run's if the ramp, hold, seed and chaos profile here

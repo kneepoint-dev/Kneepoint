@@ -16,3 +16,8 @@ self-contained HTML report:
 [Scenario reference →](scenarios.md){ .md-button }
 
 Open source (Apache 2.0), runs entirely on your machine, and the demo needs zero API keys.
+
+## Responsible use
+
+Test only systems you own or have permission to test. Load and chaos testing
+can cause outages and incur costs.

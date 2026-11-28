@@ -22,11 +22,20 @@ def _kneepoint_version() -> str | None:
 KNEEPOINT_VERSION = _kneepoint_version()
 
 
+def version_stamps() -> dict:
+    """Current producer stamps for live records and custom metadata sinks.
+
+    Explicit at production time: reading legacy records must leave absent
+    versions unknown.
+    """
+    return {"schema_version": SCHEMA_VERSION, "kneepoint_version": KNEEPOINT_VERSION}
+
+
 class JsonlWriter:
     """Every line leaves here stamped with the format version that wrote it.
 
-    Stamping at the writer rather than at record construction means no producer
-    can forget: the file is the contract, and this is the one door out to it.
+    Restamp at this output boundary even when a live producer already supplied
+    stamps, so serialized output always identifies the writing installation.
     """
 
     def __init__(self, path: Path) -> None:
@@ -36,10 +45,7 @@ class JsonlWriter:
 
     def write_many(self, records: list[BaseModel]) -> None:
         for record in records:
-            stamped = record.model_copy(update={
-                "schema_version": SCHEMA_VERSION,
-                "kneepoint_version": KNEEPOINT_VERSION,
-            })
+            stamped = record.model_copy(update=version_stamps())
             self._fh.write(stamped.model_dump_json() + "\n")
         self._fh.flush()
 
@@ -71,10 +77,7 @@ def write_run_meta(path: Path, meta: RunMetadata) -> Path:
     anyone tails. The caller owns the timestamps; this is the one door out, so the
     version stamps cannot be forgotten.
     """
-    stamped = meta.model_copy(update={
-        "schema_version": SCHEMA_VERSION,
-        "kneepoint_version": KNEEPOINT_VERSION,
-    })
+    stamped = meta.model_copy(update=version_stamps())
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stamped.model_dump(), indent=2) + "\n", encoding="utf-8")
     return path
